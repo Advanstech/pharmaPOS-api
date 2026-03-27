@@ -1,0 +1,448 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CreateCoreTables1711000000000 = void 0;
+class CreateCoreTables1711000000000 {
+    async up(queryRunner) {
+        await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
+        await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "pg_trgm"`);
+        await queryRunner.query(`SET timezone = 'Africa/Accra'`);
+        await queryRunner.query(`
+      CREATE TABLE branches (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(20) NOT NULL CHECK (type IN ('pharmaceutical','chemical')),
+        address TEXT,
+        phone VARCHAR(30),
+        settings JSONB DEFAULT '{}',
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE organizations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(100) NOT NULL UNIQUE,
+        owner_email VARCHAR(255) NOT NULL,
+        owner_phone VARCHAR(30),
+        country_code VARCHAR(2) NOT NULL DEFAULT 'GH',
+        timezone VARCHAR(50) NOT NULL DEFAULT 'Africa/Accra',
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      ALTER TABLE branches
+        ADD CONSTRAINT fk_branches_organization
+        FOREIGN KEY (organization_id) REFERENCES organizations(id)
+    `);
+        await queryRunner.query(`
+      CREATE TABLE subscriptions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id),
+        tier VARCHAR(20) NOT NULL DEFAULT 'FREE'
+          CHECK (tier IN ('FREE','STARTER','PROFESSIONAL','ENTERPRISE')),
+        status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'
+          CHECK (status IN ('ACTIVE','PAST_DUE','CANCELLED','SUSPENDED')),
+        current_period_start TIMESTAMPTZ NOT NULL,
+        current_period_end TIMESTAMPTZ NOT NULL,
+        cancel_at_period_end BOOLEAN NOT NULL DEFAULT false,
+        trial_ends_at TIMESTAMPTZ,
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`CREATE INDEX idx_subscriptions_org ON subscriptions(organization_id)`);
+        await queryRunner.query(`
+      CREATE TABLE subscription_usage (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id),
+        period_start TIMESTAMPTZ NOT NULL,
+        period_end TIMESTAMPTZ NOT NULL,
+        branches_count INTEGER NOT NULL DEFAULT 0,
+        users_count INTEGER NOT NULL DEFAULT 0,
+        products_count INTEGER NOT NULL DEFAULT 0,
+        sales_count INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(organization_id, period_start)
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE invoices (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id),
+        subscription_id UUID NOT NULL REFERENCES subscriptions(id),
+        invoice_number VARCHAR(50) NOT NULL UNIQUE,
+        amount_ghs INTEGER NOT NULL CHECK (amount_ghs >= 0),
+        status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+          CHECK (status IN ('PENDING','PAID','FAILED','REFUNDED')),
+        due_date TIMESTAMPTZ NOT NULL,
+        paid_at TIMESTAMPTZ,
+        payment_method VARCHAR(30),
+        momo_reference VARCHAR(255),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`CREATE INDEX idx_invoices_org ON invoices(organization_id, created_at DESC)`);
+        await queryRunner.query(`
+      CREATE TABLE users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        branch_id UUID NOT NULL REFERENCES branches(id),
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE,
+        phone VARCHAR(30),
+        role VARCHAR(30) NOT NULL CHECK (role IN (
+          'owner','se_admin','manager','head_pharmacist',
+          'pharmacist','technician','cashier','chemical_cashier'
+        )),
+        password_hash VARCHAR(255) NOT NULL,
+        pin_hash VARCHAR(255),
+        totp_secret VARCHAR(255),
+        mfa_enabled BOOLEAN NOT NULL DEFAULT false,
+        failed_attempts INTEGER NOT NULL DEFAULT 0,
+        locked_until TIMESTAMPTZ,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id),
+        refresh_token_hash VARCHAR(255) NOT NULL,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE product_categories (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(100) NOT NULL UNIQUE,
+        description TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE suppliers (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        contact_name VARCHAR(255),
+        phone VARCHAR(30),
+        email VARCHAR(255),
+        address TEXT,
+        ai_score INTEGER CHECK (ai_score BETWEEN 0 AND 100),
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE products (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        generic_name VARCHAR(255),
+        barcode VARCHAR(100),
+        unit_price INTEGER NOT NULL CHECK (unit_price >= 0),
+        classification VARCHAR(20) NOT NULL DEFAULT 'OTC'
+          CHECK (classification IN ('OTC','POM','CONTROLLED')),
+        branch_type VARCHAR(20) NOT NULL DEFAULT 'both'
+          CHECK (branch_type IN ('pharmaceutical','chemical','both')),
+        vat_exempt BOOLEAN NOT NULL DEFAULT false,
+        requires_rx BOOLEAN NOT NULL DEFAULT false,
+        category_id UUID REFERENCES product_categories(id),
+        supplier_id UUID REFERENCES suppliers(id),
+        image_id UUID,
+        metadata JSONB DEFAULT '{}',
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE INDEX idx_products_fts ON products
+        USING GIN(to_tsvector('english', name || ' ' || COALESCE(generic_name,'')))
+    `);
+        await queryRunner.query(`
+      CREATE INDEX idx_products_trgm ON products USING GIN(name gin_trgm_ops)
+    `);
+        await queryRunner.query(`CREATE INDEX idx_products_barcode ON products(barcode)`);
+        await queryRunner.query(`
+      CREATE TABLE product_images (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        product_id UUID NOT NULL REFERENCES products(id),
+        cdn_url TEXT NOT NULL,
+        url_thumb TEXT NOT NULL,
+        source VARCHAR(20) NOT NULL
+          CHECK (source IN ('DRUG_DB','DALLE3','MANUAL_UPLOAD','PLACEHOLDER')),
+        is_approved BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE product_price_history (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        product_id UUID NOT NULL REFERENCES products(id),
+        old_price INTEGER NOT NULL,
+        new_price INTEGER NOT NULL,
+        changed_by UUID NOT NULL REFERENCES users(id),
+        changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE inventory (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        product_id UUID NOT NULL REFERENCES products(id),
+        branch_id UUID NOT NULL REFERENCES branches(id),
+        quantity_on_hand INTEGER NOT NULL DEFAULT 0 CHECK (quantity_on_hand >= 0),
+        reorder_level INTEGER NOT NULL DEFAULT 10,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(product_id, branch_id)
+      )
+    `);
+        await queryRunner.query(`CREATE INDEX idx_inventory_branch ON inventory(branch_id)`);
+        await queryRunner.query(`
+      CREATE TABLE stock_movements (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        product_id UUID NOT NULL REFERENCES products(id),
+        branch_id UUID NOT NULL REFERENCES branches(id),
+        batch_number VARCHAR(100),
+        expiry_date TIMESTAMPTZ,
+        quantity INTEGER NOT NULL,
+        movement_type VARCHAR(30) NOT NULL
+          CHECK (movement_type IN ('PURCHASE','SALE','ADJUSTMENT','TRANSFER_IN','TRANSFER_OUT','EXPIRY_WRITE_OFF')),
+        reference_id UUID,
+        performed_by UUID REFERENCES users(id),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE customers (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        branch_id UUID NOT NULL REFERENCES branches(id),
+        phone_hash VARCHAR(255) NOT NULL,
+        name_encrypted TEXT,
+        date_of_birth_encrypted TEXT,
+        allergies_encrypted TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE prescriptions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        branch_id UUID NOT NULL REFERENCES branches(id),
+        customer_id UUID NOT NULL REFERENCES customers(id),
+        prescriber_licence_no VARCHAR(100) NOT NULL,
+        prescriber_name VARCHAR(255) NOT NULL,
+        prescribed_date TIMESTAMPTZ NOT NULL,
+        expiry_date TIMESTAMPTZ NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+          CHECK (status IN ('PENDING','VERIFIED','APPROVED','DISPENSED','ARCHIVED','REJECTED')),
+        approval_count INTEGER NOT NULL DEFAULT 0,
+        s3_pdf_key TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE prescription_items (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        prescription_id UUID NOT NULL REFERENCES prescriptions(id),
+        product_id UUID NOT NULL REFERENCES products(id),
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        dosage_instructions TEXT
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE sales (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        branch_id UUID NOT NULL REFERENCES branches(id),
+        cashier_id UUID NOT NULL REFERENCES users(id),
+        customer_id UUID REFERENCES customers(id),
+        prescription_id UUID REFERENCES prescriptions(id),
+        total_amount INTEGER NOT NULL CHECK (total_amount >= 0),
+        vat_amount INTEGER NOT NULL DEFAULT 0,
+        status VARCHAR(20) NOT NULL DEFAULT 'COMPLETED'
+          CHECK (status IN ('DRAFT','COMPLETED','REFUNDED','VOIDED')),
+        idempotency_key UUID NOT NULL UNIQUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`CREATE INDEX idx_sales_branch ON sales(branch_id, created_at DESC)`);
+        await queryRunner.query(`
+      CREATE TABLE sale_items (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        sale_id UUID NOT NULL REFERENCES sales(id),
+        product_id UUID NOT NULL REFERENCES products(id),
+        supplier_id UUID REFERENCES suppliers(id),
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        unit_price INTEGER NOT NULL,
+        vat_exempt BOOLEAN NOT NULL DEFAULT false,
+        batch_number VARCHAR(100),
+        expiry_date TIMESTAMPTZ
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE purchase_orders (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        branch_id UUID NOT NULL REFERENCES branches(id),
+        supplier_id UUID NOT NULL REFERENCES suppliers(id),
+        status VARCHAR(20) NOT NULL DEFAULT 'DRAFT'
+          CHECK (status IN ('DRAFT','SENT','PARTIAL','RECEIVED','CANCELLED')),
+        total_amount INTEGER NOT NULL DEFAULT 0,
+        created_by UUID NOT NULL REFERENCES users(id),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE goods_received_notes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        purchase_order_id UUID NOT NULL REFERENCES purchase_orders(id),
+        branch_id UUID NOT NULL REFERENCES branches(id),
+        received_by UUID NOT NULL REFERENCES users(id),
+        received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        notes TEXT
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE supplier_invoices (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        supplier_id UUID NOT NULL REFERENCES suppliers(id),
+        branch_id UUID NOT NULL REFERENCES branches(id),
+        grn_id UUID REFERENCES goods_received_notes(id),
+        invoice_number VARCHAR(100) NOT NULL,
+        invoice_date TIMESTAMPTZ NOT NULL,
+        due_date TIMESTAMPTZ,
+        total_amount INTEGER NOT NULL,
+        paid_amount INTEGER NOT NULL DEFAULT 0,
+        status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+          CHECK (status IN ('PENDING','MATCHED','PARTIAL','PAID','OVERDUE')),
+        extracted_data JSONB DEFAULT '{}',
+        s3_pdf_key TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE supplier_payments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        invoice_id UUID NOT NULL REFERENCES supplier_invoices(id),
+        amount INTEGER NOT NULL CHECK (amount > 0),
+        payment_method VARCHAR(30) NOT NULL,
+        reference VARCHAR(255),
+        approved_by UUID REFERENCES users(id),
+        paid_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE general_ledger (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        branch_id UUID NOT NULL REFERENCES branches(id),
+        account_code VARCHAR(10) NOT NULL,
+        account_name VARCHAR(100) NOT NULL,
+        debit INTEGER NOT NULL DEFAULT 0,
+        credit INTEGER NOT NULL DEFAULT 0,
+        description TEXT,
+        reference_type VARCHAR(50),
+        reference_id UUID,
+        posted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`CREATE INDEX idx_gl_branch_account ON general_ledger(branch_id, account_code)`);
+        await queryRunner.query(`
+      CREATE TABLE print_jobs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        branch_id UUID NOT NULL REFERENCES branches(id),
+        type VARCHAR(30) NOT NULL CHECK (type IN ('RECEIPT','RX_LABEL','REPORT')),
+        reference_id UUID,
+        s3_pdf_key TEXT,
+        status VARCHAR(20) NOT NULL DEFAULT 'QUEUED'
+          CHECK (status IN ('QUEUED','PRINTING','DONE','FAILED')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE TABLE audit_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        branch_id UUID REFERENCES branches(id),
+        user_id UUID REFERENCES users(id),
+        type VARCHAR(100) NOT NULL,
+        entity_type VARCHAR(50),
+        entity_id UUID,
+        ip_address VARCHAR(45),
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+        await queryRunner.query(`
+      CREATE RULE audit_log_no_update AS ON UPDATE TO audit_logs DO INSTEAD NOTHING
+    `);
+        await queryRunner.query(`
+      CREATE RULE audit_log_no_delete AS ON DELETE TO audit_logs DO INSTEAD NOTHING
+    `);
+        await queryRunner.query(`CREATE INDEX idx_audit_logs_branch ON audit_logs(branch_id, created_at DESC)`);
+        await queryRunner.query(`CREATE INDEX idx_audit_logs_user ON audit_logs(user_id, created_at DESC)`);
+        const rlsTables = [
+            'users', 'inventory', 'stock_movements', 'customers',
+            'prescriptions', 'sales', 'purchase_orders',
+            'goods_received_notes', 'supplier_invoices', 'general_ledger',
+            'print_jobs', 'audit_logs',
+        ];
+        for (const table of rlsTables) {
+            await queryRunner.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
+            await queryRunner.query(`
+        CREATE POLICY branch_isolation ON ${table}
+          USING (branch_id = current_setting('app.current_branch_id', true)::uuid)
+      `);
+        }
+        await queryRunner.query(`ALTER TABLE sale_items ENABLE ROW LEVEL SECURITY`);
+        await queryRunner.query(`
+      CREATE POLICY branch_isolation ON sale_items
+        USING (
+          sale_id IN (
+            SELECT id FROM sales
+            WHERE branch_id = current_setting('app.current_branch_id', true)::uuid
+          )
+        )
+    `);
+        await queryRunner.query(`ALTER TABLE prescription_items ENABLE ROW LEVEL SECURITY`);
+        await queryRunner.query(`
+      CREATE POLICY branch_isolation ON prescription_items
+        USING (
+          prescription_id IN (
+            SELECT id FROM prescriptions
+            WHERE branch_id = current_setting('app.current_branch_id', true)::uuid
+          )
+        )
+    `);
+    }
+    async down(queryRunner) {
+        const tables = [
+            'audit_logs', 'print_jobs', 'general_ledger', 'supplier_payments',
+            'supplier_invoices', 'goods_received_notes', 'purchase_orders',
+            'sale_items', 'sales', 'prescription_items', 'prescriptions',
+            'customers', 'stock_movements', 'inventory', 'product_price_history',
+            'product_images', 'products', 'suppliers', 'product_categories',
+            'sessions', 'users', 'invoices', 'subscription_usage',
+            'subscriptions', 'branches', 'organizations',
+        ];
+        for (const table of tables) {
+            await queryRunner.query(`DROP TABLE IF EXISTS ${table} CASCADE`);
+        }
+        await queryRunner.query(`DROP EXTENSION IF EXISTS pg_trgm`);
+        await queryRunner.query(`DROP EXTENSION IF EXISTS "uuid-ossp"`);
+    }
+}
+exports.CreateCoreTables1711000000000 = CreateCoreTables1711000000000;
+//# sourceMappingURL=1711000000000-CreateCoreTables.js.map

@@ -1,0 +1,32 @@
+import { DataSource } from 'typeorm';
+import { JwtUser } from '../auth/decorators/current-user.decorator';
+import { SalesEffectiveAtService } from '../sales/sales-effective-at.service';
+import { CreateExpenseInput, ApproveExpenseInput, RecordSupplierPaymentInput, MatchSupplierInvoiceInput, IngestSupplierInvoiceOcrInput, UpsertOcrColumnMappingPresetInput, ExpenseOutput, SupplierCreditSummary, SupplierInvoiceOutput, CashFlowForecast, ProfitLossStatement, InvoiceOcrIngestionResult, OcrColumnMappingPresetOutput, PaymentStatus } from './dto/accounting.types';
+export declare class AccountingService {
+    private readonly dataSource;
+    private readonly effectiveSaleAt;
+    private readonly logger;
+    constructor(dataSource: DataSource, effectiveSaleAt: SalesEffectiveAtService);
+    createExpense(input: CreateExpenseInput, actor: JwtUser): Promise<ExpenseOutput>;
+    approveExpense(input: ApproveExpenseInput, actor: JwtUser): Promise<ExpenseOutput>;
+    listExpenses(actor: JwtUser, status?: PaymentStatus): Promise<ExpenseOutput[]>;
+    private getExpense;
+    getSupplierCreditSummary(supplierId: string, branchId: string): Promise<SupplierCreditSummary>;
+    listSupplierInvoices(branchId: string, supplierId?: string): Promise<SupplierInvoiceOutput[]>;
+    recordSupplierPayment(input: RecordSupplierPaymentInput, actor: JwtUser): Promise<SupplierInvoiceOutput>;
+    matchSupplierInvoice(input: MatchSupplierInvoiceInput, actor: JwtUser): Promise<SupplierInvoiceOutput>;
+    ingestSupplierInvoiceOcr(input: IngestSupplierInvoiceOcrInput, actor: JwtUser): Promise<InvoiceOcrIngestionResult>;
+    listOcrColumnMappingPresets(branchId: string, supplierId?: string): Promise<OcrColumnMappingPresetOutput[]>;
+    upsertOcrColumnMappingPreset(input: UpsertOcrColumnMappingPresetInput, actor: JwtUser): Promise<OcrColumnMappingPresetOutput>;
+    deleteOcrColumnMappingPreset(presetId: string, actor: JwtUser): Promise<boolean>;
+    getCashFlowForecast(branchId: string): Promise<CashFlowForecast>;
+    getProfitLoss(branchId: string, periodStart: string, periodEnd: string): Promise<ProfitLossStatement>;
+    private postToGeneralLedger;
+    private getExpenseAccountCode;
+    private mapExpenseOutput;
+    private mapInvoiceOutput;
+    private fmt;
+    private mapOcrPresetOutput;
+    private resolveInvoiceLineUnitCost;
+    private resolveInvoiceLineProductId;
+}

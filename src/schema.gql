@@ -1,0 +1,2572 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+"""
+Manually adjust stock for a product at the current branch. Use positive delta to add stock (e.g. found items, returns) and negative to remove (e.g. damage, expiry write-off). Every adjustment is recorded in `stock_movements` for audit purposes.
+"""
+input AdjustStockInput {
+  """
+  Batch number from the supplier GRN. Used for FEFO (First Expiry First Out) tracking.
+  """
+  batchNumber: String
+
+  """Expiry date of this batch in ISO 8601 format. Example: `"2027-06-30"`."""
+  expiryDate: String
+
+  """UUID of the product to adjust"""
+  productId: ID!
+
+  """
+  Stock change amount. Positive = add, negative = remove. Example: `10` adds 10 units; `-3` removes 3 units.
+  """
+  quantityDelta: Int!
+
+  """
+  Reason for the adjustment. Shown in audit trail. Examples: `"Damaged goods"`, `"Stock count correction"`, `"Customer return"`.
+  """
+  reason: String!
+}
+
+"""Approve or reject a pending expense"""
+input ApproveExpenseInput {
+  """UUID of the expense to approve/reject"""
+  expenseId: ID!
+
+  """Optional notes from the approver"""
+  notes: String
+
+  """APPROVED or REJECTED"""
+  status: String!
+}
+
+"""A single audit finding — the atomic unit of every report"""
+type AuditFinding {
+  """
+  FRAUD | REGULATORY | FINANCIAL | OPERATIONAL | STAFF | INVENTORY | TAX | DISPENSING | DATA_INTEGRITY
+  """
+  category: String!
+
+  """Detailed description of what was found and why it matters"""
+  description: String!
+
+  """ISO timestamp when this finding was detected"""
+  detectedAt: DateTime!
+
+  """Entity ID involved"""
+  entityId: String
+
+  """Entity type involved (sale, product, prescription, etc.)"""
+  entityType: String
+  financialImpactFormatted: String
+
+  """Estimated financial impact in GHS pesewas"""
+  financialImpactPesewas: Int
+  id: ID!
+
+  """User ID implicated (no name — Ghana DPA 2012)"""
+  implicatedUserId: String
+
+  """Concrete recommended action to remediate this finding"""
+  recommendation: String!
+
+  """
+  Specific Ghana law, FDA rule, or GRA regulation breached (if applicable)
+  """
+  regulatoryReference: String
+
+  """
+  CRITICAL | HIGH | MEDIUM | LOW | INFO — CRITICAL = regulatory violation or fraud signal, HIGH = financial risk, MEDIUM = process gap, LOW = best-practice deviation, INFO = observation
+  """
+  severity: String!
+
+  """Short title of the finding"""
+  title: String!
+}
+
+input AuditPeriodInput {
+  periodEnd: String!
+  periodStart: String!
+}
+
+"""
+Returned on successful login, register, or token refresh. Store `access_token` in memory (never localStorage). Store `refresh_token` in an httpOnly cookie.
+"""
+type AuthPayload {
+  """
+  Short-lived JWT access token. Valid for **15 minutes**. Include as `Authorization: Bearer <token>` on every GraphQL request.
+  """
+  access_token: String!
+
+  """Access token lifetime in seconds. Always `900` (15 minutes)."""
+  expires_in: Float!
+
+  """
+  Long-lived refresh token. Valid for **30 days**. Use with the `refreshToken` mutation to obtain a new access token. Invalidated on logout.
+  """
+  refresh_token: String!
+
+  """Authenticated user profile"""
+  user: User!
+}
+
+"""
+Update prices for multiple products in a single atomic transaction. All updates succeed or all fail. Requires role: owner or manager.
+"""
+input BulkUpdatePriceInput {
+  """Array of price updates. Maximum 100 products per bulk update."""
+  updates: [UpdatePriceInput!]!
+}
+
+"""
+Cash flow intelligence — predict when to pay suppliers based on sales velocity
+"""
+type CashFlowForecast {
+  """Cash runway in days (current cash / avg daily expenses)"""
+  cashRunwayDays: Float!
+  currentCashFormatted: String!
+
+  """Current cash on hand in GHS pesewas"""
+  currentCashPesewas: Int!
+  payablesDue7DaysFormatted: String!
+
+  """Total supplier payables due in next 7 days"""
+  payablesDue7DaysPesewas: Int!
+  payablesDue30DaysFormatted: String!
+
+  """Total supplier payables due in next 30 days"""
+  payablesDue30DaysPesewas: Int!
+  projectedRevenue7DaysFormatted: String!
+
+  """Projected revenue in next 7 days (based on 30-day avg daily sales)"""
+  projectedRevenue7DaysPesewas: Int!
+  projectedRevenue30DaysFormatted: String!
+
+  """Projected revenue in next 30 days"""
+  projectedRevenue30DaysPesewas: Int!
+
+  """
+  Recommendation: PAY_NOW | WAIT_7_DAYS | WAIT_30_DAYS | NEGOTIATE_EXTENSION | CRITICAL_LOW_CASH
+  """
+  recommendation: String!
+
+  """Human-readable explanation of the recommendation"""
+  recommendationReason: String!
+}
+
+"""
+The complete CFO briefing — everything a hired accountant would present to the pharmacy owner. Covers working capital, inventory efficiency, supplier performance, revenue trends, payroll analytics, VAT compliance, and investment intelligence.
+"""
+type CfoBriefing {
+  """Prioritised alerts requiring owner attention"""
+  alerts: [FinancialAlert!]!
+  branchName: String!
+  cashOnHandFormatted: String!
+  cashOnHandPesewas: Int!
+
+  """Plain-English executive summary written by the CFO intelligence engine"""
+  executiveSummary: String!
+  generatedAt: DateTime!
+
+  """Numeric health score 0–100"""
+  healthScoreNumeric: Int!
+  inventoryMetrics: InventoryFinancialMetrics!
+  investmentIntelligence: InvestmentIntelligenceReport!
+
+  """Key ratios benchmarked against pharmacy industry"""
+  keyRatios: [FinancialRatio!]!
+  monthNetMarginPct: Float!
+  monthNetProfitFormatted: String!
+  monthNetProfitPesewas: Int!
+  monthRevenueFormatted: String!
+  monthRevenuePesewas: Int!
+
+  """EXCELLENT | GOOD | FAIR | POOR — overall financial health score"""
+  overallHealthScore: String!
+  payrollAnalytics: PayrollAnalytics!
+  periodCovered: String!
+  revenueIntelligence: RevenueIntelligence!
+
+  """Top 10 products by gross profit contribution"""
+  topProducts: [ProductProfitability!]!
+
+  """Top 5 suppliers by spend with performance scores"""
+  topSuppliers: [SupplierScorecard!]!
+  totalPayablesFormatted: String!
+  totalPayablesPesewas: Int!
+  vatCompliance: VatComplianceReport!
+  workingCapital: WorkingCapitalReport!
+}
+
+"""
+Register a customer at the branch. Name and phone are optional (walk-ins). A unique **customerCode** (e.g. `PP-X7K2M9P4`) is always generated for receipts and linkage. Ghana Card is stored encrypted.
+"""
+input CreateCustomerInput {
+  """Approximate age in years (optional alternative to full DOB)."""
+  ageYears: Int
+
+  """Ghana Card identifier — encrypted at rest (Ghana DPA 2012)."""
+  ghanaCardNumber: String
+
+  """Display name when the customer agrees to share it."""
+  name: String
+
+  """
+  Mobile number (Ghana). Stored as a salted hash for deduplication — not returned in APIs.
+  """
+  phone: String
+
+  """Optional — clinical and reporting use only."""
+  sex: CustomerSex
+}
+
+"""
+Record a staff expense — requires manager/owner approval before payment
+"""
+input CreateExpenseInput {
+  """Amount in GHS pesewas"""
+  amountPesewas: Int!
+
+  """Expense category"""
+  category: String!
+
+  """
+  Description of the expense. Example: "Electricity bill — March 2026"
+  """
+  description: String!
+
+  """Date the expense was incurred (ISO 8601). Defaults to today."""
+  expenseDate: String
+
+  """S3 key of the uploaded receipt/invoice PDF or image"""
+  receiptS3Key: String
+}
+
+"""
+Create a Goods Received Note — records stock arrival from supplier with their invoice. Ghana workflow: Supplier delivers goods with invoice → Staff receives and stocks → Manager matches invoice to GRN → Owner pays supplier on credit terms (NET_30/NET_60).
+"""
+input CreateGRNInput {
+  """
+  Due date for payment (ISO 8601). Calculated from payment terms if not provided.
+  """
+  dueDate: String
+
+  """Invoice date from supplier document (ISO 8601)"""
+  invoiceDate: String!
+
+  """S3 key of uploaded supplier invoice PDF/image"""
+  invoicePdfS3Key: String
+
+  """Products received — each with batch, expiry, optional image"""
+  items: [GRNItemInput!]!
+
+  """Optional notes from the receiving staff"""
+  notes: String
+
+  """UUID of the purchase order this GRN is fulfilling (optional)"""
+  purchaseOrderId: String
+
+  """UUID of the supplier delivering the goods"""
+  supplierId: ID!
+
+  """Supplier invoice number from their delivery note"""
+  supplierInvoiceNumber: String!
+
+  """Total invoice amount in GHS pesewas (from supplier invoice)"""
+  totalAmountPesewas: Int!
+}
+
+"""
+Create a new prescription for a customer. Ghana FDA: prescriber GMDC licence is validated live on creation. Rx expiry is set to exactly 30 days from prescribedDate — never extendable. Chemical shop branches are blocked by BranchTypeGuard. Requires role: pharmacist or head_pharmacist.
+"""
+input CreatePrescriptionInput {
+  """UUID of the customer this prescription is for"""
+  customerId: ID!
+
+  """One or more POM medicines on this prescription. Must not be empty."""
+  items: [PrescriptionItemInput!]!
+
+  """
+  Date the prescription was written. ISO 8601 format. Example: "2026-03-22". Ghana FDA: Rx is valid for exactly 30 days from this date.
+  """
+  prescribedDate: String!
+
+  """
+  Ghana Medical and Dental Council (GMDC) licence number of the prescribing doctor. Validated live on creation. Throws GMDC_INVALID_LICENCE if expired or not found.
+  """
+  prescriberLicenceNo: String!
+
+  """Full name of the prescribing doctor"""
+  prescriberName: String!
+}
+
+"""
+Create a completed sale at the POS terminal. Ghana FDA: POM items are validated by `PomEnforcementGuard` before this mutation runs. Idempotency key prevents duplicate records during offline sync.
+"""
+input CreateSaleInput {
+  """UUID of the customer. Optional for walk-in sales."""
+  customerId: String
+
+  """
+  Client-generated UUID v4 idempotency key. If a sale with this key already exists, the existing sale is returned without creating a duplicate. Generate once per checkout attempt — reuse on retry after network failure.
+  """
+  idempotencyKey: ID!
+
+  """One or more products being sold. Must not be empty."""
+  items: [SaleItemInput!]!
+
+  """
+  When the customer completed checkout (ISO 8601). **Offline POS** should send the local checkout time so reports and VAT periods attribute revenue to the correct business day after sync. Omit for online checkout — server `createdAt` is used.
+  """
+  soldAt: String
+
+  """
+  Payment tenders. Total tendered amount must be ≥ total sale amount. Multiple tenders allowed for split payments.
+  """
+  tenders: [TenderInput!]!
+}
+
+"""Create a new supplier. Requires role: owner or manager."""
+input CreateSupplierInput {
+  """Physical or postal address"""
+  address: String
+
+  """Primary contact person name"""
+  contactName: String
+
+  """Contact email address"""
+  email: String
+
+  """Supplier trading name"""
+  name: String!
+
+  """Contact phone number (Ghana format preferred)"""
+  phone: String
+}
+
+"""
+Branch customer. **customerCode** is safe on receipts. Name and Ghana Card raw values are never logged.
+"""
+type CustomerOutput {
+  ageYears: Int
+  branchId: ID!
+  createdAt: DateTime!
+
+  """
+  Stable public reference (e.g. PP-XXXXXXXX) — use when the person declines a name.
+  """
+  customerCode: String!
+
+  """True when an encrypted Ghana Card value exists."""
+  hasGhanaCard: Boolean!
+
+  """
+  True when a phone number was captured (number itself is never returned).
+  """
+  hasPhone: Boolean!
+  id: ID!
+
+  """
+  Decrypted name when on file; otherwise null (use customerCode on receipts).
+  """
+  name: String
+  sex: CustomerSex
+}
+
+enum CustomerSex {
+  FEMALE
+  MALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+"""Aggregated sales summary for a single day"""
+type DailySummary {
+  """Average sale value in GHS (not pesewas). Example: `42.50`"""
+  averageSaleGhs: Float!
+
+  """Number of completed sales"""
+  salesCount: Int!
+
+  """Formatted total revenue. Example: `GH₵4,250.00`"""
+  totalRevenueFormatted: String!
+
+  """Total revenue in GHS pesewas"""
+  totalRevenuePesewas: Int!
+
+  """Total VAT collected in GHS pesewas (Ghana GRA reporting)"""
+  vatCollectedPesewas: Int!
+}
+
+"""
+Real-time KPI snapshot for the dashboard. Scoped to the authenticated user's branch (managers see own branch; owners see all branches). All monetary values in GHS pesewas.
+"""
+type DashboardKpis {
+  """Number of active (non-deactivated) staff accounts at this branch"""
+  activeStaffCount: Int!
+
+  """
+  Number of products currently at or below their reorder level. Drives the low-stock badge on the dashboard.
+  """
+  lowStockCount: Int!
+
+  """Formatted month-to-date revenue. Example: `"GH₵87,300.00"`"""
+  monthRevenueFormatted: String!
+
+  """Revenue earned this calendar month in GHS pesewas"""
+  monthRevenuePesewas: Int!
+
+  """Number of completed sales this month"""
+  monthSalesCount: Int!
+
+  """
+  Month-over-month revenue change as a percentage. Positive = growth, negative = decline. Example: `12.5` means +12.5% vs last month.
+  """
+  revenueDeltaPct: Float!
+
+  """Formatted today's revenue. Example: `"GH₵4,250.00"`"""
+  todayRevenueFormatted: String!
+
+  """
+  Revenue earned today (midnight to now, Africa/Accra timezone) in GHS pesewas
+  """
+  todayRevenuePesewas: Int!
+
+  """Number of completed sales today"""
+  todaySalesCount: Int!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+"""Ghana FDA dispensing compliance audit result"""
+type DispensingComplianceAudit {
+  chemicalShopPomAttemptCount: Int!
+  contraindicatedAttemptCount: Int!
+  controlledDrugSingleSignoffCount: Int!
+  expiredRxDispensedCount: Int!
+  findings: [AuditFinding!]!
+  majorInteractionOverrideCount: Int!
+
+  """COMPLIANT | MINOR_GAPS | MAJOR_VIOLATIONS | CRITICAL_VIOLATIONS"""
+  overallStatus: String!
+  pomSalesWithoutRxCount: Int!
+  pomSalesWithoutRxFormatted: String!
+  pomSalesWithoutRxValuePesewas: Int!
+  rxMissingPdfCount: Int!
+  rxPdfCompliancePct: Float!
+  rxWithExpiredGmdcLicenceCount: Int!
+  rxWithoutGmdcValidationCount: Int!
+}
+
+"""Current USD/GHS exchange rate configuration"""
+type ExchangeRate {
+  """ISO 8601 timestamp when the rate was last updated"""
+  updatedAt: DateTime!
+
+  """Name of the user who last updated the rate"""
+  updatedByName: String!
+
+  """Current USD to GHS rate. Example: 15.50 means GH 15.50 = $1.00"""
+  usdToGhsRate: Float!
+}
+
+"""An expense record — staff expenses requiring approval"""
+type ExpenseOutput {
+  """Formatted amount. Example: GH₵150.00"""
+  amountFormatted: String!
+
+  """Amount in GHS pesewas"""
+  amountPesewas: Int!
+  approvalNotes: String
+  approvedBy: ID
+  approvedByName: String
+  branchId: ID!
+  category: String!
+  createdAt: DateTime!
+  createdBy: ID!
+  createdByName: String!
+  description: String!
+  expenseDate: DateTime!
+  id: ID!
+  receiptS3Key: String
+  status: String!
+}
+
+"""A single alert or action item for the owner"""
+type FinancialAlert {
+  """Suggested action to resolve the alert"""
+  action: String
+
+  """Alert category: CASH | PAYABLES | INVENTORY | TAX | STAFF | GROWTH"""
+  category: String!
+  impactFormatted: String
+
+  """Financial impact in pesewas (if quantifiable)"""
+  impactPesewas: Int
+  message: String!
+
+  """CRITICAL | WARNING | INFO | OPPORTUNITY"""
+  severity: String!
+  title: String!
+}
+
+"""Financial integrity audit — detects fraud, leakage, and irregularities"""
+type FinancialIntegrityAudit {
+  """
+  Unusual cash dominance may indicate MoMo fee avoidance or under-reporting
+  """
+  cashDominanceFlag: Boolean!
+  cashSalesPesewas: Int!
+  cashToMomoRatio: Float!
+  duplicateInvoiceCount: Int!
+  expectedRevenueFormatted: String!
+  expectedRevenuePesewas: Int!
+  expensesWithoutReceiptCount: Int!
+  expensesWithoutReceiptValuePesewas: Int!
+  findings: [AuditFinding!]!
+  glEntriesWithoutReferenceCount: Int!
+
+  """CLEAN | ANOMALIES_DETECTED | FRAUD_SIGNALS | CRITICAL_BREACH"""
+  integrityStatus: String!
+  invoicesWithoutGrnCount: Int!
+  momoSalesPesewas: Int!
+  recordedRevenueFormatted: String!
+  recordedRevenuePesewas: Int!
+  refundRatePct: Float!
+  revenueDiscrepancyFormatted: String!
+  revenueDiscrepancyPesewas: Int!
+  roundNumberExpenseCount: Int!
+
+  """Round-number expenses (e.g. exactly GH₵500) are a fraud signal"""
+  roundNumberExpenseFlag: Boolean!
+  totalRefundsFormatted: String!
+  totalRefundsPesewas: Int!
+  totalVoidsFormatted: String!
+  totalVoidsPesewas: Int!
+  unbalancedGlEntriesCount: Int!
+  unmatchedInvoiceCount: Int!
+  unmatchedInvoiceFormatted: String!
+  unmatchedInvoiceValuePesewas: Int!
+
+  """Benchmark: < 2%. Above 5% = investigate"""
+  voidBenchmarkStatus: String!
+  voidRatePct: Float!
+}
+
+"""Key financial ratio benchmarked against pharmacy industry standards"""
+type FinancialRatio {
+  benchmark: String!
+  interpretation: String!
+  name: String!
+
+  """ABOVE_BENCHMARK | AT_BENCHMARK | BELOW_BENCHMARK"""
+  status: String!
+  value: String!
+}
+
+"""A single product line on a GRN"""
+input GRNItemInput {
+  """Batch/lot number from supplier"""
+  batchNumber: String!
+
+  """Expiry date in ISO 8601 format"""
+  expiryDate: String!
+
+  """S3 key of uploaded product image (photo taken during stock receiving)"""
+  imageS3Key: String
+
+  """UUID of the product being received"""
+  productId: ID!
+
+  """Quantity received"""
+  quantity: Int!
+
+  """
+  Supplier unit cost in GHS pesewas for this received product line. If omitted, the system infers a weighted average cost from invoice total and quantities.
+  """
+  unitCostPesewas: Int
+}
+
+"""A single product line on a GRN"""
+type GRNItemOutput {
+  batchNumber: String!
+  expiryDate: DateTime!
+  id: ID!
+  imageS3Key: String
+  productId: ID!
+  productName: String!
+  quantity: Int!
+
+  """
+  Observed supplier unit cost captured at receiving time, in GHS pesewas.
+  """
+  unitCostPesewas: Int
+}
+
+"""
+Goods Received Note — records stock arrival from supplier. Links to supplier invoice for 3-way match (PO → GRN → Invoice) and payment tracking.
+"""
+type GRNOutput {
+  branchId: ID!
+  dueDate: DateTime
+  id: ID!
+  invoiceDate: DateTime!
+  invoicePdfS3Key: String
+
+  """true if this GRN has been matched to a supplier_invoice record"""
+  isMatched: Boolean!
+  items: [GRNItemOutput!]!
+  notes: String
+  purchaseOrderId: ID
+  receivedAt: DateTime!
+  receivedBy: ID!
+  receivedByName: String!
+  supplierId: ID!
+  supplierInvoiceNumber: String!
+  supplierName: String!
+  totalAmountFormatted: String!
+  totalAmountPesewas: Int!
+}
+
+"""Result of a GMDC prescriber licence validation check"""
+type GmdcValidationResult {
+  """
+  true if the result was served from Redis cache (24h TTL). false if a live GMDC API call was made.
+  """
+  cached: Boolean!
+
+  """The GMDC licence number that was checked"""
+  licenceNo: String!
+
+  """
+  true if the licence is valid and active. false throws GMDC_INVALID_LICENCE. If the GMDC API is unreachable, returns true with a warning log — never blocks due to outage.
+  """
+  valid: Boolean!
+}
+
+"""
+Persist OCR extracted invoice lines and ingest matched unit costs into product cost history for pricing autofill.
+"""
+input IngestSupplierInvoiceOcrInput {
+  """Supplier invoice UUID to enrich."""
+  invoiceId: ID!
+
+  """OCR extracted line items."""
+  lines: [SupplierInvoiceOcrLineInput!]!
+
+  """OCR engine identifier/version. Example: azure-form-recognizer-v4."""
+  parser: String
+}
+
+"""
+The complete internal audit report — financial police, compliance watchdog, and staff monitor. Covers Ghana FDA dispensing compliance, GRA tax compliance, financial integrity, inventory integrity, licence compliance, staff behaviour profiling, and risk matrix.
+"""
+type InternalAuditReport {
+  """All findings across all sections, sorted by severity"""
+  allFindings: [AuditFinding!]!
+  auditPeriod: String!
+  auditedBy: String!
+
+  """
+  UNQUALIFIED | QUALIFIED | ADVERSE | DISCLAIMER — auditor's opinion on the period
+  """
+  auditorOpinion: String!
+  branchName: String!
+  criticalFindingsCount: Int!
+  dispensingCompliance: DispensingComplianceAudit!
+  financialIntegrity: FinancialIntegrityAudit!
+  generatedAt: DateTime!
+  highFindingsCount: Int!
+
+  """Prioritised action plan — what the owner must do this week"""
+  immediateActionPlan: String!
+  inventoryIntegrity: InventoryIntegrityAudit!
+  licenceCompliance: LicenceComplianceAudit!
+
+  """Plain-English audit opinion narrative"""
+  opinionNarrative: String!
+
+  """LOW | MEDIUM | HIGH | CRITICAL"""
+  overallRiskRating: String!
+
+  """Overall risk score 0–100 (100 = maximum risk)"""
+  overallRiskScore: Int!
+  reportId: ID!
+  riskMatrix: [RiskMatrixEntry!]!
+
+  """Behavioural profiles for all active staff — ranked by risk score"""
+  staffProfiles: [StaffBehaviourProfile!]!
+  taxCompliance: TaxComplianceAudit!
+  totalFinancialExposureFormatted: String!
+
+  """Total estimated financial exposure in pesewas"""
+  totalFinancialExposurePesewas: Int!
+  totalFindingsCount: Int!
+}
+
+"""
+A single stock batch — used for FEFO (First Expiry First Out) dispensing
+"""
+type InventoryBatchType {
+  """Batch/lot number from the supplier GRN"""
+  batchNumber: String!
+
+  """
+  Expiry date in ISO 8601 format. Batches are ordered by expiry (nearest first) for FEFO dispensing.
+  """
+  expiryDate: String!
+
+  """Quantity remaining in this batch"""
+  quantity: Int!
+}
+
+"""Inventory financial efficiency metrics"""
+type InventoryFinancialMetrics {
+  """Days inventory outstanding (DIO) = 365 / turnover. Target: 30–45 days"""
+  daysInventoryOutstanding: Float!
+
+  """
+  Inventory turnover ratio = COGS / avg inventory value. Pharmacy benchmark: 8–12x/year. Below 6 = slow-moving stock.
+  """
+  inventoryTurnoverRatio: Float!
+  inventoryValueAtCostFormatted: String!
+
+  """Total inventory value at cost price (pesewas)"""
+  inventoryValueAtCostPesewas: Int!
+  inventoryValueAtSellingPriceFormatted: String!
+
+  """Total inventory value at selling price (pesewas)"""
+  inventoryValueAtSellingPricePesewas: Int!
+  nearExpiryValueFormatted: String!
+
+  """Value of near-expiry stock (expiring within 90 days)"""
+  nearExpiryValuePesewas: Int!
+
+  """Potential gross margin locked in inventory (%)"""
+  potentialMarginPct: Float!
+
+  """Recommendation from the financial intelligence engine"""
+  recommendation: String!
+
+  """Shrinkage rate % (write-offs / total received)"""
+  shrinkageRatePct: Float!
+  slowMovingStockValueFormatted: String!
+
+  """Value of slow-moving stock (no sales in 60+ days)"""
+  slowMovingStockValuePesewas: Int!
+}
+
+"""
+Inventory integrity audit — detects theft, shrinkage, and stock manipulation
+"""
+type InventoryIntegrityAudit {
+  expiredStockDispensedCount: Int!
+  findings: [AuditFinding!]!
+  grnWithoutInvoiceCount: Int!
+  highValueAdjustmentByOneUserCount: Int!
+
+  """CLEAN | WATCH | INVESTIGATE | CRITICAL"""
+  integrityStatus: String!
+  nearExpiryNotFlaggedCount: Int!
+  negativeAdjustmentCount: Int!
+  negativeAdjustmentFormatted: String!
+  negativeAdjustmentValuePesewas: Int!
+  phantomStockSalesCount: Int!
+  phantomStockValuePesewas: Int!
+
+  """Shrinkage rate % — benchmark < 1% for pharmacy"""
+  shrinkageRatePct: Float!
+
+  """ACCEPTABLE | ELEVATED | CRITICAL"""
+  shrinkageStatus: String!
+  stockReceivedNotInGrnCount: Int!
+  totalAdjustmentCount: Int!
+}
+
+"""Current inventory position for a product at a branch"""
+type InventoryItem {
+  """Ghana FDA classification. Values: `OTC` | `POM` | `CONTROLLED`"""
+  classification: String!
+
+  """
+  Expiry date of the nearest-expiring batch (FEFO). Null if no expiry date is recorded for this product.
+  """
+  nearestExpiry: DateTime
+
+  """UUID of the product"""
+  productId: ID!
+
+  """Product name"""
+  productName: String!
+
+  """Current units on hand at this branch"""
+  quantityOnHand: Int!
+
+  """
+  Reorder threshold. When `quantityOnHand` falls to or below this level, a low-stock alert is triggered and the product appears in the reorder list.
+  """
+  reorderLevel: Int!
+
+  """
+  Stock health status. Values: `ok` (above reorder) | `low` (at reorder) | `critical` (≤20% of reorder level) | `out` (zero stock).
+  """
+  stockStatus: String!
+
+  """UUID of the primary supplier — enables supply chain traceability"""
+  supplierId: String
+
+  """Supplier trading name"""
+  supplierName: String
+}
+
+"""
+Full investment intelligence report — only generated when business is profitable
+"""
+type InvestmentIntelligenceReport {
+  """Cash runway in days"""
+  cashRunwayDays: Float!
+
+  """Executive summary from the CFO intelligence engine"""
+  executiveSummary: String!
+
+  """Net profit margin % (must be > 10% to qualify)"""
+  netProfitMarginPct: Float!
+
+  """Reason why or why not the business qualifies"""
+  qualificationReason: String!
+
+  """
+  Whether the business qualifies for investment recommendations (profitable + healthy cash)
+  """
+  qualifiesForInvestment: Boolean!
+
+  """Ranked investment recommendations (best ROI first)"""
+  recommendations: [InvestmentRecommendation!]!
+}
+
+"""A single investment recommendation"""
+type InvestmentRecommendation {
+  """HIGH | MEDIUM | LOW — confidence in this recommendation"""
+  confidence: String!
+  estimatedInvestmentFormatted: String!
+
+  """Estimated investment required (pesewas)"""
+  estimatedInvestmentPesewas: Int!
+
+  """Estimated ROI % within 12 months"""
+  estimatedRoi12MonthPct: Float!
+
+  """Estimated payback period in months"""
+  paybackMonths: Float!
+
+  """Detailed rationale based on actual financial data"""
+  rationale: String!
+
+  """HIGH | MEDIUM | LOW — risk level"""
+  riskLevel: String!
+
+  """Short title of the recommendation"""
+  title: String!
+
+  """
+  EXPAND_INVENTORY | OPEN_BRANCH | HIRE_STAFF | EQUIPMENT | MARKETING | TREASURY | HOLD_CASH
+  """
+  type: String!
+
+  """IMMEDIATE | WITHIN_3_MONTHS | WITHIN_6_MONTHS | MONITOR"""
+  urgency: String!
+}
+
+"""
+Invite a new staff member to the branch. A temporary password is generated and returned — share it securely with the staff member. PII fields (phone, address, Ghana Card) are AES-256 encrypted at rest per Ghana Data Protection Act 2012. Requires role: `owner` or `manager`.
+"""
+input InviteStaffInput {
+  """Department. Example: `"Dispensary"`, `"Front Desk"`"""
+  department: String
+
+  """Work email address. Used as login identifier if provided."""
+  email: String
+
+  """Employment type. Values: `full_time` | `part_time` | `contract`"""
+  employment_type: String
+
+  """Full legal name of the staff member"""
+  name: String!
+
+  """
+  Phone number (Ghana format preferred, e.g. `0244123456`). Stored AES-256 encrypted — Ghana Data Protection Act 2012.
+  """
+  phone: String
+
+  """Job title. Example: `"Senior Pharmacist"`"""
+  position: String
+
+  """
+  Role assigned to this staff member. Values: `owner` | `head_pharmacist` | `pharmacist` | `cashier` | `manager`
+  """
+  role: String!
+}
+
+"""Result of a successful staff invitation"""
+type InviteStaffResult {
+  """Human-readable confirmation message"""
+  message: String!
+
+  """Full name of the invited staff member"""
+  name: String!
+
+  """
+  System-generated temporary password. Share this securely with the staff member — it is shown only once. The staff member must change it on first login.
+  """
+  temporaryPassword: String!
+
+  """UUID of the newly created user account"""
+  userId: ID!
+}
+
+"""Summary after ingesting OCR supplier invoice lines."""
+type InvoiceOcrIngestionResult {
+  """Number of product_cost_history rows created from OCR invoice lines."""
+  costSnapshotsCreated: Int!
+  invoiceId: ID!
+  matchedLines: Int!
+  totalLines: Int!
+
+  """
+  Unmatched line hints so web can show user review actions (e.g. map product manually).
+  """
+  unmatchedHints: [String!]!
+  unmatchedLines: Int!
+}
+
+"""
+Licence and regulatory compliance status — Ghana FDA, HeFRA, Pharmacy Council
+"""
+type LicenceComplianceAudit {
+  branchLicenceExpiryDate: String
+
+  """Whether the branch has a valid HeFRA operating licence on file"""
+  branchLicenceOnFile: Boolean!
+
+  """VALID | EXPIRING_SOON | EXPIRED | NOT_ON_FILE"""
+  branchLicenceStatus: String!
+  coldChainProductsWithoutTempLogCount: Int!
+  controlledDrugDispensedWithoutDoubleSignoffCount: Int!
+
+  """Ghana FDA requires a physical controlled drug register"""
+  controlledDrugRegisterCompliant: Boolean!
+  findings: [AuditFinding!]!
+  licencesExpiringIn30DaysCount: Int!
+
+  """COMPLIANT | MINOR_GAPS | MAJOR_VIOLATIONS | CRITICAL"""
+  overallStatus: String!
+  pharmacistsWithExpiredLicenceCount: Int!
+  pharmacistsWithNoLicenceCount: Int!
+}
+
+"""Credentials for authenticating an existing user"""
+input LoginInput {
+  """Registered email address"""
+  email: String!
+
+  """Account password (min 6 characters)"""
+  password: String!
+}
+
+"""
+A product that has fallen to or below its reorder level. Used to populate the reorder list and trigger staff SMS alerts via Hubtel.
+"""
+type LowStockAlert {
+  """UUID of the product"""
+  productId: ID!
+
+  """Product name"""
+  productName: String!
+
+  """Current units on hand"""
+  quantityOnHand: Int!
+
+  """Configured reorder threshold"""
+  reorderLevel: Int!
+
+  """Alert severity. Values: `low` | `critical` | `out`"""
+  status: String!
+}
+
+"""Match a supplier invoice to a GRN (3-way match: PO → GRN → Invoice)"""
+input MatchSupplierInvoiceInput {
+  """UUID of the GRN (Goods Received Note) to match against"""
+  grnId: ID!
+
+  """UUID of the supplier invoice"""
+  invoiceId: ID!
+
+  """Optional notes about the match (e.g., discrepancies found)"""
+  notes: String
+}
+
+type Mutation {
+  adjustStock(input: AdjustStockInput!): InventoryItem!
+  approveExpense(input: ApproveExpenseInput!): ExpenseOutput!
+  bulkUpdateProductPrices(input: BulkUpdatePriceInput!): [PriceUpdateResult!]!
+  createCustomer(input: CreateCustomerInput!): CustomerOutput!
+  createExpense(input: CreateExpenseInput!): ExpenseOutput!
+  createGRN(input: CreateGRNInput!): GRNOutput!
+  createPrescription(input: CreatePrescriptionInput!): PrescriptionOutput!
+  createSale(input: CreateSaleInput!): SaleOutput!
+  createSupplier(input: CreateSupplierInput!): Supplier!
+  deactivateStaff(userId: ID!): Boolean!
+  deleteOcrColumnMappingPreset(presetId: ID!): Boolean!
+  deleteSupplier(id: String!): Boolean!
+  ingestSupplierInvoiceOcr(input: IngestSupplierInvoiceOcrInput!): InvoiceOcrIngestionResult!
+  inviteStaff(input: InviteStaffInput!): InviteStaffResult!
+  login(input: LoginInput!): AuthPayload!
+  logout: Boolean!
+  matchSupplierInvoice(input: MatchSupplierInvoiceInput!): SupplierInvoiceOutput!
+  receiveStock(input: ReceiveStockInput!): InventoryItem!
+  recordSupplierPayment(input: RecordSupplierPaymentInput!): SupplierInvoiceOutput!
+  refreshToken(token: String!): AuthPayload!
+  register(input: RegisterInput!): AuthPayload!
+  resetStaffPassword(input: ResetStaffPasswordInput!): Boolean!
+  setUsdExchangeRate(input: SetExchangeRateInput!): ExchangeRate!
+  updateCustomer(input: UpdateCustomerInput!): CustomerOutput!
+  updateProductPrice(input: UpdatePriceInput!): PriceUpdateResult!
+  updateStaffProfile(input: UpdateStaffProfileInput!): StaffMemberOutput!
+  updateSupplier(id: String!, input: UpdateSupplierInput!): Supplier!
+  upsertOcrColumnMappingPreset(input: UpsertOcrColumnMappingPresetInput!): OcrColumnMappingPresetOutput!
+  verifyPrescription(input: VerifyPrescriptionInput!): PrescriptionOutput!
+}
+
+"""Single mapped column rule in an OCR preset."""
+type OcrColumnMappingPair {
+  sourceHeader: String!
+  targetField: String!
+}
+
+"""
+Single column mapping from spreadsheet source header to OCR target field.
+"""
+input OcrColumnMappingPairInput {
+  """Source column header (normalized server-side)."""
+  sourceHeader: String!
+
+  """
+  Target field key. Allowed values: productName | barcode | productId | quantity | unitCostGhs | unitCostPesewas | lineTotalGhs | lineTotalPesewas | rawText | ignore
+  """
+  targetField: String!
+}
+
+"""Branch-shared OCR spreadsheet mapping preset."""
+type OcrColumnMappingPresetOutput {
+  branchId: ID!
+  id: ID!
+  mappings: [OcrColumnMappingPair!]!
+  name: String!
+  supplierId: ID
+  supplierName: String
+  updatedAt: DateTime!
+}
+
+"""Payroll efficiency metrics — staff cost vs revenue"""
+type PayrollAnalytics {
+  activeStaffCount: Int!
+
+  """EFFICIENT | WATCH | OVERSTAFFED"""
+  efficiencyRating: String!
+
+  """Gross profit per staff member (GHS)"""
+  grossProfitPerStaffGhs: Float!
+
+  """
+  Payroll ratio = payroll / revenue. Pharmacy benchmark: 15–25%. Above 30% = overstaffed or underperforming.
+  """
+  payrollRatioPct: Float!
+
+  """Recommendation from the intelligence engine"""
+  recommendation: String!
+
+  """Revenue per staff member (GHS)"""
+  revenuePerStaffGhs: Float!
+  totalPayrollFormatted: String!
+  totalPayrollPesewas: Int!
+}
+
+"""A single medicine line on a prescription"""
+input PrescriptionItemInput {
+  """
+  Dosage instructions from the prescriber. Example: "Take 1 tablet twice daily after meals for 7 days".
+  """
+  dosageInstructions: String
+
+  """UUID of the POM product being prescribed"""
+  productId: ID!
+
+  """Quantity prescribed. Must be >= 1."""
+  quantity: Int!
+}
+
+"""A single medicine line on a prescription"""
+type PrescriptionItemOutput {
+  """Dosage instructions from the prescriber"""
+  dosageInstructions: String
+
+  """UUID of this prescription item"""
+  id: ID!
+
+  """UUID of the prescribed product"""
+  productId: ID!
+
+  """Product name at time of prescription"""
+  productName: String!
+
+  """Quantity prescribed"""
+  quantity: Int!
+}
+
+"""
+A prescription record. Lifecycle: PENDING -> VERIFIED -> DISPENSED. Ghana FDA: GMDC licence validated on creation and verification. Rx valid for exactly 30 days. Controlled drugs require approvalCount >= 2. Dispensed Rx PDF uploaded to S3 (5-year retention).
+"""
+type PrescriptionOutput {
+  """
+  Number of pharmacist sign-offs. Ghana FDA: controlled drugs require approvalCount >= 2.
+  """
+  approvalCount: Int!
+
+  """UUID of the branch where the prescription was created"""
+  branchId: ID!
+
+  """ISO 8601 timestamp when the prescription was created"""
+  createdAt: DateTime!
+
+  """UUID of the customer (no PHI — use customer lookup separately)"""
+  customerId: ID!
+
+  """
+  Ghana FDA: Rx expiry date — exactly 30 days after prescribedDate. Dispensing is blocked after this date with error FDA_RX_EXPIRED.
+  """
+  expiryDate: DateTime!
+
+  """UUID of the prescription"""
+  id: ID!
+
+  """Medicines on this prescription"""
+  items: [PrescriptionItemOutput!]!
+
+  """Date the prescription was written (ISO 8601, Africa/Accra timezone)"""
+  prescribedDate: DateTime!
+
+  """
+  GMDC licence number of the prescribing doctor — validated on creation and verification
+  """
+  prescriberLicenceNo: String!
+
+  """Full name of the prescribing doctor"""
+  prescriberName: String!
+
+  """
+  Current status. Values: PENDING | VERIFIED | DISPENSED | EXPIRED | CANCELLED
+  """
+  status: String!
+}
+
+"""
+Price display object. GHS is canonical — always present. USD fields are optional display-only reference values.
+"""
+type PriceDisplay {
+  """Exchange rate used for the USD conversion. Example: 15.50"""
+  exchangeRate: Float
+
+  """Human-readable GHS price. Example: GH 25.00"""
+  ghsFormatted: String!
+
+  """
+  Price in GHS pesewas (canonical storage format). Example: 2500 = GH 25.00. Use this for all calculations.
+  """
+  ghsPesewas: Int!
+
+  """
+  USD equivalent for display only. Calculated using the current exchange rate. Never use this for transactions — GHS only.
+  """
+  usdEquivalent: Float
+
+  """Human-readable USD price. Example: $1.61"""
+  usdFormatted: String
+}
+
+"""A single entry in the price change audit trail"""
+type PriceHistory {
+  """ISO 8601 timestamp of the price change"""
+  changedAt: DateTime!
+
+  """Name of the user who made the change"""
+  changedByName: String!
+
+  """UUID of this price history record"""
+  id: String!
+
+  """New price formatted. Example: GH 25.00"""
+  newPriceFormatted: String!
+
+  """New price in GHS pesewas"""
+  newPriceGhsPesewas: Int!
+
+  """Previous price formatted. Example: GH 20.00"""
+  oldPriceFormatted: String!
+
+  """Previous price in GHS pesewas"""
+  oldPriceGhsPesewas: Int!
+
+  """UUID of the product"""
+  productId: String!
+
+  """Product name at time of change"""
+  productName: String!
+
+  """Reason for the price change"""
+  reason: String
+}
+
+"""Result of a successful price update"""
+type PriceUpdateResult {
+  """New price with GHS and optional USD display"""
+  price: PriceDisplay!
+
+  """UUID of the updated product"""
+  productId: String!
+
+  """Product name"""
+  productName: String!
+
+  """ISO 8601 timestamp of the update"""
+  updatedAt: DateTime!
+}
+
+"""Product category (e.g. Antibiotic, Analgesic, Antihypertensive)"""
+type ProductCategoryType {
+  """UUID of the category"""
+  id: ID!
+
+  """Category name. Example: `"Antibiotic"`, `"Analgesic"`, `"Antifungal"`"""
+  name: String!
+}
+
+"""
+Latest observed supplier unit cost per product for a branch. Sourced from GRN/invoice ingestion and used to prefill pricing controls.
+"""
+type ProductCostSnapshot {
+  """Formatted cost display. Example: GH₵4.00"""
+  latestCostFormatted: String!
+
+  """Latest supplier unit cost in GHS pesewas"""
+  latestCostPesewas: Int!
+
+  """Timestamp when this supplier cost was observed"""
+  observedAt: DateTime!
+
+  """UUID of the product"""
+  productId: String!
+
+  """Cost source type. Example: GRN | INVOICE | MANUAL"""
+  sourceType: String!
+
+  """Supplier UUID associated with this cost observation"""
+  supplierId: String
+
+  """Supplier name associated with this cost observation"""
+  supplierName: String
+}
+
+"""Product image with CDN URLs and source metadata"""
+type ProductImageType {
+  """Full-size CDN URL. Use for product detail pages."""
+  cdnUrl: String!
+
+  """UUID of the image record"""
+  id: ID!
+
+  """
+  `true` if the image has been reviewed and approved by a pharmacist. AI-generated images start as `false` until approved.
+  """
+  isApproved: Boolean!
+
+  """
+  Image source. Values: `DRUG_DB` | `DALLE3` (reserved for future automated pipelines) | `MANUAL_UPLOAD` (e.g. GRN photo) | `PLACEHOLDER` (seeded DB placeholder).
+  """
+  source: String!
+
+  """Thumbnail CDN URL (200×200px). Use for search result cards."""
+  urlThumb: String!
+}
+
+"""Inventory position for a product at the current branch"""
+type ProductInventoryType {
+  """
+  Individual stock batches ordered by expiry date (FEFO). Used for dispensing order.
+  """
+  batches: [InventoryBatchType!]!
+
+  """Total units on hand across all batches at this branch"""
+  quantityOnHand: Int!
+
+  """
+  Reorder threshold. A low-stock alert fires when `quantityOnHand` falls to this level.
+  """
+  reorderLevel: Int!
+}
+
+"""Profitability analysis for a single product"""
+type ProductProfitability {
+  """A | B | C — ABC analysis tier"""
+  abcTier: String!
+
+  """Action recommendation: PROMOTE | MAINTAIN | REVIEW_PRICE | DISCONTINUE"""
+  action: String!
+
+  """STAR | CASH_COW | QUESTION_MARK | DOG — BCG matrix classification"""
+  bcgClassification: String!
+  classification: String!
+  cogsPesewas: Int!
+
+  """Gross margin % for this product"""
+  grossMarginPct: Float!
+  grossProfitFormatted: String!
+  grossProfitPesewas: Int!
+  productId: ID!
+  productName: String!
+
+  """Revenue contribution % of total branch revenue"""
+  revenueContributionPct: Float!
+  revenueFormatted: String!
+  revenuePesewas: Int!
+  supplierName: String!
+  unitsSold: Int!
+}
+
+"""Supplier summary embedded in a product"""
+type ProductSupplierType {
+  """
+  AI-computed supplier reliability score (0–100). Based on on-time delivery, quality complaints, and price consistency.
+  """
+  aiScore: Int
+
+  """UUID of the supplier"""
+  id: ID!
+
+  """Supplier trading name"""
+  name: String!
+}
+
+"""
+A product in the PharmaPOS catalogue. Products are scoped to an organisation and can be available at `pharmaceutical`, `chemical`, or `both` branch types. When no approved `product_images` row exists, the web POS uses a deterministic Unsplash stock-photo fallback from id, name, generic name, and category.
+"""
+type ProductType {
+  """Barcode (EAN-13 or custom). Used for barcode scanner at POS."""
+  barcode: String
+
+  """
+  Which branch type can sell this product. Values: `pharmaceutical` | `chemical` | `both`. Ghana FDA: POM and CONTROLLED products are always `pharmaceutical` only.
+  """
+  branchType: String!
+
+  """Product category"""
+  category: ProductCategoryType
+
+  """
+  Ghana FDA classification. Values:
+  - `OTC` — Over the counter, no prescription needed
+  - `POM` — Prescription Only Medicine, requires approved Rx
+  - `CONTROLLED` — Controlled drug, requires two pharmacist sign-offs
+  """
+  classification: String!
+
+  """Generic/INN name. Example: `"Paracetamol"`, `"Amoxicillin"`"""
+  genericName: String
+
+  """UUID of the product"""
+  id: ID!
+
+  """
+  Approved image row when present. Null if none; web POS shows a deterministic stock-photo fallback from product id/name/generic/category.
+  """
+  image: ProductImageType
+
+  """
+  Inventory position at the current branch. Null if queried without branch context.
+  """
+  inventory: ProductInventoryType
+
+  """Brand/trade name. Example: `"Paracetamol 500mg"`, `"Amoxil 250mg/5ml"`"""
+  name: String!
+
+  """
+  Ghana FDA: `true` if an approved prescription is required before this product can be sold. Attempting to sell without a prescription throws `FDA_POM_VIOLATION`.
+  """
+  requiresRx: Boolean!
+
+  """
+  Primary supplier. Enables full supply chain traceability per Ghana FDA requirements.
+  """
+  supplier: ProductSupplierType
+
+  """
+  Unit selling price in **GHS pesewas** (integer). Example: GH₵12.50 = `1250`. Always GHS — never USD.
+  """
+  unitPrice: Int!
+
+  """
+  Ghana GRA: `true` if this product is VAT-exempt. Prescription medicines (`requiresRx = true`) are VAT-exempt. OTC products are subject to 15% VAT.
+  """
+  vatExempt: Boolean!
+}
+
+"""Profit & Loss statement for a period"""
+type ProfitLossStatement {
+  cogsFormatted: String!
+
+  """Cost of goods sold (COGS) — supplier invoices matched to sales"""
+  cogsPesewas: Int!
+  grossProfitFormatted: String!
+
+  """Gross profit margin % = (gross profit / revenue) * 100"""
+  grossProfitMarginPct: Float!
+
+  """Gross profit = revenue - COGS"""
+  grossProfitPesewas: Int!
+  netProfitFormatted: String!
+
+  """Net profit margin % = (net profit / revenue) * 100"""
+  netProfitMarginPct: Float!
+
+  """Net profit = gross profit - operating expenses"""
+  netProfitPesewas: Int!
+  operatingExpensesFormatted: String!
+
+  """Total operating expenses (salaries, rent, utilities, etc.)"""
+  operatingExpensesPesewas: Int!
+  periodEnd: String!
+  periodStart: String!
+  revenueFormatted: String!
+
+  """Total revenue (sales) in GHS pesewas"""
+  revenuePesewas: Int!
+}
+
+type Query {
+  cashFlowForecast: CashFlowForecast!
+  cfoBriefing: CfoBriefing!
+  currentExchangeRate: ExchangeRate
+  customer(id: ID!): CustomerOutput!
+  dailySummary(date: String): DailySummary!
+  dashboardKpis: DashboardKpis!
+
+  """
+  Ghana FDA dispensing compliance audit — POM enforcement, Rx validity, GMDC validation, controlled drug sign-offs, PDF retention. RBAC: owner, se_admin, manager, head_pharmacist.
+  """
+  dispensingComplianceAudit(input: AuditPeriodInput!): DispensingComplianceAudit!
+
+  """
+  Financial integrity audit — revenue reconciliation, void/refund analysis, cash dominance, duplicate invoices, expense fraud signals, GL integrity. RBAC: owner, se_admin only.
+  """
+  financialIntegrityAudit(input: AuditPeriodInput!): FinancialIntegrityAudit!
+  grn(id: ID!): GRNOutput!
+
+  """
+  Full internal audit report — Ghana FDA compliance, GRA tax, financial integrity, inventory integrity, licence compliance, staff behaviour profiling, and risk matrix. RBAC: owner and se_admin only.
+  """
+  internalAuditReport(input: AuditPeriodInput!): InternalAuditReport!
+  inventory: [InventoryItem!]!
+  inventoryFinancialMetrics: InventoryFinancialMetrics!
+
+  """
+  Inventory integrity audit — shrinkage, phantom stock, expired dispensing, GRN integrity, high-value adjustments. RBAC: owner, se_admin, manager.
+  """
+  inventoryIntegrityAudit(input: AuditPeriodInput!): InventoryIntegrityAudit!
+  investmentIntelligence: InvestmentIntelligenceReport!
+
+  """
+  Latest observed supplier unit costs for a set of products in the current branch. Used by pricing control to prefill cost baselines from GRN/invoice ingestion.
+  """
+  latestProductCosts(productIds: [ID!]!): [ProductCostSnapshot!]!
+
+  """
+  Licence and regulatory compliance — pharmacist licences, HeFRA branch licence, controlled drug register, cold chain. RBAC: owner, se_admin, manager.
+  """
+  licenceComplianceAudit: LicenceComplianceAudit!
+  listCustomers(limit: Int, offset: Int): [CustomerOutput!]!
+  listExpenses(status: String): [ExpenseOutput!]!
+  listGRNs(limit: Float): [GRNOutput!]!
+  listStaff(branchId: ID): [StaffMemberOutput!]!
+  lowStockAlerts: [LowStockAlert!]!
+  me: User!
+  myStockAlerts(limit: Int): [StockAlertNotification!]!
+  ocrColumnMappingPresets(supplierId: ID): [OcrColumnMappingPresetOutput!]!
+  pendingPrescriptions: [PrescriptionOutput!]!
+  prescription(id: ID!): PrescriptionOutput!
+  prescriptionsForProduct(productId: ID!): [PrescriptionOutput!]!
+  productPriceHistory(limit: Int! = 20, productId: String!): [PriceHistory!]!
+  profitLoss(periodEnd: String!, periodStart: String!): ProfitLossStatement!
+  recentSales(limit: Float): [SaleOutput!]!
+  revenueIntelligence: RevenueIntelligence!
+  revenueReport(periodEnd: String!, periodStart: String!): RevenueReport!
+  sale(id: ID!): SaleOutput!
+  searchCustomers(limit: Int, query: String!): [CustomerOutput!]!
+
+  """
+  Search products by name, generic name, or barcode. Returns up to 20 results ordered by relevance.
+  """
+  searchProducts(
+    """Branch UUID for stock filtering"""
+    branchId: String!
+    limit: Int = 20
+
+    """Search term — min 2 characters"""
+    query: String!
+  ): [ProductType!]!
+
+  """
+  Deep-dive behavioural profile for a single staff member. Ghana DPA 2012: user IDs only — no names in findings. RBAC: owner, se_admin only.
+  """
+  staffBehaviourProfile(branchId: ID!, input: StaffInvestigationInput!): StaffBehaviourProfile!
+
+  """
+  Behavioural profiles for all active staff, ranked by risk score. Detects void abuse, discount abuse, after-hours activity, speed anomalies, POM bypass attempts, and refund patterns. Ghana DPA 2012: user IDs only — no names in findings. RBAC: owner, se_admin only.
+  """
+  staffBehaviourProfiles(input: AuditPeriodInput!): [StaffBehaviourProfile!]!
+  staffMember(userId: ID!): StaffMemberOutput!
+  staffSessionHistory(
+    branchId: ID
+
+    """YYYY-MM-DD (Accra calendar day)"""
+    fromDate: String
+    limit: Int
+    offset: Int
+
+    """YYYY-MM-DD (Accra calendar day)"""
+    toDate: String
+  ): [StaffSessionOutput!]!
+  stockMovements(limit: Int, productId: ID!): [StockMovementOutput!]!
+  subscriptionOverview: SubscriptionOverview!
+  supplier(id: String!): Supplier!
+  supplierCreditSummary(supplierId: ID!): SupplierCreditSummary!
+  supplierInvoices(supplierId: ID): [SupplierInvoiceOutput!]!
+  supplierRestockWatch: [SupplierRestockWatch!]!
+  suppliers: [Supplier!]!
+
+  """
+  Ghana GRA tax compliance audit — VAT gap, exemption abuse, PAYE compliance, withholding tax on supplier payments. RBAC: owner, se_admin only.
+  """
+  taxComplianceAudit(input: AuditPeriodInput!): TaxComplianceAudit!
+  topProducts(limit: Float, periodEnd: String!, periodStart: String!): [TopProduct!]!
+  validateGmdcLicence(licenceNo: String!): GmdcValidationResult!
+  vatCompliance(month: Float, year: Float): VatComplianceReport!
+  workingCapital: WorkingCapitalReport!
+}
+
+"""
+Record stock received from a supplier (Goods Received Note). Increments `quantity_on_hand` and creates a `RECEIVE` stock movement record. Optionally links to a purchase order for reconciliation.
+"""
+input ReceiveStockInput {
+  """Batch/lot number from the supplier invoice or GRN document."""
+  batchNumber: String
+
+  """
+  Expiry date of this batch in ISO 8601 format. Required for medicines — used for FEFO dispensing order.
+  """
+  expiryDate: String
+
+  """UUID of the product being received"""
+  productId: ID!
+
+  """UUID of the purchase order this receipt is fulfilling. Optional."""
+  purchaseOrderId: String
+
+  """Quantity received. Must be ≥ 1."""
+  quantity: Int!
+}
+
+"""Record a payment to a supplier against an invoice"""
+input RecordSupplierPaymentInput {
+  """Amount paid in GHS pesewas"""
+  amountPesewas: Int!
+
+  """UUID of the supplier invoice being paid"""
+  invoiceId: ID!
+
+  """Payment method. Example: CASH, MTN_MOMO, BANK_TRANSFER"""
+  paymentMethod: String!
+
+  """Payment reference (MoMo transaction ID, bank reference, cheque number)"""
+  reference: String
+}
+
+"""Register a new user account within a branch"""
+input RegisterInput {
+  """UUID of the branch this user belongs to"""
+  branch_id: String!
+
+  """Unique email address — used as login identifier"""
+  email: String!
+
+  """Full display name of the user"""
+  name: String!
+
+  """Password — minimum 8 characters. Stored as bcrypt hash (cost 12)."""
+  password: String!
+
+  """
+  Role assigned to this user. Valid values: `owner` | `head_pharmacist` | `pharmacist` | `cashier` | `manager` | `se_admin`
+  """
+  role: String!
+}
+
+"""
+Reset a staff member's password. Generates a new bcrypt hash (cost 12). Requires role: `owner` or `manager`. The staff member will be required to change their password on next login.
+"""
+input ResetStaffPasswordInput {
+  """New password. Minimum 8 characters."""
+  newPassword: String!
+
+  """UUID of the user whose password is being reset"""
+  userId: String!
+}
+
+"""Revenue intelligence — trends, seasonality, anomalies"""
+type RevenueIntelligence {
+  """Best performing day of week (e.g. "Monday")"""
+  bestDayOfWeek: String!
+
+  """Compound monthly growth rate (CMGR) over 6 months (%)"""
+  cmgr6MonthPct: Float!
+
+  """Narrative insight from the intelligence engine"""
+  insight: String!
+
+  """Month-over-month growth rate (%)"""
+  momGrowthPct: Float!
+
+  """Monthly revenue trend (last 12 months)"""
+  monthlyTrend: [RevenueTrendPoint!]!
+
+  """Best performing hour of day (e.g. "10:00–11:00")"""
+  peakHour: String!
+  projectedNextMonthFormatted: String!
+
+  """Projected revenue next month (pesewas) — linear regression"""
+  projectedNextMonthPesewas: Int!
+
+  """Revenue per prescription dispensed (GHS)"""
+  revenuePerRxGhs: Float!
+
+  """Trend signal: ACCELERATING | STABLE | DECELERATING | DECLINING"""
+  trendSignal: String!
+
+  """Year-over-year growth rate (%)"""
+  yoyGrowthPct: Float!
+}
+
+"""
+Revenue report for a date range. All monetary values in GHS pesewas. Used for Ghana GRA monthly VAT returns (due 30th of following month).
+"""
+type RevenueReport {
+  """Average sale value in GHS (not pesewas). Example: `42.50`"""
+  averageSaleGhs: Float!
+
+  """Report period end date. ISO 8601. Example: `"2026-03-31"`"""
+  periodEnd: String!
+
+  """Report period start date. ISO 8601. Example: `"2026-03-01"`"""
+  periodStart: String!
+
+  """Total refunds issued in GHS pesewas (negative impact on revenue)"""
+  refundsPesewas: Int!
+
+  """Total number of completed sales in the period"""
+  salesCount: Int!
+
+  """Formatted total revenue. Example: `"GH₵42,500.00"`"""
+  totalRevenueFormatted: String!
+
+  """Total revenue in GHS pesewas (all completed sales, excl. refunds)"""
+  totalRevenuePesewas: Int!
+
+  """
+  Total VAT collected in GHS pesewas. Ghana GRA: 15% on non-exempt items (12.5% VAT + 2.5% NHIL). Prescription medicines are VAT-exempt.
+  """
+  vatCollectedPesewas: Int!
+
+  """Formatted VAT collected. Example: `"GH₵5,625.00"`"""
+  vatFormatted: String!
+}
+
+"""A single data point in a revenue trend series"""
+type RevenueTrendPoint {
+  avgTransactionGhs: Float!
+  growthPct: Float
+  period: String!
+  revenueFormatted: String!
+  revenuePesewas: Int!
+  transactionCount: Int!
+}
+
+"""Risk matrix entry — probability vs impact"""
+type RiskMatrixEntry {
+  """LOW | MEDIUM | HIGH | CRITICAL"""
+  impact: String!
+
+  """LOW | MEDIUM | HIGH | CRITICAL — combined risk rating"""
+  inherentRisk: String!
+
+  """LOW | MEDIUM | HIGH | CRITICAL"""
+  likelihood: String!
+  mitigationStatus: String!
+  recommendedControl: String!
+  riskTitle: String!
+
+  """FRAUD | REGULATORY | FINANCIAL | OPERATIONAL | REPUTATIONAL"""
+  riskType: String!
+}
+
+"""A single line item in a sale"""
+input SaleItemInput {
+  """
+  UUID of the approved prescription. **Required** when the product has `requiresRx = true`. Ghana FDA: omitting this for a POM product throws `FDA_POM_VIOLATION`.
+  """
+  prescriptionId: String
+
+  """UUID of the product being sold"""
+  productId: ID!
+
+  """Number of units to sell. Must be ≥ 1."""
+  quantity: Int!
+}
+
+"""A single line item within a completed sale"""
+type SaleItemOutput {
+  """
+  Ghana FDA classification at read time (`OTC` | `POM` | `CONTROLLED`) — joined from product record.
+  """
+  classification: String!
+
+  """UUID of this sale item record"""
+  id: ID!
+
+  """UUID of the product sold"""
+  productId: ID!
+
+  """Product name at time of sale (snapshot)"""
+  productName: String!
+
+  """Quantity sold"""
+  quantity: Int!
+
+  """Reorder threshold configured for this product at the selling branch."""
+  reorderLevel: Int!
+
+  """
+  Inventory units remaining immediately after this sale line is committed. Used by POS UI for real-time stock sync.
+  """
+  stockAfterSale: Int!
+
+  """Post-sale stock health status: `ok` | `low` | `critical` | `out`."""
+  stockStatus: String!
+
+  """
+  UUID of the supplier — enables full supply chain traceability per Ghana FDA requirements
+  """
+  supplierId: String
+
+  """
+  Supplier trading name at time of reporting (joined for receipts and audit views)
+  """
+  supplierName: String
+
+  """
+  Unit price in GHS pesewas at time of sale (snapshot). Example: `2500` = GH₵25.00
+  """
+  unitPricePesewas: Int!
+
+  """
+  Ghana GRA: `true` if this item is VAT-exempt (prescription medicines). `false` if 15% VAT applies.
+  """
+  vatExempt: Boolean!
+}
+
+"""A completed sale record"""
+type SaleOutput {
+  """UUID of the branch where the sale occurred"""
+  branchId: ID!
+
+  """Branch display name where the sale was recorded"""
+  branchName: String!
+
+  """UUID of the cashier who processed the sale"""
+  cashierId: ID!
+
+  """Cashier display name from staff record"""
+  cashierName: String!
+
+  """
+  When the sale row was persisted on the server. For reporting, the API uses `soldAt` when set, else this.
+  """
+  createdAt: DateTime!
+
+  """UUID of the sale"""
+  id: ID!
+
+  """Idempotency key used to create this sale"""
+  idempotencyKey: ID!
+
+  """Line items in this sale"""
+  items: [SaleItemOutput!]!
+
+  """
+  Checkout wall time when provided (e.g. offline queue). Null when only server record time applies.
+  """
+  soldAt: DateTime
+
+  """Sale status. Values: `COMPLETED` | `REFUNDED` | `VOID`"""
+  status: String!
+
+  """Human-readable total. Always GH₵ — never USD. Example: `GH₵115.00`"""
+  totalFormatted: String!
+
+  """
+  Total sale amount in GHS pesewas (subtotal + VAT). Example: `11500` = GH₵115.00
+  """
+  totalPesewas: Int!
+
+  """
+  VAT collected in GHS pesewas. Ghana GRA: 15% on non-exempt items (12.5% VAT + 2.5% NHIL).
+  """
+  vatPesewas: Int!
+}
+
+"""
+Set the USD/GHS exchange rate used for display-only USD price conversion. Cached in Redis. Used only for informational display — all transactions are always in GHS. Requires role: owner or se_admin.
+"""
+input SetExchangeRateInput {
+  """
+  USD to GHS exchange rate. Example: 15.50 means GH 15.50 = $1.00. Bank of Ghana official rate recommended.
+  """
+  usdToGhsRate: Float!
+}
+
+"""Behavioural anomaly detected for a staff member"""
+type StaffBehaviourAnomaly {
+  """
+  VOID_ABUSE | DISCOUNT_ABUSE | AFTER_HOURS | SPEED_ANOMALY | REFUND_PATTERN | CASH_DISCREPANCY | POM_BYPASS_ATTEMPT | IDLE_SESSION | BULK_DELETION
+  """
+  anomalyType: String!
+  description: String!
+
+  """Deviation from branch average (standard deviations)"""
+  deviationSigma: Float!
+  firstSeen: DateTime
+  lastSeen: DateTime
+  occurrenceCount: Int!
+
+  """LOW | MEDIUM | HIGH — risk level of this anomaly"""
+  riskLevel: String!
+}
+
+"""Full behavioural profile of a staff member — the internal spy report"""
+type StaffBehaviourProfile {
+  afterHoursTransactionCount: Int!
+  anomalies: [StaffBehaviourAnomaly!]!
+
+  """Avg seconds between sale items — very low = suspicious speed"""
+  avgItemScanSpeedSeconds: Float!
+  avgSaleValueGhs: Float!
+  branchName: String!
+  discountCount: Int!
+
+  """Most active hour of day (e.g. "14:00–15:00")"""
+  peakActivityHour: String!
+  pomAttemptBlockCount: Int!
+  refundCount: Int!
+
+  """CLEAN | WATCH | INVESTIGATE | ESCALATE"""
+  riskRating: String!
+
+  """Risk score 0–100"""
+  riskScore: Int!
+  role: String!
+
+  """Plain-English summary of the staff member's risk profile"""
+  summary: String!
+  totalRevenueFormatted: String!
+  totalRevenuePesewas: Int!
+  totalSalesCount: Int!
+  userId: ID!
+  voidCount: Int!
+}
+
+input StaffInvestigationInput {
+  fromDate: String
+  toDate: String
+  userId: ID!
+}
+
+"""
+A staff member's profile. PII fields (phone, address, Ghana Card) are decrypted before returning — only accessible to `owner` and `manager` roles.
+"""
+type StaffMemberOutput {
+  """UUID of the branch this staff member belongs to"""
+  branch_id: String!
+
+  """
+  S3 keys for uploaded certificates (professional licences, training certs). Use the pre-signed URL endpoint to download.
+  """
+  certificate_s3_keys: [String!]!
+
+  """ISO 8601 timestamp when the account was created"""
+  created_at: DateTime!
+
+  """Department"""
+  department: String
+
+  """Work email address"""
+  email: String
+
+  """Employment type"""
+  employment_type: String
+
+  """UUID of the user account"""
+  id: ID!
+
+  """`true` if the account is active. Deactivated accounts cannot log in."""
+  is_active: Boolean!
+
+  """Professional licence expiry date"""
+  licence_expiry_date: DateTime
+
+  """Full name"""
+  name: String!
+
+  """Job title"""
+  position: String
+
+  """
+  Professional licence number (pharmacists). Used for Ghana FDA compliance.
+  """
+  professional_licence_no: String
+
+  """
+  Assigned role. Values: `owner` | `head_pharmacist` | `pharmacist` | `cashier` | `manager`
+  """
+  role: String!
+
+  """Employment start date"""
+  start_date: DateTime
+}
+
+"""
+Recorded staff sign-in session: login time, last token refresh, optional explicit logout. Managers see their branch; owners and SE admins see all branches in the organization (or filter by branch).
+"""
+type StaffSessionOutput {
+  branchId: ID!
+  branch_name: String!
+
+  """Set when the user logged out or sessions were invalidated."""
+  ended_at: DateTime
+  id: ID!
+  ip_address: String
+
+  """
+  True when no explicit end time has been recorded (session may still be active or may have expired server-side).
+  """
+  is_open: Boolean!
+
+  """
+  Updated on each successful refresh-token exchange while the session is open.
+  """
+  last_seen_at: DateTime!
+  sessionId: ID!
+  started_at: DateTime!
+  userId: ID!
+  user_agent: String
+  user_name: String!
+  user_role: String!
+}
+
+"""In-app stock alert notification for the current user."""
+type StockAlertNotification {
+  channels: [String!]!
+  createdAt: DateTime!
+  id: ID!
+  message: String!
+  productId: ID!
+  productName: String!
+  quantityOnHand: Int!
+  reorderLevel: Int!
+  stockStatus: String!
+  suggestedReorderQty: Int!
+  supplierId: String
+  supplierName: String
+  supplierPhone: String
+}
+
+"""
+Real-time stock update event emitted after successful sale, stock receive, GRN intake, or manual adjustment.
+"""
+type StockChangedEvent {
+  branchId: ID!
+
+  """Server timestamp for this stock event (Africa/Accra timezone)."""
+  changedAt: DateTime!
+  productId: ID!
+  quantityOnHand: Int!
+  reorderLevel: Int!
+
+  """Stock health status: `ok` | `low` | `critical` | `out`."""
+  stockStatus: String!
+}
+
+"""A single stock movement event (sale, receive, adjustment, return)"""
+type StockMovementOutput {
+  """Batch number associated with this movement"""
+  batchNumber: String
+
+  """ISO 8601 timestamp of the movement (Africa/Accra timezone)"""
+  createdAt: DateTime!
+
+  """Expiry date of the batch involved"""
+  expiryDate: DateTime
+
+  """UUID of this movement record"""
+  id: ID!
+
+  """
+  Movement type. Values: `SALE` | `RECEIVE` | `ADJUSTMENT` | `RETURN` | `WRITE_OFF` | `TRANSFER`
+  """
+  movementType: String!
+
+  """UUID of the product"""
+  productId: ID!
+
+  """Product name at time of movement"""
+  productName: String!
+
+  """
+  Quantity changed. Negative for outbound movements (sales, write-offs). Positive for inbound (receive, return, adjustment).
+  """
+  quantity: Int!
+}
+
+type Subscription {
+  stockChanged(branchId: ID): StockChangedEvent!
+}
+
+"""Tier limits applied to the organization"""
+type SubscriptionLimitSnapshot {
+  branches: Int!
+  products: Int!
+  sales: Int!
+  users: Int!
+}
+
+"""Organization subscription overview for billing and plan UI"""
+type SubscriptionOverview {
+  cancelAtPeriodEnd: Boolean!
+  currentPeriodEnd: DateTime!
+  currentPeriodStart: DateTime!
+  limits: SubscriptionLimitSnapshot!
+  status: String!
+  tier: String!
+  usage: SubscriptionUsageSnapshot!
+}
+
+"""Current usage counters for the active subscription period"""
+type SubscriptionUsageSnapshot {
+  branches: Int!
+  products: Int!
+  sales: Int!
+  users: Int!
+}
+
+"""
+A medicine or health product supplier. Linked to products and sale items for full supply chain traceability — a Ghana FDA requirement. Soft-deleted via `is_active = false` — never hard deleted.
+"""
+type Supplier {
+  address: String
+
+  """AI reliability score 0–100. Updated nightly."""
+  aiScore: Int
+
+  """Primary contact person name"""
+  contactName: String
+  createdAt: DateTime!
+  email: String
+  id: ID!
+  isActive: Boolean!
+
+  """Supplier trading name"""
+  name: String!
+  phone: String
+  updatedAt: DateTime!
+}
+
+"""Supplier credit balance and aging summary"""
+type SupplierCreditSummary {
+  """Credit limit in GHS pesewas (from supplier record)"""
+  creditLimitPesewas: Int!
+
+  """Credit utilization % (outstanding / credit_limit * 100)"""
+  creditUtilizationPct: Float!
+
+  """Next payment due date (earliest unpaid invoice)"""
+  nextPaymentDue: DateTime
+
+  """Formatted balance. Example: GH₵12,500.00"""
+  outstandingBalanceFormatted: String!
+
+  """Total outstanding balance in GHS pesewas"""
+  outstandingBalancePesewas: Int!
+
+  """Formatted overdue amount"""
+  overdueFormatted: String!
+
+  """Number of overdue invoices"""
+  overdueInvoiceCount: Int!
+
+  """Amount overdue (past due date) in GHS pesewas"""
+  overduePesewas: Int!
+  supplierId: ID!
+  supplierName: String!
+
+  """Number of unpaid invoices"""
+  unpaidInvoiceCount: Int!
+}
+
+"""A single OCR-extracted supplier invoice line item."""
+input SupplierInvoiceOcrLineInput {
+  """Supplier barcode/pack code parsed from OCR."""
+  barcode: String
+
+  """Line total in GHS pesewas (used to infer unit cost when missing)."""
+  lineTotalPesewas: Int
+
+  """Resolved product UUID when OCR pipeline already matched catalog."""
+  productId: ID
+
+  """Parsed product name from invoice line."""
+  productName: String
+
+  """Quantity parsed from the line."""
+  quantity: Int
+
+  """Raw OCR line text for audit/reference."""
+  rawText: String
+
+  """Unit cost in GHS pesewas parsed from OCR."""
+  unitCostPesewas: Int
+}
+
+"""Supplier invoice with payment status"""
+type SupplierInvoiceOutput {
+  balanceFormatted: String!
+
+  """Remaining balance = total - paid"""
+  balancePesewas: Int!
+  branchId: ID!
+  createdAt: DateTime!
+  dueDate: DateTime
+  grnId: ID
+  id: ID!
+  invoiceDate: DateTime!
+  invoiceNumber: String!
+  paidAmountFormatted: String!
+  paidAmountPesewas: Int!
+  s3PdfKey: String
+
+  """PENDING | MATCHED | PARTIAL | PAID | OVERDUE"""
+  status: String!
+  supplierId: ID!
+  supplierName: String!
+  totalAmountFormatted: String!
+  totalAmountPesewas: Int!
+}
+
+"""
+A low/critical/out stock product linked to a supplier for restock action.
+"""
+type SupplierProductStockSignal {
+  productId: ID!
+  productName: String!
+  quantityOnHand: Int!
+  reorderLevel: Int!
+
+  """Stock status: `ok` | `low` | `critical` | `out`."""
+  stockStatus: String!
+}
+
+"""
+Supplier restock watch for a branch. Helps managers and pharmacists call suppliers quickly when assigned products fall to low/critical/out stock levels.
+"""
+type SupplierRestockWatch {
+  affectedProducts: [SupplierProductStockSignal!]!
+  criticalStockCount: Int!
+  lowStockCount: Int!
+  outOfStockCount: Int!
+  supplierAiScore: Int
+  supplierEmail: String
+  supplierId: ID!
+  supplierName: String!
+  supplierPhone: String
+  totalTrackedProducts: Int!
+}
+
+"""Financial scorecard for a single supplier"""
+type SupplierScorecard {
+  """A | B | C — ABC analysis tier based on revenue contribution"""
+  abcTier: String!
+
+  """Average days to pay this supplier (DPO)"""
+  avgDaysToPayDpo: Float!
+
+  """Average gross margin on products from this supplier (%)"""
+  avgGrossMarginPct: Float!
+
+  """Share of total COGS this supplier represents (%)"""
+  cogsSharePct: Float!
+
+  """On-time delivery rate (%)"""
+  onTimeDeliveryRatePct: Float!
+  outstandingFormatted: String!
+
+  """Outstanding balance owed (pesewas)"""
+  outstandingPesewas: Int!
+
+  """Overdue amount (pesewas)"""
+  overduePesewas: Int!
+
+  """
+  STRATEGIC | PREFERRED | STANDARD | REVIEW — relationship recommendation
+  """
+  relationshipRecommendation: String!
+  supplierId: ID!
+  supplierName: String!
+  totalPurchasedFormatted: String!
+
+  """Total purchased from this supplier (pesewas, last 12 months)"""
+  totalPurchasedPesewas: Int!
+}
+
+"""Ghana GRA tax compliance audit — VAT, PAYE, withholding tax"""
+type TaxComplianceAudit {
+  exemptSalesWithoutRxCount: Int!
+
+  """Claiming VAT exemption on non-Rx sales is a GRA violation"""
+  exemptionAbuseFlag: Boolean!
+  findings: [AuditFinding!]!
+
+  """COMPLIANT | MINOR_GAPS | MAJOR_VIOLATIONS | CRITICAL"""
+  overallTaxStatus: String!
+
+  """Staff paid without PAYE deduction is a GRA violation"""
+  payeComplianceFlag: Boolean!
+  staffOnPayrollCount: Int!
+  staffWithPayeDeductionCount: Int!
+  supplierPaymentsAboveThresholdCount: Int!
+  supplierPaymentsWithoutWhtCount: Int!
+  vatCollectedFormatted: String!
+  vatCollectedPesewas: Int!
+
+  """FILED | PENDING | OVERDUE | NEVER_FILED"""
+  vatFilingStatus: String!
+  vatGapFormatted: String!
+  vatGapPesewas: Int!
+  vatRemittedFormatted: String!
+  vatRemittedPesewas: Int!
+}
+
+"""A payment tender — one sale can have multiple tenders (split payment)"""
+input TenderInput {
+  """
+  Amount tendered in **GHS pesewas** (integer). Example: GH₵50.00 = `5000`. All monetary values are GHS — never USD.
+  """
+  amountPesewas: Int!
+
+  """
+  Payment method. Ghana-native options: `MTN_MOMO`, `VODAFONE_CASH`, `AIRTELTIGO_MONEY`. Also supports `CASH`, `CARD`, `SPLIT`.
+  """
+  method: String!
+
+  """
+  MoMo transaction reference from Hubtel/MTN. Required when method is `MTN_MOMO` or `VODAFONE_CASH`.
+  """
+  momoReference: String
+}
+
+"""A product ranked by sales volume or revenue in a given period"""
+type TopProduct {
+  """UUID of the product"""
+  productId: ID!
+
+  """Product name"""
+  productName: String!
+
+  """Formatted revenue. Example: `"GH₵8,750.00"`"""
+  revenueFormatted: String!
+
+  """Total revenue from this product in GHS pesewas"""
+  revenuePesewas: Int!
+
+  """Total units sold in the period"""
+  unitsSold: Int!
+}
+
+"""Update optional profile fields for an existing customer."""
+input UpdateCustomerInput {
+  ageYears: Int
+  customerId: ID!
+
+  """Set to empty string to clear stored Ghana Card."""
+  ghanaCardNumber: String
+  name: String
+  phone: String
+  sex: CustomerSex
+}
+
+"""
+Update the unit price of a single product. Price is stored in GHS pesewas (integer). Previous price is recorded in price_history for audit. Requires role: owner or manager.
+"""
+input UpdatePriceInput {
+  """UUID of the product to reprice"""
+  productId: String!
+
+  """
+  Reason for the price change. Recorded in price_history audit trail. Examples: Supplier price increase, Promotional discount, Annual review.
+  """
+  reason: String
+
+  """
+  New unit price in GHS pesewas (integer). Example: GH 25.00 = 2500. GH 1.50 = 150. All prices are GHS — never USD.
+  """
+  unitPriceGhsPesewas: Int!
+}
+
+"""
+Update a staff member's profile. All fields are optional — only provided fields are updated. PII fields (phone, address, Ghana Card, date of birth) are AES-256 encrypted before storage. Requires role: `owner` or `manager`. Staff can update their own non-PII fields.
+"""
+input UpdateStaffProfileInput {
+  """Residential address. Stored AES-256 encrypted."""
+  address: String
+
+  """Date of birth. ISO 8601. Stored AES-256 encrypted."""
+  date_of_birth: String
+
+  """Department"""
+  department: String
+
+  """Emergency contact full name"""
+  emergency_contact_name: String
+
+  """Emergency contact phone number. Stored encrypted."""
+  emergency_contact_phone: String
+
+  """Employment type"""
+  employment_type: String
+
+  """Employment end date (for contract/terminated staff)"""
+  end_date: String
+
+  """Gender (optional, self-reported)"""
+  gender: String
+
+  """
+  Ghana Card (National ID) number. Stored AES-256 encrypted. Format: `GHA-XXXXXXXXX-X`.
+  """
+  ghana_card_number: String
+
+  """Expiry date of the professional licence. ISO 8601."""
+  licence_expiry_date: String
+
+  """Internal HR notes. Not visible to the staff member."""
+  notes: String
+
+  """
+  Phone number. Stored AES-256 encrypted — Ghana Data Protection Act 2012. Provide in plain text — the service encrypts before storing.
+  """
+  phone: String
+
+  """Job title"""
+  position: String
+
+  """
+  Ghana Pharmacy Council or GMDC professional licence number. Required for pharmacist roles — used for regulatory compliance.
+  """
+  professional_licence_no: String
+
+  """Employment start date. ISO 8601. Example: `"2025-01-15"`"""
+  start_date: String
+
+  """UUID of the user to update"""
+  userId: String!
+}
+
+"""
+Update an existing supplier. All fields optional. Requires role: owner or manager.
+"""
+input UpdateSupplierInput {
+  address: String
+
+  """AI reliability score 0–100"""
+  aiScore: Int
+  contactName: String
+  email: String
+  isActive: Boolean
+  name: String
+  phone: String
+}
+
+"""
+Create or update a branch-shared OCR column mapping preset for spreadsheet imports.
+"""
+input UpsertOcrColumnMappingPresetInput {
+  """Column mapping pairs."""
+  mappings: [OcrColumnMappingPairInput!]!
+
+  """Preset display name."""
+  name: String!
+
+  """Preset UUID to update; omit to create."""
+  presetId: ID
+
+  """Optional supplier UUID for supplier-specific presets."""
+  supplierId: ID
+}
+
+"""
+An authenticated user account. Scoped to a single branch. `password_hash` is never exposed via GraphQL.
+"""
+type User {
+  """UUID of the branch this user belongs to"""
+  branch_id: String!
+
+  """
+  ISO 8601 timestamp when the account was created (Africa/Accra timezone)
+  """
+  created_at: DateTime!
+
+  """Email address — used as login identifier. Unique across the platform."""
+  email: String
+
+  """UUID of the user account"""
+  id: ID!
+
+  """
+  `true` if the account is active. Deactivated accounts cannot log in. Use soft-deactivation instead of deletion — audit trail is preserved.
+  """
+  is_active: Boolean!
+
+  """
+  `true` if multi-factor authentication is enabled for this account. MFA is required for `owner` and `head_pharmacist` roles in production.
+  """
+  mfa_enabled: Boolean!
+
+  """Full display name"""
+  name: String!
+
+  """
+  Phone number. Stored in plain text on the user record (PII encrypted in staff_profiles).
+  """
+  phone: String
+
+  """
+  Assigned role. Controls access to all mutations and queries. Values: `owner` | `head_pharmacist` | `pharmacist` | `cashier` | `manager` | `se_admin`
+  """
+  role: String!
+
+  """ISO 8601 timestamp of the last account update"""
+  updated_at: DateTime!
+}
+
+"""Ghana GRA VAT compliance report — monthly return data"""
+type VatComplianceReport {
+  exemptSalesFormatted: String!
+
+  """VAT-exempt sales (Rx medicines) in pesewas"""
+  exemptSalesPesewas: Int!
+
+  """FILED | PENDING | OVERDUE"""
+  filingStatus: String!
+  inputVatFormatted: String!
+
+  """Input VAT on supplier invoices (claimable)"""
+  inputVatPesewas: Int!
+  netVatPayableFormatted: String!
+
+  """Net VAT payable to GRA = output - input"""
+  netVatPayablePesewas: Int!
+  nhilCollectedFormatted: String!
+
+  """NHIL collected (2.5%) in pesewas"""
+  nhilCollectedPesewas: Int!
+  period: String!
+
+  """Reminder message for the owner"""
+  reminder: String!
+  returnDueDate: String!
+  taxableSalesFormatted: String!
+
+  """Total taxable sales (non-exempt) in pesewas"""
+  taxableSalesPesewas: Int!
+  totalTaxLiabilityFormatted: String!
+
+  """Total tax liability (VAT + NHIL) in pesewas"""
+  totalTaxLiabilityPesewas: Int!
+  vatCollectedFormatted: String!
+
+  """VAT collected (12.5%) in pesewas"""
+  vatCollectedPesewas: Int!
+}
+
+"""
+Verify (approve) a pending prescription. Ghana FDA: Rx expiry is re-checked, GMDC licence is re-validated. Controlled drugs require approval_count >= 2 (two pharmacist sign-offs). Requires role: pharmacist or head_pharmacist.
+"""
+input VerifyPrescriptionInput {
+  """Optional pharmacist notes recorded against this verification"""
+  notes: String
+
+  """UUID of the prescription to verify"""
+  prescriptionId: ID!
+}
+
+"""Working capital health — the lifeblood of a pharmacy"""
+type WorkingCapitalReport {
+  accountsPayableFormatted: String!
+  accountsPayablePesewas: Int!
+  accountsReceivableFormatted: String!
+  accountsReceivablePesewas: Int!
+  cashAndEquivalentsFormatted: String!
+  cashAndEquivalentsPesewas: Int!
+
+  """Estimated cash runway in days based on approved 30-day expenses."""
+  cashRunwayDays: Int!
+  currentAssetsFormatted: String!
+  currentAssetsPesewas: Int!
+  currentLiabilitiesFormatted: String!
+  currentLiabilitiesPesewas: Int!
+
+  """Current ratio = assets / liabilities. Healthy: ≥ 1.5"""
+  currentRatio: Float!
+
+  """HEALTHY | WATCH | CRITICAL"""
+  healthStatus: String!
+  inventoryValueFormatted: String!
+  inventoryValuePesewas: Int!
+
+  """CFO-level narrative explaining the working capital position"""
+  narrative: String!
+
+  """Quick ratio = (cash + receivables) / liabilities. Healthy: ≥ 1.0"""
+  quickRatio: Float!
+  workingCapitalFormatted: String!
+
+  """Working capital = current assets - current liabilities"""
+  workingCapitalPesewas: Int!
+}
