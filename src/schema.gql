@@ -205,8 +205,14 @@ input CreateCustomerInput {
   """Approximate age in years (optional alternative to full DOB)."""
   ageYears: Int
 
+  """Email address for receipts and notifications. Unique per customer."""
+  email: String
+
   """Ghana Card identifier — encrypted at rest (Ghana DPA 2012)."""
   ghanaCardNumber: String
+
+  """Customer consents to marketing emails and SMS."""
+  marketingConsent: Boolean
 
   """Display name when the customer agrees to share it."""
   name: String
@@ -215,6 +221,9 @@ input CreateCustomerInput {
   Mobile number (Ghana). Stored as a salted hash for deduplication — not returned in APIs.
   """
   phone: String
+
+  """Customer prefers to receive receipts via email, print, or both."""
+  receiptPreference: String
 
   """Optional — clinical and reporting use only."""
   sex: CustomerSex
@@ -301,6 +310,52 @@ input CreatePrescriptionInput {
 }
 
 """
+Create a new product in the catalogue. The product is created as active and can immediately receive stock in inventory.
+"""
+input CreateProductInput {
+  """Optional barcode (EAN-13 or custom branch code)"""
+  barcode: String
+
+  """
+  Allowed branch type for sale. Values: pharmaceutical | chemical | both.
+  """
+  branchType: String! = "both"
+
+  """Optional linked product category UUID."""
+  categoryId: ID
+
+  """Product classification. Values: OTC | POM | CONTROLLED."""
+  classification: String! = "OTC"
+
+  """
+  Generic/INN name. Example: "Paracetamol"
+  """
+  genericName: String
+
+  """
+  Brand/trade name. Example: "Paracetamol 500mg"
+  """
+  name: String!
+
+  """Initial branch reorder level for this product. Defaults to 10."""
+  reorderLevel: Int
+
+  """
+  Whether prescription is required. Defaults based on classification when omitted.
+  """
+  requiresRx: Boolean
+
+  """Optional linked supplier UUID."""
+  supplierId: ID
+
+  """Unit selling price in GHS pesewas (integer). Example: GH¢12.50 = 1250."""
+  unitPrice: Int!
+
+  """Whether VAT is exempt. Defaults based on classification when omitted."""
+  vatExempt: Boolean
+}
+
+"""
 Create a completed sale at the POS terminal. Ghana FDA: POM items are validated by `PomEnforcementGuard` before this mutation runs. Idempotency key prevents duplicate records during offline sync.
 """
 input CreateSaleInput {
@@ -357,6 +412,15 @@ type CustomerOutput {
   """
   customerCode: String!
 
+  """Email address when provided and verified."""
+  email: String
+
+  """When the email was verified (null if not verified)."""
+  emailVerifiedAt: DateTime
+
+  """True when an email address is stored."""
+  hasEmail: Boolean!
+
   """True when an encrypted Ghana Card value exists."""
   hasGhanaCard: Boolean!
 
@@ -366,10 +430,16 @@ type CustomerOutput {
   hasPhone: Boolean!
   id: ID!
 
+  """Customer consented to marketing communications."""
+  marketingConsent: Boolean!
+
   """
   Decrypted name when on file; otherwise null (use customerCode on receipts).
   """
   name: String
+
+  """Customer receipt preference: email, print, or both."""
+  receiptPreference: String
   sex: CustomerSex
 }
 
@@ -912,11 +982,22 @@ input InviteStaffInput {
 
 """Result of a successful staff invitation"""
 type InviteStaffResult {
+  """Email used for onboarding delivery, when provided."""
+  email: String
+
+  """
+  Whether invitation email delivery succeeded. If false, managers should share the temporary password manually.
+  """
+  emailSent: Boolean!
+
   """Human-readable confirmation message"""
   message: String!
 
   """Full name of the invited staff member"""
   name: String!
+
+  """Role assigned to the newly invited staff member."""
+  role: String!
 
   """
   System-generated temporary password. Share this securely with the staff member — it is shown only once. The staff member must change it on first login.
@@ -1016,6 +1097,7 @@ type Mutation {
   createExpense(input: CreateExpenseInput!): ExpenseOutput!
   createGRN(input: CreateGRNInput!): GRNOutput!
   createPrescription(input: CreatePrescriptionInput!): PrescriptionOutput!
+  createProduct(input: CreateProductInput!): ProductType!
   createSale(input: CreateSaleInput!): SaleOutput!
   createSupplier(input: CreateSupplierInput!): Supplier!
   deactivateStaff(userId: ID!): Boolean!
@@ -2197,10 +2279,20 @@ type SupplierProductStockSignal {
   productId: ID!
   productName: String!
   quantityOnHand: Int!
+
+  """
+  Units sold in this branch over the last 7 days. Used for reorder intelligence.
+  """
+  recentSoldQuantity7d: Int!
   reorderLevel: Int!
 
   """Stock status: `ok` | `low` | `critical` | `out`."""
   stockStatus: String!
+
+  """
+  Suggested reorder quantity based on stock status, reorder level, and last 7-day sales.
+  """
+  suggestedReorderQuantity: Int!
 }
 
 """
@@ -2323,11 +2415,14 @@ type TopProduct {
 input UpdateCustomerInput {
   ageYears: Int
   customerId: ID!
+  email: String
 
   """Set to empty string to clear stored Ghana Card."""
   ghanaCardNumber: String
+  marketingConsent: Boolean
   name: String
   phone: String
+  receiptPreference: String
   sex: CustomerSex
 }
 

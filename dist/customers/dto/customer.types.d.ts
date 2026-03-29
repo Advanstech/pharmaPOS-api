@@ -7,6 +7,9 @@ export declare enum CustomerSex {
 export declare class CreateCustomerInput {
     name?: string;
     phone?: string;
+    email?: string;
+    receiptPreference?: 'email' | 'print' | 'both';
+    marketingConsent?: boolean;
     sex?: CustomerSex;
     ageYears?: number;
     ghanaCardNumber?: string;
@@ -15,6 +18,9 @@ export declare class UpdateCustomerInput {
     customerId: string;
     name?: string;
     phone?: string;
+    email?: string;
+    receiptPreference?: 'email' | 'print' | 'both';
+    marketingConsent?: boolean;
     sex?: CustomerSex;
     ageYears?: number;
     ghanaCardNumber?: string;
@@ -28,5 +34,10 @@ export declare class CustomerOutput {
     sex?: CustomerSex;
     ageYears?: number;
     hasGhanaCard: boolean;
+    email?: string;
+    hasEmail: boolean;
+    receiptPreference?: 'email' | 'print' | 'both';
+    marketingConsent: boolean;
+    emailVerifiedAt?: Date;
     createdAt: Date;
 }

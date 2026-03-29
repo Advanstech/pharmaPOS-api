@@ -44,6 +44,35 @@ __decorate([
     __metadata("design:type", String)
 ], CreateCustomerInput.prototype, "phone", void 0);
 __decorate([
+    (0, graphql_1.Field)({
+        nullable: true,
+        description: 'Email address for receipts and notifications. Unique per customer.',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(255),
+    (0, class_validator_1.IsEmail)(),
+    __metadata("design:type", String)
+], CreateCustomerInput.prototype, "email", void 0);
+__decorate([
+    (0, graphql_1.Field)({
+        nullable: true,
+        description: 'Customer prefers to receive receipts via email, print, or both.',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(['email', 'print', 'both']),
+    __metadata("design:type", String)
+], CreateCustomerInput.prototype, "receiptPreference", void 0);
+__decorate([
+    (0, graphql_1.Field)({
+        nullable: true,
+        description: 'Customer consents to marketing emails and SMS.',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateCustomerInput.prototype, "marketingConsent", void 0);
+__decorate([
     (0, graphql_1.Field)(() => CustomerSex, {
         nullable: true,
         description: 'Optional — clinical and reporting use only.',
@@ -101,6 +130,26 @@ __decorate([
     (0, class_validator_1.MaxLength)(30),
     __metadata("design:type", String)
 ], UpdateCustomerInput.prototype, "phone", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(255),
+    (0, class_validator_1.IsEmail)(),
+    __metadata("design:type", String)
+], UpdateCustomerInput.prototype, "email", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(['email', 'print', 'both']),
+    __metadata("design:type", String)
+], UpdateCustomerInput.prototype, "receiptPreference", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateCustomerInput.prototype, "marketingConsent", void 0);
 __decorate([
     (0, graphql_1.Field)(() => CustomerSex, { nullable: true }),
     (0, class_validator_1.IsOptional)(),
@@ -165,6 +214,35 @@ __decorate([
     (0, graphql_1.Field)({ description: 'True when an encrypted Ghana Card value exists.' }),
     __metadata("design:type", Boolean)
 ], CustomerOutput.prototype, "hasGhanaCard", void 0);
+__decorate([
+    (0, graphql_1.Field)({
+        nullable: true,
+        description: 'Email address when provided and verified.',
+    }),
+    __metadata("design:type", String)
+], CustomerOutput.prototype, "email", void 0);
+__decorate([
+    (0, graphql_1.Field)({ description: 'True when an email address is stored.' }),
+    __metadata("design:type", Boolean)
+], CustomerOutput.prototype, "hasEmail", void 0);
+__decorate([
+    (0, graphql_1.Field)({
+        nullable: true,
+        description: 'Customer receipt preference: email, print, or both.',
+    }),
+    __metadata("design:type", String)
+], CustomerOutput.prototype, "receiptPreference", void 0);
+__decorate([
+    (0, graphql_1.Field)({ description: 'Customer consented to marketing communications.' }),
+    __metadata("design:type", Boolean)
+], CustomerOutput.prototype, "marketingConsent", void 0);
+__decorate([
+    (0, graphql_1.Field)({
+        nullable: true,
+        description: 'When the email was verified (null if not verified).',
+    }),
+    __metadata("design:type", Date)
+], CustomerOutput.prototype, "emailVerifiedAt", void 0);
 __decorate([
     (0, graphql_1.Field)(),
     __metadata("design:type", Date)

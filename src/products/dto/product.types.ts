@@ -1,4 +1,84 @@
-import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
+import { ObjectType, Field, ID, Int, InputType } from '@nestjs/graphql';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+
+@InputType({
+  description:
+    'Create a new product in the catalogue. The product is created as active and can immediately receive stock in inventory.',
+})
+export class CreateProductInput {
+  @Field({ description: 'Brand/trade name. Example: "Paracetamol 500mg"' })
+  @IsString()
+  @MaxLength(255)
+  name!: string;
+
+  @Field({ nullable: true, description: 'Generic/INN name. Example: "Paracetamol"' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  genericName?: string;
+
+  @Field({ nullable: true, description: 'Optional barcode (EAN-13 or custom branch code)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  barcode?: string;
+
+  @Field(() => Int, {
+    description: 'Unit selling price in GHS pesewas (integer). Example: GH¢12.50 = 1250.',
+  })
+  @IsInt()
+  @Min(0)
+  unitPrice!: number;
+
+  @Field({
+    description: 'Product classification. Values: OTC | POM | CONTROLLED.',
+    defaultValue: 'OTC',
+  })
+  @IsIn(['OTC', 'POM', 'CONTROLLED'])
+  classification!: string;
+
+  @Field({
+    description: 'Allowed branch type for sale. Values: pharmaceutical | chemical | both.',
+    defaultValue: 'both',
+  })
+  @IsIn(['pharmaceutical', 'chemical', 'both'])
+  branchType!: string;
+
+  @Field({
+    nullable: true,
+    description: 'Whether VAT is exempt. Defaults based on classification when omitted.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  vatExempt?: boolean;
+
+  @Field({
+    nullable: true,
+    description: 'Whether prescription is required. Defaults based on classification when omitted.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  requiresRx?: boolean;
+
+  @Field(() => ID, { nullable: true, description: 'Optional linked product category UUID.' })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @Field(() => ID, { nullable: true, description: 'Optional linked supplier UUID.' })
+  @IsOptional()
+  @IsString()
+  supplierId?: string;
+
+  @Field(() => Int, {
+    nullable: true,
+    description: 'Initial branch reorder level for this product. Defaults to 10.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  reorderLevel?: number;
+}
 
 @ObjectType({ description: 'Product image with CDN URLs and source metadata' })
 export class ProductImageType {

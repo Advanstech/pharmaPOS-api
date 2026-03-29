@@ -107,13 +107,13 @@ let CustomersService = CustomersService_1 = class CustomersService {
         throw new common_1.BadRequestException('Could not allocate a unique customer code — retry.');
     }
     mapRow(r) {
-        var _a, _b;
+        var _a, _b, _c, _d;
         let name;
         if (r.name_encrypted) {
             try {
                 name = decryptPii(this.encryptionKey, r.name_encrypted);
             }
-            catch (_c) {
+            catch (_e) {
                 this.logger.warn(`Could not decrypt name for customer ${r.id}`);
             }
         }
@@ -126,11 +126,16 @@ let CustomersService = CustomersService_1 = class CustomersService {
             sex: (_a = r.sex) !== null && _a !== void 0 ? _a : undefined,
             ageYears: (_b = r.age_years) !== null && _b !== void 0 ? _b : undefined,
             hasGhanaCard: !!r.ghana_card_encrypted,
+            email: (_c = r.email) !== null && _c !== void 0 ? _c : undefined,
+            hasEmail: !!r.email,
+            receiptPreference: r.receipt_preference,
+            marketingConsent: r.marketing_consent,
+            emailVerifiedAt: (_d = r.email_verified_at) !== null && _d !== void 0 ? _d : undefined,
             createdAt: r.created_at,
         };
     }
     async createCustomer(input, actor) {
-        var _a, _b, _c, _d, _e;
+        var _a, _b, _c, _d, _e, _f, _g, _h;
         this.assertCanCreate(actor);
         const customerCode = await this.allocateCustomerCode();
         const phoneHash = ((_a = input.phone) === null || _a === void 0 ? void 0 : _a.trim()) ? this.hashPhone(actor.branchId, input.phone.trim()) : null;
@@ -140,16 +145,21 @@ let CustomersService = CustomersService_1 = class CustomersService {
             : null;
         const sex = (_d = input.sex) !== null && _d !== void 0 ? _d : null;
         const ageYears = (_e = input.ageYears) !== null && _e !== void 0 ? _e : null;
+        const email = ((_f = input.email) === null || _f === void 0 ? void 0 : _f.trim().toLowerCase()) || null;
+        const receiptPreference = (_g = input.receiptPreference) !== null && _g !== void 0 ? _g : 'email';
+        const marketingConsent = (_h = input.marketingConsent) !== null && _h !== void 0 ? _h : false;
         const [row] = await this.dataSource.query(`
       INSERT INTO customers (
         id, branch_id, phone_hash, name_encrypted, date_of_birth_encrypted, allergies_encrypted,
-        is_active, customer_code, sex, age_years, ghana_card_encrypted
+        is_active, customer_code, sex, age_years, ghana_card_encrypted, email, 
+        receipt_preference, marketing_consent
       )
       VALUES (
-        gen_random_uuid(), $1, $2, $3, NULL, NULL, true, $4, $5, $6, $7
+        gen_random_uuid(), $1, $2, $3, NULL, NULL, true, $4, $5, $6, $7, $8, $9, $10
       )
-      RETURNING id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, ghana_card_encrypted, created_at
-    `, [actor.branchId, phoneHash, nameEnc, customerCode, sex, ageYears, ghEnc]);
+      RETURNING id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, 
+               ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
+    `, [actor.branchId, phoneHash, nameEnc, customerCode, sex, ageYears, ghEnc, email, receiptPreference, marketingConsent]);
         this.logger.log(`Customer created id=${row.id} code=${customerCode} branch=${actor.branchId}`);
         return this.mapRow(row);
     }
@@ -188,7 +198,8 @@ let CustomersService = CustomersService_1 = class CustomersService {
         ghana_card_encrypted = $6,
         updated_at = NOW()
       WHERE id = $1
-      RETURNING id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, ghana_card_encrypted, created_at
+      RETURNING id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years,
+               ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
     `, [input.customerId, nameEnc, phoneHash, sex, ageYears, ghEnc]);
         if (!row)
             throw new common_1.NotFoundException('Customer not found');
@@ -196,7 +207,8 @@ let CustomersService = CustomersService_1 = class CustomersService {
     }
     async getCustomerRow(id) {
         const [row] = await this.dataSource.query(`
-      SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, ghana_card_encrypted, created_at
+      SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, 
+             ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
       FROM customers WHERE id = $1 AND is_active = true
     `, [id]);
         if (!row)
@@ -216,7 +228,8 @@ let CustomersService = CustomersService_1 = class CustomersService {
         const cap = Math.min(Math.max(limit, 1), 100);
         const off = Math.max(offset, 0);
         const rows = await this.dataSource.query(`
-      SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, ghana_card_encrypted, created_at
+      SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, 
+             ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
       FROM customers
       WHERE branch_id = $1 AND is_active = true
       ORDER BY created_at DESC
@@ -234,12 +247,14 @@ let CustomersService = CustomersService_1 = class CustomersService {
         const like = `%${q}%`;
         const uuidLike = /^[0-9a-f-]{8,}$/i.test(q);
         const rows = await this.dataSource.query(`
-      SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, ghana_card_encrypted, created_at
+      SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, 
+             ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
       FROM customers
       WHERE branch_id = $1 AND is_active = true
         AND (
           customer_code ILIKE $2
           ${uuidLike ? 'OR CAST(id AS TEXT) ILIKE $2' : ''}
+          OR email ILIKE $2
         )
       ORDER BY created_at DESC
       LIMIT $3

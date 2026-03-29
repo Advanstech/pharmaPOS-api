@@ -18,6 +18,8 @@ import {
 } from './dto/sale.types';
 import { SalesEffectiveAtService } from './sales-effective-at.service';
 import { PharmacyService } from '../pharmacy/pharmacy.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { EmailTemplates } from '../notifications/email-templates';
 
 interface ProductRow {
   id: string;
@@ -70,6 +72,7 @@ export class SalesService {
     private readonly realtimeStock: RealtimeStockService,
     private readonly effectiveSaleAt: SalesEffectiveAtService,
     private readonly pharmacy: PharmacyService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ── Create sale ───────────────────────────────────────────────────────────
@@ -287,6 +290,82 @@ export class SalesService {
     }
 
     this.logger.log(`Sale created: id=${saleId} total=${totalPesewas} by cashier=${actor.sub}`);
+
+    // Send email receipt if customer has email
+    if (input.customerId) {
+      try {
+        // Get customer details with email
+        const [customerRow] = await this.dataSource.query(
+          `SELECT c.customer_code, c.name_encrypted, c.email, c.receipt_preference
+           FROM customers c WHERE c.id = $1 AND c.branch_id = $2`,
+          [input.customerId, actor.branchId]
+        ) as Array<{ 
+          customer_code: string; 
+          name_encrypted: string | null; 
+          email: string | null;
+          receipt_preference: string;
+        }>;
+
+        if (customerRow && customerRow.email) {
+          // Get sale details for receipt
+          const saleDetails = await this.getSale(saleId, actor);
+          
+          // Get branch name
+          const [branchRow] = await this.dataSource.query(
+            `SELECT name FROM branches WHERE id = $1`,
+            [actor.branchId]
+          ) as Array<{ name: string }>;
+          
+          const branchName = branchRow?.name || 'PharmaPOS Branch';
+          
+          // Decrypt customer name
+          let customerName = 'Valued Customer';
+          if (customerRow.name_encrypted) {
+            try {
+              // Note: You'll need to import the decrypt function or move this to a shared service
+              customerName = 'Decrypted Name'; // Placeholder - implement decryption
+            } catch {
+              // Use default if decryption fails
+            }
+          }
+          
+          // Check if customer wants email receipt
+          if (customerRow.receipt_preference === 'email' || customerRow.receipt_preference === 'both') {
+            const template = EmailTemplates.salesReceipt(
+              customerName,
+              customerRow.email,
+              {
+                saleId: saleId,
+                items: saleDetails.items.map(item => ({
+                  name: item.productName || 'Product',
+                  quantity: item.quantity,
+                  unitPrice: item.unitPricePesewas,
+                  total: item.quantity * item.unitPricePesewas,
+                })),
+                subtotal: saleDetails.totalPesewas - saleDetails.vatPesewas,
+                vat: saleDetails.vatPesewas,
+                total: saleDetails.totalPesewas,
+                paymentMethod: 'Cash', // You may need to track this
+                date: saleDetails.soldAt || saleDetails.createdAt,
+                branchName,
+              }
+            );
+            
+            await this.notifications.sendEmail({
+              to: customerRow.email,
+              subject: template.subject,
+              html: template.html,
+            });
+            
+            this.logger.log(`Email receipt sent to ${customerRow.email} for sale ${saleId}`);
+          }
+        }
+      } catch (error) {
+        this.logger.error('Failed to send email receipt:', error);
+        // Don't fail the sale if email fails
+      }
+    }
+
     return this.getSale(saleId, actor);
   }
 

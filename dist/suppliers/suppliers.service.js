@@ -58,10 +58,20 @@ let SuppliersService = class SuppliersService {
         p.id AS product_id,
         p.name AS product_name,
         COALESCE(inv.quantity_on_hand, 0)::int AS quantity_on_hand,
-        COALESCE(inv.reorder_level, 10)::int AS reorder_level
+        COALESCE(inv.reorder_level, 10)::int AS reorder_level,
+        COALESCE(sale7.sold_7d, 0)::int AS sold_7d
       FROM products p
       INNER JOIN suppliers s ON s.id = p.supplier_id
       LEFT JOIN inventory inv ON inv.product_id = p.id AND inv.branch_id = $1
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(SUM(si.quantity), 0)::int AS sold_7d
+        FROM sale_items si
+        INNER JOIN sales sa ON sa.id = si.sale_id
+        WHERE sa.branch_id = $1
+          AND sa.status = 'COMPLETED'
+          AND si.product_id = p.id
+          AND sa.created_at >= NOW() - INTERVAL '7 days'
+      ) sale7 ON true
       WHERE p.is_active = true
         AND s.is_active = true
       ORDER BY s.name ASC, p.name ASC
@@ -90,12 +100,15 @@ let SuppliersService = class SuppliersService {
             if (status === 'out')
                 watch.outOfStockCount += 1;
             if (status !== 'ok') {
+                const suggestedReorderQuantity = this.suggestReorderQuantity(row.quantity_on_hand, row.reorder_level, row.sold_7d, status);
                 watch.affectedProducts.push({
                     productId: row.product_id,
                     productName: row.product_name,
                     quantityOnHand: row.quantity_on_hand,
                     reorderLevel: row.reorder_level,
                     stockStatus: status,
+                    recentSoldQuantity7d: row.sold_7d,
+                    suggestedReorderQuantity,
                 });
             }
             map.set(row.supplier_id, watch);
@@ -114,6 +127,11 @@ let SuppliersService = class SuppliersService {
         if (quantityOnHand <= reorderLevel)
             return 'low';
         return 'ok';
+    }
+    suggestReorderQuantity(quantityOnHand, reorderLevel, sold7d, status) {
+        const urgencyBoost = status === 'out' ? reorderLevel : status === 'critical' ? Math.ceil(reorderLevel * 0.5) : 0;
+        const baselineTarget = Math.max(reorderLevel * 2, sold7d);
+        return Math.max(0, baselineTarget + urgencyBoost - quantityOnHand);
     }
 };
 exports.SuppliersService = SuppliersService;

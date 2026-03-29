@@ -20,6 +20,9 @@ import {
   InviteStaffResult,
 } from './dto/staff.dto';
 import { JwtUser } from '../auth/decorators/current-user.decorator';
+import { NotificationsService } from '../notifications/notifications.service';
+import { EmailTemplates } from '../notifications/email-templates';
+import { ConfigService } from '@nestjs/config';
 
 // RBAC: roles that can manage staff
 const STAFF_MANAGER_ROLES = ['owner', 'se_admin', 'manager'] as const;
@@ -63,6 +66,8 @@ export class StaffService {
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(StaffProfile) private readonly profiles: Repository<StaffProfile>,
     private readonly dataSource: DataSource,
+    private readonly notifications: NotificationsService,
+    private readonly config: ConfigService,
   ) {
     // Fail fast at startup — never silently use a weak or missing key
     const raw = process.env.PII_ENCRYPTION_KEY;
@@ -138,11 +143,62 @@ export class StaffService {
 
     this.logger.log(`Staff invited: user=${userId} role=${input.role} by actor=${actor.sub}`);
 
+    let emailSent = false;
+
+    // Send invitation email if provided
+    if (input.email) {
+      try {
+        // Get branch name for email
+        const [branchRow] = await this.dataSource.query(
+          `SELECT name FROM branches WHERE id = $1`,
+          [targetBranchId]
+        ) as Array<{ name: string }>;
+        
+        const branchName = branchRow?.name || 'PharmaPOS Branch';
+        const invitedByName = actor.role === 'owner'
+          ? 'Branch Owner'
+          : actor.role === 'se_admin'
+            ? 'System Administrator'
+            : actor.role === 'manager'
+              ? 'Branch Manager'
+              : 'System Administrator';
+        
+        const template = EmailTemplates.staffInvitation(
+          input.name,
+          input.email,
+          tempPassword,
+          invitedByName,
+          branchName
+        );
+        
+        await this.notifications.sendEmail({
+          to: input.email,
+          subject: template.subject,
+          html: template.html,
+        });
+
+        emailSent = true;
+        this.logger.log(`Invitation email sent to ${input.email}`);
+      } catch (error) {
+        this.logger.error(`Failed to send invitation email to ${input.email}:`, error);
+        // Continue anyway - staff is created, email is bonus
+      }
+    }
+
+    const message = input.email
+      ? emailSent
+        ? 'Staff member invited. Check their email for login details.'
+        : 'Staff member invited, but email delivery failed. Share the temporary password securely.'
+      : 'Staff member invited. Share the temporary password securely — it must be changed on first login.';
+
     return {
       userId,
       name: input.name,
+      email: input.email ?? undefined,
+      role: input.role,
       temporaryPassword: tempPassword,
-      message: 'Staff member invited. Share the temporary password securely — it must be changed on first login.',
+      emailSent,
+      message,
     };
   }
 

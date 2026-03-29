@@ -135,6 +135,10 @@ export class CustomersService {
       sex: string | null;
       age_years: number | null;
       ghana_card_encrypted: string | null;
+      email: string | null;
+      email_verified_at: Date | null;
+      receipt_preference: string;
+      marketing_consent: boolean;
       created_at: Date;
     },
   ): CustomerOutput {
@@ -155,6 +159,11 @@ export class CustomersService {
       sex: (r.sex as CustomerSex) ?? undefined,
       ageYears: r.age_years ?? undefined,
       hasGhanaCard: !!r.ghana_card_encrypted,
+      email: r.email ?? undefined,
+      hasEmail: !!r.email,
+      receiptPreference: r.receipt_preference as 'email' | 'print' | 'both',
+      marketingConsent: r.marketing_consent,
+      emailVerifiedAt: r.email_verified_at ?? undefined,
       createdAt: r.created_at,
     };
   }
@@ -170,19 +179,24 @@ export class CustomersService {
       : null;
     const sex = input.sex ?? null;
     const ageYears = input.ageYears ?? null;
+    const email = input.email?.trim().toLowerCase() || null;
+    const receiptPreference = input.receiptPreference ?? 'email';
+    const marketingConsent = input.marketingConsent ?? false;
 
     const [row] = await this.dataSource.query(
       `
       INSERT INTO customers (
         id, branch_id, phone_hash, name_encrypted, date_of_birth_encrypted, allergies_encrypted,
-        is_active, customer_code, sex, age_years, ghana_card_encrypted
+        is_active, customer_code, sex, age_years, ghana_card_encrypted, email, 
+        receipt_preference, marketing_consent
       )
       VALUES (
-        gen_random_uuid(), $1, $2, $3, NULL, NULL, true, $4, $5, $6, $7
+        gen_random_uuid(), $1, $2, $3, NULL, NULL, true, $4, $5, $6, $7, $8, $9, $10
       )
-      RETURNING id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, ghana_card_encrypted, created_at
+      RETURNING id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, 
+               ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
     `,
-      [actor.branchId, phoneHash, nameEnc, customerCode, sex, ageYears, ghEnc],
+      [actor.branchId, phoneHash, nameEnc, customerCode, sex, ageYears, ghEnc, email, receiptPreference, marketingConsent],
     ) as Array<{
       id: string;
       branch_id: string;
@@ -192,6 +206,10 @@ export class CustomersService {
       sex: string | null;
       age_years: number | null;
       ghana_card_encrypted: string | null;
+      email: string | null;
+      email_verified_at: Date | null;
+      receipt_preference: string;
+      marketing_consent: boolean;
       created_at: Date;
     }>;
 
@@ -239,7 +257,8 @@ export class CustomersService {
         ghana_card_encrypted = $6,
         updated_at = NOW()
       WHERE id = $1
-      RETURNING id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, ghana_card_encrypted, created_at
+      RETURNING id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years,
+               ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
     `,
       [input.customerId, nameEnc, phoneHash, sex, ageYears, ghEnc],
     ) as Array<{
@@ -251,6 +270,10 @@ export class CustomersService {
       sex: string | null;
       age_years: number | null;
       ghana_card_encrypted: string | null;
+      email: string | null;
+      email_verified_at: Date | null;
+      receipt_preference: string;
+      marketing_consent: boolean;
       created_at: Date;
     }>;
 
@@ -267,11 +290,16 @@ export class CustomersService {
     sex: string | null;
     age_years: number | null;
     ghana_card_encrypted: string | null;
+    email: string | null;
+    email_verified_at: Date | null;
+    receipt_preference: string;
+    marketing_consent: boolean;
     created_at: Date;
   }> {
     const [row] = await this.dataSource.query(
       `
-      SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, ghana_card_encrypted, created_at
+      SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, 
+             ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
       FROM customers WHERE id = $1 AND is_active = true
     `,
       [id],
@@ -284,6 +312,10 @@ export class CustomersService {
       sex: string | null;
       age_years: number | null;
       ghana_card_encrypted: string | null;
+      email: string | null;
+      email_verified_at: Date | null;
+      receipt_preference: string;
+      marketing_consent: boolean;
       created_at: Date;
     }>;
     if (!row) throw new NotFoundException(`Customer ${id} not found`);
@@ -305,7 +337,8 @@ export class CustomersService {
     const off = Math.max(offset, 0);
     const rows = await this.dataSource.query(
       `
-      SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, ghana_card_encrypted, created_at
+      SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, 
+             ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
       FROM customers
       WHERE branch_id = $1 AND is_active = true
       ORDER BY created_at DESC
@@ -321,6 +354,10 @@ export class CustomersService {
       sex: string | null;
       age_years: number | null;
       ghana_card_encrypted: string | null;
+      email: string | null;
+      email_verified_at: Date | null;
+      receipt_preference: string;
+      marketing_consent: boolean;
       created_at: Date;
     }>;
     return rows.map((r) => this.mapRow(r));
@@ -337,12 +374,14 @@ export class CustomersService {
     const uuidLike = /^[0-9a-f-]{8,}$/i.test(q);
     const rows = await this.dataSource.query(
       `
-      SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, ghana_card_encrypted, created_at
+      SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, 
+             ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
       FROM customers
       WHERE branch_id = $1 AND is_active = true
         AND (
           customer_code ILIKE $2
           ${uuidLike ? 'OR CAST(id AS TEXT) ILIKE $2' : ''}
+          OR email ILIKE $2
         )
       ORDER BY created_at DESC
       LIMIT $3
@@ -357,6 +396,10 @@ export class CustomersService {
       sex: string | null;
       age_years: number | null;
       ghana_card_encrypted: string | null;
+      email: string | null;
+      email_verified_at: Date | null;
+      receipt_preference: string;
+      marketing_consent: boolean;
       created_at: Date;
     }>;
     return rows.map((r) => this.mapRow(r));

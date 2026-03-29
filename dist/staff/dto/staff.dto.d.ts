@@ -74,6 +74,9 @@ export declare class StaffSessionOutput {
 export declare class InviteStaffResult {
     userId: string;
     name: string;
+    email?: string;
+    role: string;
     temporaryPassword: string;
+    emailSent: boolean;
     message: string;
 }

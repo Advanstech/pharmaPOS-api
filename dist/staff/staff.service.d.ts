@@ -3,6 +3,8 @@ import { User } from '../auth/entities/user.entity';
 import { StaffProfile } from './entities/staff_profile.entity';
 import { InviteStaffInput, UpdateStaffProfileInput, ResetStaffPasswordInput, StaffMemberOutput, StaffSessionOutput, InviteStaffResult } from './dto/staff.dto';
 import { JwtUser } from '../auth/decorators/current-user.decorator';
+import { NotificationsService } from '../notifications/notifications.service';
+import { ConfigService } from '@nestjs/config';
 export interface StaffSessionHistoryOptions {
     branchId?: string;
     limit?: number;
@@ -14,9 +16,11 @@ export declare class StaffService {
     private readonly users;
     private readonly profiles;
     private readonly dataSource;
+    private readonly notifications;
+    private readonly config;
     private readonly logger;
     private readonly encryptionKey;
-    constructor(users: Repository<User>, profiles: Repository<StaffProfile>, dataSource: DataSource);
+    constructor(users: Repository<User>, profiles: Repository<StaffProfile>, dataSource: DataSource, notifications: NotificationsService, config: ConfigService);
     inviteStaff(input: InviteStaffInput, actor: JwtUser): Promise<InviteStaffResult>;
     updateProfile(input: UpdateStaffProfileInput, actor: JwtUser): Promise<StaffMemberOutput>;
     deactivateStaff(userId: string, actor: JwtUser): Promise<boolean>;

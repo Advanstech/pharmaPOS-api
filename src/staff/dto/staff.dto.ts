@@ -327,6 +327,12 @@ export class InviteStaffResult {
   @Field({ description: 'Full name of the invited staff member' })
   name!: string;
 
+  @Field({ nullable: true, description: 'Email used for onboarding delivery, when provided.' })
+  email?: string;
+
+  @Field({ description: 'Role assigned to the newly invited staff member.' })
+  role!: string;
+
   @Field({
     description:
       'System-generated temporary password. ' +
@@ -334,6 +340,13 @@ export class InviteStaffResult {
       'The staff member must change it on first login.',
   })
   temporaryPassword!: string;
+
+  @Field({
+    description:
+      'Whether invitation email delivery succeeded. ' +
+      'If false, managers should share the temporary password manually.',
+  })
+  emailSent!: boolean;
 
   @Field({ description: 'Human-readable confirmation message' })
   message!: string;

@@ -147,6 +147,97 @@ let ProductsService = ProductsService_1 = class ProductsService {
     async findById(id) {
         return this.productRepo.findOne({ where: { id, isActive: true } });
     }
+    async createProduct(input, actor) {
+        var _a, _b, _c, _d, _e;
+        this.assertProductCreator(actor);
+        const normalizedName = input.name.trim();
+        if (!normalizedName) {
+            throw new common_1.BadRequestException('Product name is required');
+        }
+        const normalizedGenericName = ((_a = input.genericName) === null || _a === void 0 ? void 0 : _a.trim()) || null;
+        const normalizedBarcode = ((_b = input.barcode) === null || _b === void 0 ? void 0 : _b.trim()) || null;
+        const reorderLevel = Math.max(1, (_c = input.reorderLevel) !== null && _c !== void 0 ? _c : 10);
+        const vatExempt = (_d = input.vatExempt) !== null && _d !== void 0 ? _d : input.classification !== 'CONTROLLED';
+        const requiresRx = (_e = input.requiresRx) !== null && _e !== void 0 ? _e : input.classification !== 'OTC';
+        if (actor.branchType === 'chemical' && input.classification !== 'OTC') {
+            throw new common_1.ForbiddenException('Chemical branches can only create OTC products');
+        }
+        if (actor.branchType === 'chemical' && input.branchType === 'pharmaceutical') {
+            throw new common_1.ForbiddenException('Chemical branches cannot create pharmaceutical-only products');
+        }
+        try {
+            const productId = await this.dataSource.transaction(async (em) => {
+                var _a, _b, _c;
+                const inserted = await em.query(`
+          INSERT INTO products (
+            id, name, generic_name, barcode, unit_price, classification,
+            branch_type, vat_exempt, requires_rx, category_id, supplier_id, is_active
+          )
+          VALUES (
+            gen_random_uuid(), $1, $2, $3, $4, $5,
+            $6, $7, $8, $9, $10, true
+          )
+          RETURNING id
+        `, [
+                    normalizedName,
+                    normalizedGenericName,
+                    normalizedBarcode,
+                    input.unitPrice,
+                    input.classification,
+                    input.branchType,
+                    vatExempt,
+                    requiresRx,
+                    (_a = input.categoryId) !== null && _a !== void 0 ? _a : null,
+                    (_b = input.supplierId) !== null && _b !== void 0 ? _b : null,
+                ]);
+                const createdId = (_c = inserted[0]) === null || _c === void 0 ? void 0 : _c.id;
+                if (!createdId) {
+                    throw new common_1.BadRequestException('Product creation failed');
+                }
+                await em.query(`
+          INSERT INTO inventory (id, product_id, branch_id, quantity_on_hand, reorder_level)
+          VALUES (gen_random_uuid(), $1, $2, 0, $3)
+          ON CONFLICT (product_id, branch_id) DO NOTHING
+        `, [createdId, actor.branchId, reorderLevel]);
+                await em.query(`
+          INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+          VALUES (gen_random_uuid(), $1, $2, 'PRODUCT_CREATED', 'product', $3, $4)
+        `, [
+                    actor.branchId,
+                    actor.sub,
+                    createdId,
+                    JSON.stringify({
+                        name: normalizedName,
+                        classification: input.classification,
+                        branch_type: input.branchType,
+                        reorder_level: reorderLevel,
+                    }),
+                ]);
+                return createdId;
+            });
+            const created = await this.findById(productId);
+            if (!created) {
+                throw new common_1.BadRequestException('Created product could not be loaded');
+            }
+            this.logger.log(`Product created: id=${created.id} by user=${actor.sub}`);
+            return created;
+        }
+        catch (error) {
+            if (error instanceof common_1.BadRequestException || error instanceof common_1.ForbiddenException) {
+                throw error;
+            }
+            const msg = error instanceof Error ? error.message : String(error);
+            if (msg.includes('idx_products_barcode_unique') || msg.includes('products_barcode_unique')) {
+                throw new common_1.BadRequestException('Barcode already exists for another active product');
+            }
+            throw error;
+        }
+    }
+    assertProductCreator(actor) {
+        if (!['owner', 'se_admin', 'manager', 'head_pharmacist'].includes(actor.role)) {
+            throw new common_1.ForbiddenException(`Role '${actor.role}' cannot create products. Required: owner, se_admin, manager, head_pharmacist`);
+        }
+    }
 };
 exports.ProductsService = ProductsService;
 exports.ProductsService = ProductsService = ProductsService_1 = __decorate([

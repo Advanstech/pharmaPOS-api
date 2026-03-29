@@ -1,3 +1,16 @@
+export declare class CreateProductInput {
+    name: string;
+    genericName?: string;
+    barcode?: string;
+    unitPrice: number;
+    classification: string;
+    branchType: string;
+    vatExempt?: boolean;
+    requiresRx?: boolean;
+    categoryId?: string;
+    supplierId?: string;
+    reorderLevel?: number;
+}
 export declare class ProductImageType {
     id: string;
     cdnUrl: string;

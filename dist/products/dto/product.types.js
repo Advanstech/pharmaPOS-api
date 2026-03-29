@@ -9,8 +9,101 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ProductType = exports.ProductCategoryType = exports.ProductSupplierType = exports.ProductInventoryType = exports.InventoryBatchType = exports.ProductImageType = void 0;
+exports.ProductType = exports.ProductCategoryType = exports.ProductSupplierType = exports.ProductInventoryType = exports.InventoryBatchType = exports.ProductImageType = exports.CreateProductInput = void 0;
 const graphql_1 = require("@nestjs/graphql");
+const class_validator_1 = require("class-validator");
+let CreateProductInput = class CreateProductInput {
+};
+exports.CreateProductInput = CreateProductInput;
+__decorate([
+    (0, graphql_1.Field)({ description: 'Brand/trade name. Example: "Paracetamol 500mg"' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(255),
+    __metadata("design:type", String)
+], CreateProductInput.prototype, "name", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true, description: 'Generic/INN name. Example: "Paracetamol"' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(255),
+    __metadata("design:type", String)
+], CreateProductInput.prototype, "genericName", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true, description: 'Optional barcode (EAN-13 or custom branch code)' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(100),
+    __metadata("design:type", String)
+], CreateProductInput.prototype, "barcode", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.Int, {
+        description: 'Unit selling price in GHS pesewas (integer). Example: GH¢12.50 = 1250.',
+    }),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], CreateProductInput.prototype, "unitPrice", void 0);
+__decorate([
+    (0, graphql_1.Field)({
+        description: 'Product classification. Values: OTC | POM | CONTROLLED.',
+        defaultValue: 'OTC',
+    }),
+    (0, class_validator_1.IsIn)(['OTC', 'POM', 'CONTROLLED']),
+    __metadata("design:type", String)
+], CreateProductInput.prototype, "classification", void 0);
+__decorate([
+    (0, graphql_1.Field)({
+        description: 'Allowed branch type for sale. Values: pharmaceutical | chemical | both.',
+        defaultValue: 'both',
+    }),
+    (0, class_validator_1.IsIn)(['pharmaceutical', 'chemical', 'both']),
+    __metadata("design:type", String)
+], CreateProductInput.prototype, "branchType", void 0);
+__decorate([
+    (0, graphql_1.Field)({
+        nullable: true,
+        description: 'Whether VAT is exempt. Defaults based on classification when omitted.',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateProductInput.prototype, "vatExempt", void 0);
+__decorate([
+    (0, graphql_1.Field)({
+        nullable: true,
+        description: 'Whether prescription is required. Defaults based on classification when omitted.',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateProductInput.prototype, "requiresRx", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.ID, { nullable: true, description: 'Optional linked product category UUID.' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateProductInput.prototype, "categoryId", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.ID, { nullable: true, description: 'Optional linked supplier UUID.' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateProductInput.prototype, "supplierId", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.Int, {
+        nullable: true,
+        description: 'Initial branch reorder level for this product. Defaults to 10.',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], CreateProductInput.prototype, "reorderLevel", void 0);
+exports.CreateProductInput = CreateProductInput = __decorate([
+    (0, graphql_1.InputType)({
+        description: 'Create a new product in the catalogue. The product is created as active and can immediately receive stock in inventory.',
+    })
+], CreateProductInput);
 let ProductImageType = class ProductImageType {
 };
 exports.ProductImageType = ProductImageType;

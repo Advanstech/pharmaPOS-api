@@ -16,6 +16,16 @@ export class SupplierProductStockSignal {
 
   @Field({ description: 'Stock status: `ok` | `low` | `critical` | `out`.' })
   stockStatus!: string;
+
+  @Field(() => Int, {
+    description: 'Units sold in this branch over the last 7 days. Used for reorder intelligence.',
+  })
+  recentSoldQuantity7d!: number;
+
+  @Field(() => Int, {
+    description: 'Suggested reorder quantity based on stock status, reorder level, and last 7-day sales.',
+  })
+  suggestedReorderQuantity!: number;
 }
 
 @ObjectType({

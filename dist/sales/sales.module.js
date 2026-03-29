@@ -13,12 +13,13 @@ const sales_resolver_1 = require("./sales.resolver");
 const auth_module_1 = require("../auth/auth.module");
 const pharmacy_module_1 = require("../pharmacy/pharmacy.module");
 const inventory_module_1 = require("../inventory/inventory.module");
+const notifications_module_1 = require("../notifications/notifications.module");
 let SalesModule = class SalesModule {
 };
 exports.SalesModule = SalesModule;
 exports.SalesModule = SalesModule = __decorate([
     (0, common_1.Module)({
-        imports: [auth_module_1.AuthModule, pharmacy_module_1.PharmacyModule, inventory_module_1.InventoryModule],
+        imports: [auth_module_1.AuthModule, pharmacy_module_1.PharmacyModule, inventory_module_1.InventoryModule, notifications_module_1.NotificationsModule],
         providers: [sales_service_1.SalesService, sales_resolver_1.SalesResolver],
         exports: [sales_service_1.SalesService],
     })

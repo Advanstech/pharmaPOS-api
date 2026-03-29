@@ -20,9 +20,13 @@ const product_types_1 = require("./dto/product.types");
 const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 const roles_guard_1 = require("../auth/guards/roles.guard");
 const current_user_decorator_1 = require("../auth/decorators/current-user.decorator");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 let ProductsResolver = class ProductsResolver {
     constructor(productsService) {
         this.productsService = productsService;
+    }
+    async createProduct(input, actor) {
+        return this.productsService.createProduct(input, actor);
     }
     async searchProducts(query, branchId, limit, user) {
         return this.productsService.search(query, branchId, user.branchType, limit);
@@ -72,6 +76,15 @@ let ProductsResolver = class ProductsResolver {
     }
 };
 exports.ProductsResolver = ProductsResolver;
+__decorate([
+    (0, graphql_1.Mutation)(() => product_types_1.ProductType),
+    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager', 'head_pharmacist'),
+    __param(0, (0, graphql_1.Args)('input')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [product_types_1.CreateProductInput, Object]),
+    __metadata("design:returntype", Promise)
+], ProductsResolver.prototype, "createProduct", null);
 __decorate([
     (0, graphql_1.Query)(() => [product_types_1.ProductType], {
         description: 'Search products by name, generic name, or barcode. Returns up to 20 results ordered by relevance.',

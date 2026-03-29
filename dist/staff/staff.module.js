@@ -11,16 +11,19 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const staff_service_1 = require("./staff.service");
 const staff_resolver_1 = require("./staff.resolver");
+const user_entity_1 = require("../auth/entities/user.entity");
 const staff_profile_entity_1 = require("./entities/staff_profile.entity");
-const auth_module_1 = require("../auth/auth.module");
+const notifications_module_1 = require("../notifications/notifications.module");
+const config_1 = require("@nestjs/config");
 let StaffModule = class StaffModule {
 };
 exports.StaffModule = StaffModule;
 exports.StaffModule = StaffModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            auth_module_1.AuthModule,
-            typeorm_1.TypeOrmModule.forFeature([staff_profile_entity_1.StaffProfile]),
+            typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, staff_profile_entity_1.StaffProfile]),
+            notifications_module_1.NotificationsModule,
+            config_1.ConfigModule,
         ],
         providers: [staff_service_1.StaffService, staff_resolver_1.StaffResolver],
         exports: [staff_service_1.StaffService],

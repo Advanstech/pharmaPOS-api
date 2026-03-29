@@ -4,11 +4,13 @@ import {
   IsString,
   IsOptional,
   IsInt,
+  IsBoolean,
   Min,
   Max,
   MaxLength,
   IsEnum,
   MinLength,
+  IsEmail,
 } from 'class-validator';
 
 export enum CustomerSex {
@@ -43,6 +45,32 @@ export class CreateCustomerInput {
   @IsString()
   @MaxLength(30)
   phone?: string;
+
+  @Field({
+    nullable: true,
+    description: 'Email address for receipts and notifications. Unique per customer.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  @IsEmail()
+  email?: string;
+
+  @Field({
+    nullable: true,
+    description: 'Customer prefers to receive receipts via email, print, or both.',
+  })
+  @IsOptional()
+  @IsEnum(['email', 'print', 'both'])
+  receiptPreference?: 'email' | 'print' | 'both';
+
+  @Field({
+    nullable: true,
+    description: 'Customer consents to marketing emails and SMS.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  marketingConsent?: boolean;
 
   @Field(() => CustomerSex, {
     nullable: true,
@@ -89,6 +117,23 @@ export class UpdateCustomerInput {
   @IsString()
   @MaxLength(30)
   phone?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  @IsEmail()
+  email?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsEnum(['email', 'print', 'both'])
+  receiptPreference?: 'email' | 'print' | 'both';
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  marketingConsent?: boolean;
 
   @Field(() => CustomerSex, { nullable: true })
   @IsOptional()
@@ -142,6 +187,30 @@ export class CustomerOutput {
 
   @Field({ description: 'True when an encrypted Ghana Card value exists.' })
   hasGhanaCard!: boolean;
+
+  @Field({
+    nullable: true,
+    description: 'Email address when provided and verified.',
+  })
+  email?: string;
+
+  @Field({ description: 'True when an email address is stored.' })
+  hasEmail!: boolean;
+
+  @Field({
+    nullable: true,
+    description: 'Customer receipt preference: email, print, or both.',
+  })
+  receiptPreference?: 'email' | 'print' | 'both';
+
+  @Field({ description: 'Customer consented to marketing communications.' })
+  marketingConsent!: boolean;
+
+  @Field({
+    nullable: true,
+    description: 'When the email was verified (null if not verified).',
+  })
+  emailVerifiedAt?: Date;
 
   @Field()
   createdAt!: Date;

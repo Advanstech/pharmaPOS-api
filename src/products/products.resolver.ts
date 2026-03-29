@@ -1,10 +1,11 @@
-import { Resolver, Query, Args, Int, ResolveField, Parent } from '@nestjs/graphql';
+import { Resolver, Query, Args, Int, ResolveField, Parent, Mutation } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { ProductsService } from './products.service';
-import { ProductType, ProductInventoryType, ProductImageType, ProductSupplierType, ProductCategoryType } from './dto/product.types';
+import { ProductType, ProductInventoryType, ProductImageType, ProductSupplierType, ProductCategoryType, CreateProductInput } from './dto/product.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 type RawRow = Record<string, unknown>;
 
@@ -13,6 +14,15 @@ type RawRow = Record<string, unknown>;
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ProductsResolver {
   constructor(private readonly productsService: ProductsService) {}
+
+  @Mutation(() => ProductType)
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist')
+  async createProduct(
+    @Args('input') input: CreateProductInput,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<ProductType> {
+    return this.productsService.createProduct(input, actor) as unknown as ProductType;
+  }
 
   @Query(() => [ProductType], {
     description: 'Search products by name, generic name, or barcode. Returns up to 20 results ordered by relevance.',

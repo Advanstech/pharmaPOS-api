@@ -384,6 +384,14 @@ __decorate([
     __metadata("design:type", String)
 ], InviteStaffResult.prototype, "name", void 0);
 __decorate([
+    (0, graphql_1.Field)({ nullable: true, description: 'Email used for onboarding delivery, when provided.' }),
+    __metadata("design:type", String)
+], InviteStaffResult.prototype, "email", void 0);
+__decorate([
+    (0, graphql_1.Field)({ description: 'Role assigned to the newly invited staff member.' }),
+    __metadata("design:type", String)
+], InviteStaffResult.prototype, "role", void 0);
+__decorate([
     (0, graphql_1.Field)({
         description: 'System-generated temporary password. ' +
             'Share this securely with the staff member — it is shown only once. ' +
@@ -391,6 +399,13 @@ __decorate([
     }),
     __metadata("design:type", String)
 ], InviteStaffResult.prototype, "temporaryPassword", void 0);
+__decorate([
+    (0, graphql_1.Field)({
+        description: 'Whether invitation email delivery succeeded. ' +
+            'If false, managers should share the temporary password manually.',
+    }),
+    __metadata("design:type", Boolean)
+], InviteStaffResult.prototype, "emailSent", void 0);
 __decorate([
     (0, graphql_1.Field)({ description: 'Human-readable confirmation message' }),
     __metadata("design:type", String)

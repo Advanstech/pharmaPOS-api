@@ -4,6 +4,8 @@ export declare class SupplierProductStockSignal {
     quantityOnHand: number;
     reorderLevel: number;
     stockStatus: string;
+    recentSoldQuantity7d: number;
+    suggestedReorderQuantity: number;
 }
 export declare class SupplierRestockWatch {
     supplierId: string;

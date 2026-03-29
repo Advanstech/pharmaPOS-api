@@ -18,13 +18,16 @@ const constants_1 = require("../config/constants");
 const realtime_stock_service_1 = require("../inventory/realtime-stock.service");
 const sales_effective_at_service_1 = require("./sales-effective-at.service");
 const pharmacy_service_1 = require("../pharmacy/pharmacy.service");
+const notifications_service_1 = require("../notifications/notifications.service");
+const email_templates_1 = require("../notifications/email-templates");
 const BRANCH_WIDE_SALES_ROLES = ['owner', 'se_admin', 'manager'];
 let SalesService = SalesService_1 = class SalesService {
-    constructor(dataSource, realtimeStock, effectiveSaleAt, pharmacy) {
+    constructor(dataSource, realtimeStock, effectiveSaleAt, pharmacy, notifications) {
         this.dataSource = dataSource;
         this.realtimeStock = realtimeStock;
         this.effectiveSaleAt = effectiveSaleAt;
         this.pharmacy = pharmacy;
+        this.notifications = notifications;
         this.logger = new common_1.Logger(SalesService_1.name);
     }
     async createSale(input, actor) {
@@ -171,6 +174,51 @@ let SalesService = SalesService_1 = class SalesService {
             this.realtimeStock.publishStockChanged(event);
         }
         this.logger.log(`Sale created: id=${saleId} total=${totalPesewas} by cashier=${actor.sub}`);
+        if (input.customerId) {
+            try {
+                const [customerRow] = await this.dataSource.query(`SELECT c.customer_code, c.name_encrypted, c.email, c.receipt_preference
+           FROM customers c WHERE c.id = $1 AND c.branch_id = $2`, [input.customerId, actor.branchId]);
+                if (customerRow && customerRow.email) {
+                    const saleDetails = await this.getSale(saleId, actor);
+                    const [branchRow] = await this.dataSource.query(`SELECT name FROM branches WHERE id = $1`, [actor.branchId]);
+                    const branchName = (branchRow === null || branchRow === void 0 ? void 0 : branchRow.name) || 'PharmaPOS Branch';
+                    let customerName = 'Valued Customer';
+                    if (customerRow.name_encrypted) {
+                        try {
+                            customerName = 'Decrypted Name';
+                        }
+                        catch (_a) {
+                        }
+                    }
+                    if (customerRow.receipt_preference === 'email' || customerRow.receipt_preference === 'both') {
+                        const template = email_templates_1.EmailTemplates.salesReceipt(customerName, customerRow.email, {
+                            saleId: saleId,
+                            items: saleDetails.items.map(item => ({
+                                name: item.productName || 'Product',
+                                quantity: item.quantity,
+                                unitPrice: item.unitPricePesewas,
+                                total: item.quantity * item.unitPricePesewas,
+                            })),
+                            subtotal: saleDetails.totalPesewas - saleDetails.vatPesewas,
+                            vat: saleDetails.vatPesewas,
+                            total: saleDetails.totalPesewas,
+                            paymentMethod: 'Cash',
+                            date: saleDetails.soldAt || saleDetails.createdAt,
+                            branchName,
+                        });
+                        await this.notifications.sendEmail({
+                            to: customerRow.email,
+                            subject: template.subject,
+                            html: template.html,
+                        });
+                        this.logger.log(`Email receipt sent to ${customerRow.email} for sale ${saleId}`);
+                    }
+                }
+            }
+            catch (error) {
+                this.logger.error('Failed to send email receipt:', error);
+            }
+        }
         return this.getSale(saleId, actor);
     }
     async getSale(saleId, actor) {
@@ -342,6 +390,7 @@ exports.SalesService = SalesService = SalesService_1 = __decorate([
     __metadata("design:paramtypes", [typeorm_1.DataSource,
         realtime_stock_service_1.RealtimeStockService,
         sales_effective_at_service_1.SalesEffectiveAtService,
-        pharmacy_service_1.PharmacyService])
+        pharmacy_service_1.PharmacyService,
+        notifications_service_1.NotificationsService])
 ], SalesService);
 //# sourceMappingURL=sales.service.js.map

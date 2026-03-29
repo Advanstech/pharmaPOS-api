@@ -21,6 +21,9 @@ const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const user_entity_1 = require("../auth/entities/user.entity");
 const staff_profile_entity_1 = require("./entities/staff_profile.entity");
+const notifications_service_1 = require("../notifications/notifications.service");
+const email_templates_1 = require("../notifications/email-templates");
+const config_1 = require("@nestjs/config");
 const STAFF_MANAGER_ROLES = ['owner', 'se_admin', 'manager'];
 function encryptPii(key, plaintext) {
     const iv = crypto.randomBytes(12);
@@ -39,10 +42,12 @@ function decryptPii(key, ciphertext) {
     return decipher.update(encrypted) + decipher.final('utf8');
 }
 let StaffService = StaffService_1 = class StaffService {
-    constructor(users, profiles, dataSource) {
+    constructor(users, profiles, dataSource, notifications, config) {
         this.users = users;
         this.profiles = profiles;
         this.dataSource = dataSource;
+        this.notifications = notifications;
+        this.config = config;
         this.logger = new common_1.Logger(StaffService_1.name);
         const raw = process.env.PII_ENCRYPTION_KEY;
         if (!raw || raw.length !== 64) {
@@ -52,6 +57,7 @@ let StaffService = StaffService_1 = class StaffService {
         this.encryptionKey = Buffer.from(raw, 'hex');
     }
     async inviteStaff(input, actor) {
+        var _a;
         this.assertStaffManager(actor);
         const targetBranchId = actor.branchId;
         if (input.email) {
@@ -97,11 +103,44 @@ let StaffService = StaffService_1 = class StaffService {
             return userRow.id;
         });
         this.logger.log(`Staff invited: user=${userId} role=${input.role} by actor=${actor.sub}`);
+        let emailSent = false;
+        if (input.email) {
+            try {
+                const [branchRow] = await this.dataSource.query(`SELECT name FROM branches WHERE id = $1`, [targetBranchId]);
+                const branchName = (branchRow === null || branchRow === void 0 ? void 0 : branchRow.name) || 'PharmaPOS Branch';
+                const invitedByName = actor.role === 'owner'
+                    ? 'Branch Owner'
+                    : actor.role === 'se_admin'
+                        ? 'System Administrator'
+                        : actor.role === 'manager'
+                            ? 'Branch Manager'
+                            : 'System Administrator';
+                const template = email_templates_1.EmailTemplates.staffInvitation(input.name, input.email, tempPassword, invitedByName, branchName);
+                await this.notifications.sendEmail({
+                    to: input.email,
+                    subject: template.subject,
+                    html: template.html,
+                });
+                emailSent = true;
+                this.logger.log(`Invitation email sent to ${input.email}`);
+            }
+            catch (error) {
+                this.logger.error(`Failed to send invitation email to ${input.email}:`, error);
+            }
+        }
+        const message = input.email
+            ? emailSent
+                ? 'Staff member invited. Check their email for login details.'
+                : 'Staff member invited, but email delivery failed. Share the temporary password securely.'
+            : 'Staff member invited. Share the temporary password securely — it must be changed on first login.';
         return {
             userId,
             name: input.name,
+            email: (_a = input.email) !== null && _a !== void 0 ? _a : undefined,
+            role: input.role,
             temporaryPassword: tempPassword,
-            message: 'Staff member invited. Share the temporary password securely — it must be changed on first login.',
+            emailSent,
+            message,
         };
     }
     async updateProfile(input, actor) {
@@ -363,6 +402,8 @@ exports.StaffService = StaffService = StaffService_1 = __decorate([
     __param(1, (0, typeorm_1.InjectRepository)(staff_profile_entity_1.StaffProfile)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
-        typeorm_2.DataSource])
+        typeorm_2.DataSource,
+        notifications_service_1.NotificationsService,
+        config_1.ConfigService])
 ], StaffService);
 //# sourceMappingURL=staff.service.js.map

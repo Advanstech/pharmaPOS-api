@@ -13,4 +13,5 @@ export declare class SuppliersService {
     deleteSupplier(id: string): Promise<boolean>;
     getSupplierRestockWatch(branchId: string): Promise<SupplierRestockWatch[]>;
     private calcStockStatus;
+    private suggestReorderQuantity;
 }

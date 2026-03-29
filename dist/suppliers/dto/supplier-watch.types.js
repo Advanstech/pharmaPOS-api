@@ -34,6 +34,18 @@ __decorate([
     (0, graphql_1.Field)({ description: 'Stock status: `ok` | `low` | `critical` | `out`.' }),
     __metadata("design:type", String)
 ], SupplierProductStockSignal.prototype, "stockStatus", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.Int, {
+        description: 'Units sold in this branch over the last 7 days. Used for reorder intelligence.',
+    }),
+    __metadata("design:type", Number)
+], SupplierProductStockSignal.prototype, "recentSoldQuantity7d", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.Int, {
+        description: 'Suggested reorder quantity based on stock status, reorder level, and last 7-day sales.',
+    }),
+    __metadata("design:type", Number)
+], SupplierProductStockSignal.prototype, "suggestedReorderQuantity", void 0);
 exports.SupplierProductStockSignal = SupplierProductStockSignal = __decorate([
     (0, graphql_1.ObjectType)({ description: 'A low/critical/out stock product linked to a supplier for restock action.' })
 ], SupplierProductStockSignal);
