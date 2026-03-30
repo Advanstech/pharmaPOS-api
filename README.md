@@ -12,6 +12,21 @@ pnpm db:seed
 pnpm dev               # http://localhost:4000
 ```
 
+## Deploy (Railway)
+
+This repo includes a root `railway.json` configured to deploy the API from the monorepo.
+
+1. Create a new Railway project and connect this GitHub repo.
+2. Railway auto-detects `railway.json` at repo root.
+3. Set required environment variables from `.env.example` (at minimum: `DATABASE_URL`, `DATABASE_DIRECT_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `PII_ENCRYPTION_KEY`, `WEB_URL`, and Redis settings).
+4. Deploy.
+
+Default Railway flow from config:
+
+- Build: `pnpm install --frozen-lockfile && pnpm --filter api build`
+- Start: `pnpm --filter api start`
+- Health check: `/health`
+
 ## Endpoints
 
 | URL | Description |
