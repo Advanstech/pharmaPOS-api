@@ -1,0 +1,7 @@
+# Standalone API repo (when this directory is the Git root)
+node_modules/
+dist/
+.env
+.env.*
+coverage/
+*.log

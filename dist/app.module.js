@@ -41,7 +41,9 @@ exports.AppModule = AppModule = __decorate([
             graphql_1.GraphQLModule.forRootAsync({
                 driver: apollo_1.ApolloDriver,
                 useFactory: () => ({
-                    autoSchemaFile: (0, path_1.join)(process.cwd(), 'src/schema.gql'),
+                    autoSchemaFile: process.env['NODE_ENV'] === 'production'
+                        ? true
+                        : (0, path_1.join)(process.cwd(), 'src/schema.gql'),
                     sortSchema: true,
                     subscriptions: {
                         'graphql-ws': {

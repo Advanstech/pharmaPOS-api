@@ -861,7 +861,18 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: process.env.WEB_URL ?? 'http://localhost:3000',
+    // WEB_URL supports comma-separated origins for Railway preview deployments
+    // e.g. WEB_URL=https://pharmapos.com,https://pharmapos-web.up.railway.app
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      const allowed = (process.env['WEB_URL'] ?? 'http://localhost:3000')
+        .split(',')
+        .map((u) => u.trim());
+      if (!origin || allowed.includes(origin) || allowed.includes('*')) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+      }
+    },
     credentials: true,
   });
 
@@ -1029,8 +1040,8 @@ ${GQL_REFERENCE}`;
   console.log(`🚀 GraphQL Playground:             http://localhost:${port}/graphql`);
   console.log(`❤️  Health check:                   http://localhost:${port}/health`);
 
-  await app.listen(port);
-  console.log(`PharmaPOS API running on http://localhost:${port}`);
+  await app.listen(port, '0.0.0.0');
+  console.log(`PharmaPOS API running on port ${port}`);
 }
 
 bootstrap();

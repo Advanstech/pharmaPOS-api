@@ -815,7 +815,7 @@ The web POS is an offline-first PWA. When offline:
 ---
 `;
 async function bootstrap() {
-    var _a, _b;
+    var _a;
     const app = await core_1.NestFactory.create(app_module_1.AppModule, {
         logger: nest_winston_1.WinstonModule.createLogger({
             transports: [
@@ -842,10 +842,21 @@ async function bootstrap() {
     }
     app.useGlobalPipes(new common_1.ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
     app.enableCors({
-        origin: (_a = process.env.WEB_URL) !== null && _a !== void 0 ? _a : 'http://localhost:3000',
+        origin: (origin, callback) => {
+            var _a;
+            const allowed = ((_a = process.env['WEB_URL']) !== null && _a !== void 0 ? _a : 'http://localhost:3000')
+                .split(',')
+                .map((u) => u.trim());
+            if (!origin || allowed.includes(origin) || allowed.includes('*')) {
+                callback(null, true);
+            }
+            else {
+                callback(new Error(`CORS: origin ${origin} not allowed`));
+            }
+        },
         credentials: true,
     });
-    const port = (_b = process.env.PORT) !== null && _b !== void 0 ? _b : 4000;
+    const port = (_a = process.env.PORT) !== null && _a !== void 0 ? _a : 4000;
     const swaggerDescription = `
 ## Overview
 
@@ -996,8 +1007,8 @@ ${GQL_REFERENCE}`;
     console.log(`📖 API Reference (REST + GraphQL): http://localhost:${port}/api-docs`);
     console.log(`🚀 GraphQL Playground:             http://localhost:${port}/graphql`);
     console.log(`❤️  Health check:                   http://localhost:${port}/health`);
-    await app.listen(port);
-    console.log(`PharmaPOS API running on http://localhost:${port}`);
+    await app.listen(port, '0.0.0.0');
+    console.log(`PharmaPOS API running on port ${port}`);
 }
 bootstrap();
 //# sourceMappingURL=main.js.map

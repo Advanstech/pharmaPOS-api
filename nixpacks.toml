@@ -1,3 +1,6 @@
+# Railway: set the service “Root directory” to `apps/api` when the Git repo is the monorepo
+# (so `/app` in the build is this folder: package.json + nixpacks.toml live here).
+
 [phases.setup]
 nixPkgs = ["nodejs_22", "pnpm-9_x"]
 
@@ -9,6 +12,9 @@ cmds = [
 
 [phases.build]
 cmds = ["pnpm build"]
+
+[variables]
+NODE_ENV = "production"
 
 [start]
 cmd = "pnpm start"
