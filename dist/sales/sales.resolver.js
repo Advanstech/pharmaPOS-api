@@ -36,7 +36,7 @@ let SalesResolver = class SalesResolver {
         return this.salesService.getRecentSales(actor, limit);
     }
     dailySummary(actor, date) {
-        return this.salesService.getDailySummary(actor.branchId, date);
+        return this.salesService.getDailySummary(actor, date);
     }
 };
 exports.SalesResolver = SalesResolver;
@@ -70,7 +70,7 @@ __decorate([
 ], SalesResolver.prototype, "recentSales", null);
 __decorate([
     (0, graphql_1.Query)(() => sale_types_1.DailySummary, { name: 'dailySummary' }),
-    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager'),
+    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager', 'cashier', 'chemical_cashier', 'pharmacist', 'head_pharmacist', 'technician'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, graphql_1.Args)('date', { nullable: true })),
     __metadata("design:type", Function),

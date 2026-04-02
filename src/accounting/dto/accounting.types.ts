@@ -450,6 +450,21 @@ export class ProfitLossStatement {
   netProfitMarginPct!: number;
 }
 
+@ObjectType({
+  description:
+    'Excel workbook export payload for accounting. `base64Content` should be decoded and saved as .xlsx on the client.',
+})
+export class AccountingWorkbookExport {
+  @Field({ description: 'Suggested file name for the exported workbook' })
+  fileName!: string;
+
+  @Field({ description: 'MIME type for Excel workbook' })
+  mimeType!: string;
+
+  @Field({ description: 'Base64 encoded XLSX binary content' })
+  base64Content!: string;
+}
+
 @ObjectType({ description: 'Summary after ingesting OCR supplier invoice lines.' })
 export class InvoiceOcrIngestionResult {
   @Field(() => ID)

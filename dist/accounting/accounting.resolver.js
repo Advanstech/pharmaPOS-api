@@ -41,7 +41,7 @@ let AccountingResolver = class AccountingResolver {
         return this.accountingService.getSupplierCreditSummary(supplierId, actor.branchId);
     }
     supplierInvoices(actor, supplierId) {
-        return this.accountingService.listSupplierInvoices(actor.branchId, supplierId);
+        return this.accountingService.listSupplierInvoices(actor, supplierId);
     }
     recordSupplierPayment(input, actor) {
         return this.accountingService.recordSupplierPayment(input, actor);
@@ -66,6 +66,9 @@ let AccountingResolver = class AccountingResolver {
     }
     profitLoss(actor, periodStart, periodEnd) {
         return this.accountingService.getProfitLoss(actor.branchId, periodStart, periodEnd);
+    }
+    accountingWorkbook(actor, periodStart, periodEnd) {
+        return this.accountingService.exportAccountingWorkbook(actor, periodStart, periodEnd);
     }
     cfoBriefing(actor) {
         return this.fiService.getCfoBriefing(actor.branchId);
@@ -211,6 +214,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], AccountingResolver.prototype, "profitLoss", null);
+__decorate([
+    (0, graphql_1.Query)(() => accounting_types_1.AccountingWorkbookExport, { name: 'accountingWorkbook' }),
+    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, graphql_1.Args)('periodStart')),
+    __param(2, (0, graphql_1.Args)('periodEnd')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", Promise)
+], AccountingResolver.prototype, "accountingWorkbook", null);
 __decorate([
     (0, graphql_1.Query)(() => financial_intelligence_types_1.CfoBriefing, { name: 'cfoBriefing' }),
     (0, roles_decorator_1.Roles)('owner', 'se_admin'),

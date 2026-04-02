@@ -11,6 +11,7 @@ import {
   IsEnum,
   MinLength,
   IsEmail,
+  ValidateIf,
 } from 'class-validator';
 
 export enum CustomerSex {
@@ -142,10 +143,10 @@ export class UpdateCustomerInput {
 
   @Field(() => Int, { nullable: true })
   @IsOptional()
-  @IsInt()
+  @ValidateIf((o) => o.ageYears !== null && o.ageYears !== undefined)
   @Min(0)
   @Max(130)
-  ageYears?: number;
+  ageYears?: number | string;
 
   @Field({ nullable: true, description: 'Set to empty string to clear stored Ghana Card.' })
   @IsOptional()

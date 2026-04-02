@@ -14,6 +14,7 @@ import {
   SupplierInvoiceOutput,
   CashFlowForecast,
   ProfitLossStatement,
+  AccountingWorkbookExport,
   InvoiceOcrIngestionResult,
   OcrColumnMappingPresetOutput,
   PaymentStatus,
@@ -87,7 +88,7 @@ export class AccountingResolver {
     @CurrentUser() actor: JwtUser,
     @Args('supplierId', { type: () => ID, nullable: true }) supplierId?: string,
   ): Promise<SupplierInvoiceOutput[]> {
-    return this.accountingService.listSupplierInvoices(actor.branchId, supplierId);
+    return this.accountingService.listSupplierInvoices(actor, supplierId);
   }
 
   // RBAC: owner, se_admin, manager only — record payments to suppliers
@@ -164,6 +165,16 @@ export class AccountingResolver {
     @Args('periodEnd') periodEnd: string,
   ): Promise<ProfitLossStatement> {
     return this.accountingService.getProfitLoss(actor.branchId, periodStart, periodEnd);
+  }
+
+  @Query(() => AccountingWorkbookExport, { name: 'accountingWorkbook' })
+  @Roles('owner', 'se_admin', 'manager')
+  accountingWorkbook(
+    @CurrentUser() actor: JwtUser,
+    @Args('periodStart') periodStart: string,
+    @Args('periodEnd') periodEnd: string,
+  ): Promise<AccountingWorkbookExport> {
+    return this.accountingService.exportAccountingWorkbook(actor, periodStart, periodEnd);
   }
 
   // ── Financial Intelligence Engine ─────────────────────────────────────────

@@ -18,6 +18,12 @@ export declare class StaffProfile {
     certificate_s3_keys: string[];
     emergency_contact_name?: string;
     emergency_contact_phone?: string;
+    photo_url?: string;
+    salary_amount_pesewas?: number;
+    salary_period?: string;
+    bank_name?: string;
+    bank_account_encrypted?: string;
+    momo_number_encrypted?: string;
     notes?: string;
     is_active: boolean;
     created_at: Date;

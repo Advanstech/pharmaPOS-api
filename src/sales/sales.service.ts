@@ -62,6 +62,7 @@ interface SaleItemRow {
 
 /** Roles that may list and open any sale in the branch (supervision). Floor staff see only their own. */
 const BRANCH_WIDE_SALES_ROLES = ['owner', 'se_admin', 'manager'] as const;
+const ORG_WIDE_SALES_ROLES = ['owner', 'se_admin'] as const;
 
 @Injectable()
 export class SalesService {
@@ -398,7 +399,9 @@ export class SalesService {
     if (!sale) throw new NotFoundException(`Sale ${saleId} not found`);
 
     if (sale.branch_id !== actor.branchId) {
-      throw new ForbiddenException('Sale is not in your branch');
+      if (!(await this.canAccessBranch(actor, sale.branch_id))) {
+        throw new ForbiddenException('Sale is not in your accessible branches');
+      }
     }
 
     const branchWide = (BRANCH_WIDE_SALES_ROLES as readonly string[]).includes(actor.role);
@@ -434,8 +437,11 @@ export class SalesService {
 
   // ── Daily summary ─────────────────────────────────────────────────────────
 
-  async getDailySummary(branchId: string, date?: string): Promise<DailySummary> {
-    const targetDate = date ?? new Date().toISOString().split('T')[0];
+  async getDailySummary(actor: JwtUser, date?: string): Promise<DailySummary> {
+    const targetDate =
+      date ?? new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Accra' });
+
+    const { clause, params } = await this.branchScopeSql(actor);
 
     const at = this.effectiveSaleAt.sql('s');
     const [row] = await this.dataSource.query(`
@@ -444,10 +450,10 @@ export class SalesService {
         COALESCE(SUM(s.total_amount), 0)::int AS total_revenue,
         COALESCE(SUM(s.vat_amount), 0)::int AS vat_collected
       FROM sales s
-      WHERE s.branch_id = $1
+      WHERE ${clause}
         AND s.status = 'COMPLETED'
-        AND (${at})::date = $2::date
-    `, [branchId, targetDate]) as Array<{ sales_count: number; total_revenue: number; vat_collected: number }>;
+        AND (${at} AT TIME ZONE 'Africa/Accra')::date = $${params.length + 1}::date
+    `, [...params, targetDate]) as Array<{ sales_count: number; total_revenue: number; vat_collected: number }>;
 
     const count = row?.sales_count ?? 0;
     const revenue = row?.total_revenue ?? 0;
@@ -470,27 +476,32 @@ export class SalesService {
     const rowSelect = this.effectiveSaleAt.hasSoldAt
       ? 'id, branch_id, cashier_id, total_amount, vat_amount, status, idempotency_key, sold_at, created_at'
       : 'id, branch_id, cashier_id, total_amount, vat_amount, status, idempotency_key, NULL::timestamptz AS sold_at, created_at';
-    const sales = ownSalesOnly
-      ? ((await this.dataSource.query(
-          `
+    let sales: SaleRow[];
+
+    if (ownSalesOnly) {
+      sales = (await this.dataSource.query(
+        `
         SELECT ${rowSelect}
         FROM sales
         WHERE branch_id = $1 AND status = 'COMPLETED' AND cashier_id = $3
         ORDER BY ${orderAt} DESC
         LIMIT $2
       `,
-          [actor.branchId, limit, actor.sub],
-        )) as SaleRow[])
-      : ((await this.dataSource.query(
-          `
+        [actor.branchId, limit, actor.sub],
+      )) as SaleRow[];
+    } else {
+      const { clause, params } = await this.branchScopeSql(actor);
+      sales = (await this.dataSource.query(
+        `
         SELECT ${rowSelect}
-        FROM sales
-        WHERE branch_id = $1 AND status = 'COMPLETED'
+        FROM sales s
+        WHERE ${clause} AND status = 'COMPLETED'
         ORDER BY ${orderAt} DESC
-        LIMIT $2
+        LIMIT $${params.length + 1}
       `,
-          [actor.branchId, limit],
-        )) as SaleRow[]);
+        [...params, limit],
+      )) as SaleRow[];
+    }
 
     return Promise.all(sales.map((s) => this.getSale(s.id, actor)));
   }
@@ -556,5 +567,45 @@ export class SalesService {
     if (quantityOnHand <= Math.max(1, Math.floor(reorderLevel * 0.2))) return 'critical';
     if (quantityOnHand <= reorderLevel) return 'low';
     return 'ok';
+  }
+
+  private async branchScopeSql(actor: JwtUser): Promise<{ clause: string; params: unknown[] }> {
+    if ((ORG_WIDE_SALES_ROLES as readonly string[]).includes(actor.role)) {
+      const orgId = await this.getOrganizationIdForBranch(actor.branchId);
+      return {
+        clause: `s.branch_id IN (SELECT id FROM branches WHERE organization_id = $1)`,
+        params: [orgId],
+      };
+    }
+
+    return {
+      clause: 's.branch_id = $1',
+      params: [actor.branchId],
+    };
+  }
+
+  private async canAccessBranch(actor: JwtUser, branchId: string): Promise<boolean> {
+    if (branchId === actor.branchId) return true;
+    if (!(ORG_WIDE_SALES_ROLES as readonly string[]).includes(actor.role)) return false;
+
+    const actorOrgId = await this.getOrganizationIdForBranch(actor.branchId);
+    const [row] = (await this.dataSource.query(
+      `SELECT id FROM branches WHERE id = $1 AND organization_id = $2`,
+      [branchId, actorOrgId],
+    )) as Array<{ id: string }>;
+    return !!row;
+  }
+
+  private async getOrganizationIdForBranch(branchId: string): Promise<string> {
+    const [row] = (await this.dataSource.query(
+      `SELECT organization_id FROM branches WHERE id = $1`,
+      [branchId],
+    )) as Array<{ organization_id: string }>;
+
+    if (!row?.organization_id) {
+      throw new NotFoundException(`Branch ${branchId} not found`);
+    }
+
+    return row.organization_id;
   }
 }

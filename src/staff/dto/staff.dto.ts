@@ -156,6 +156,26 @@ export class UpdateStaffProfileInput {
   @IsString()
   notes?: string;
 
+  @Field({ nullable: true, description: 'Profile photo URL (CDN/S3/public URL).' })
+  @IsOptional()
+  @IsString()
+  photo_url?: string;
+
+  /** Salary in GHS pesewas (integer ×100). Always GHS — never USD. */
+  @Field({ nullable: true, description: 'Salary in GHS pesewas (÷100 for display). Always GHS.' })
+  @IsOptional()
+  salary_amount_pesewas?: number;
+
+  @Field({ nullable: true, description: 'Salary period: daily | weekly | monthly | annual' })
+  @IsOptional()
+  @IsString()
+  salary_period?: string;
+
+  @Field({ nullable: true, description: 'Bank name for payroll' })
+  @IsOptional()
+  @IsString()
+  bank_name?: string;
+
   @Field({
     nullable: true,
     description:
@@ -260,12 +280,29 @@ export class StaffMemberOutput {
   @Field({ nullable: true, description: 'Employment start date' })
   start_date?: Date;
 
+  @Field({ nullable: true, description: 'Profile photo URL for avatar rendering.' })
+  photo_url?: string;
+
   @Field(() => [String], {
     description:
       'S3 keys for uploaded certificates (professional licences, training certs). ' +
       'Use the pre-signed URL endpoint to download.',
   })
   certificate_s3_keys!: string[];
+
+  /** Salary in GHS pesewas (integer ×100). Divide by 100 for display. Always GHS. */
+  @Field({ nullable: true, description: 'Salary amount in GHS pesewas (÷100 for display). Always GHS.' })
+  salary_amount_pesewas?: number;
+
+  @Field({ nullable: true, description: 'Salary period: daily | weekly | monthly | annual' })
+  salary_period?: string;
+
+  @Field({ nullable: true, description: 'Bank name for payroll' })
+  bank_name?: string;
+
+  /** True when this staff member has an open session (logged in right now) */
+  @Field({ description: 'True when this staff member currently has an open session (on duty)' })
+  is_on_duty!: boolean;
 
   @Field({ description: 'ISO 8601 timestamp when the account was created' })
   created_at!: Date;

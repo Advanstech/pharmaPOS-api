@@ -43,11 +43,11 @@ export class SalesResolver {
   }
 
   @Query(() => DailySummary, { name: 'dailySummary' })
-  @Roles('owner', 'se_admin', 'manager')
+  @Roles('owner', 'se_admin', 'manager', 'cashier', 'chemical_cashier', 'pharmacist', 'head_pharmacist', 'technician')
   dailySummary(
     @CurrentUser() actor: JwtUser,
     @Args('date', { nullable: true }) date?: string,
   ): Promise<DailySummary> {
-    return this.salesService.getDailySummary(actor.branchId, date);
+    return this.salesService.getDailySummary(actor, date);
   }
 }

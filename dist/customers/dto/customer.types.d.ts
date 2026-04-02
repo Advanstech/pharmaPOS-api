@@ -22,7 +22,7 @@ export declare class UpdateCustomerInput {
     receiptPreference?: 'email' | 'print' | 'both';
     marketingConsent?: boolean;
     sex?: CustomerSex;
-    ageYears?: number;
+    ageYears?: number | string;
     ghanaCardNumber?: string;
 }
 export declare class CustomerOutput {

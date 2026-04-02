@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OcrColumnMappingPresetOutput = exports.OcrColumnMappingPair = exports.InvoiceOcrIngestionResult = exports.ProfitLossStatement = exports.CashFlowForecast = exports.SupplierInvoiceOutput = exports.SupplierCreditSummary = exports.ExpenseOutput = exports.UpsertOcrColumnMappingPresetInput = exports.OcrColumnMappingPairInput = exports.IngestSupplierInvoiceOcrInput = exports.SupplierInvoiceOcrLineInput = exports.MatchSupplierInvoiceInput = exports.RecordSupplierPaymentInput = exports.ApproveExpenseInput = exports.CreateExpenseInput = exports.PaymentStatus = exports.ExpenseCategory = void 0;
+exports.OcrColumnMappingPresetOutput = exports.OcrColumnMappingPair = exports.InvoiceOcrIngestionResult = exports.AccountingWorkbookExport = exports.ProfitLossStatement = exports.CashFlowForecast = exports.SupplierInvoiceOutput = exports.SupplierCreditSummary = exports.ExpenseOutput = exports.UpsertOcrColumnMappingPresetInput = exports.OcrColumnMappingPairInput = exports.IngestSupplierInvoiceOcrInput = exports.SupplierInvoiceOcrLineInput = exports.MatchSupplierInvoiceInput = exports.RecordSupplierPaymentInput = exports.ApproveExpenseInput = exports.CreateExpenseInput = exports.PaymentStatus = exports.ExpenseCategory = void 0;
 const graphql_1 = require("@nestjs/graphql");
 const class_validator_1 = require("class-validator");
 var ExpenseCategory;
@@ -591,6 +591,26 @@ __decorate([
 exports.ProfitLossStatement = ProfitLossStatement = __decorate([
     (0, graphql_1.ObjectType)({ description: 'Profit & Loss statement for a period' })
 ], ProfitLossStatement);
+let AccountingWorkbookExport = class AccountingWorkbookExport {
+};
+exports.AccountingWorkbookExport = AccountingWorkbookExport;
+__decorate([
+    (0, graphql_1.Field)({ description: 'Suggested file name for the exported workbook' }),
+    __metadata("design:type", String)
+], AccountingWorkbookExport.prototype, "fileName", void 0);
+__decorate([
+    (0, graphql_1.Field)({ description: 'MIME type for Excel workbook' }),
+    __metadata("design:type", String)
+], AccountingWorkbookExport.prototype, "mimeType", void 0);
+__decorate([
+    (0, graphql_1.Field)({ description: 'Base64 encoded XLSX binary content' }),
+    __metadata("design:type", String)
+], AccountingWorkbookExport.prototype, "base64Content", void 0);
+exports.AccountingWorkbookExport = AccountingWorkbookExport = __decorate([
+    (0, graphql_1.ObjectType)({
+        description: 'Excel workbook export payload for accounting. `base64Content` should be decoded and saved as .xlsx on the client.',
+    })
+], AccountingWorkbookExport);
 let InvoiceOcrIngestionResult = class InvoiceOcrIngestionResult {
 };
 exports.InvoiceOcrIngestionResult = InvoiceOcrIngestionResult;

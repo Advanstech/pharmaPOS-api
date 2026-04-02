@@ -142,6 +142,11 @@ export declare class ProfitLossStatement {
     netProfitFormatted: string;
     netProfitMarginPct: number;
 }
+export declare class AccountingWorkbookExport {
+    fileName: string;
+    mimeType: string;
+    base64Content: string;
+}
 export declare class InvoiceOcrIngestionResult {
     invoiceId: string;
     totalLines: number;

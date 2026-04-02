@@ -312,8 +312,9 @@ describe('SalesService', () => {
       mockDataSource.query.mockResolvedValueOnce([
         { sales_count: 5, total_revenue: 25000, vat_collected: 3261 },
       ]);
+      mockDataSource.query.mockResolvedValueOnce([{ organization_id: 'org-001' }]);
 
-      const result = await service.getDailySummary('branch-uuid-001', '2026-03-22');
+      const result = await service.getDailySummary(actor, '2026-03-22');
 
       expect(result.salesCount).toBe(5);
       expect(result.totalRevenuePesewas).toBe(25000);
@@ -325,8 +326,9 @@ describe('SalesService', () => {
       mockDataSource.query.mockResolvedValueOnce([
         { sales_count: 0, total_revenue: 0, vat_collected: 0 },
       ]);
+      mockDataSource.query.mockResolvedValueOnce([{ organization_id: 'org-001' }]);
 
-      const result = await service.getDailySummary('branch-uuid-001');
+      const result = await service.getDailySummary(actor);
       expect(result.averageSaleGhs).toBe(0);
     });
 
@@ -334,8 +336,9 @@ describe('SalesService', () => {
       mockDataSource.query.mockResolvedValueOnce([
         { sales_count: 2, total_revenue: 10000, vat_collected: 1304 },
       ]);
+      mockDataSource.query.mockResolvedValueOnce([{ organization_id: 'org-001' }]);
 
-      const result = await service.getDailySummary('branch-uuid-001');
+      const result = await service.getDailySummary(actor);
       expect(result.salesCount).toBe(2);
     });
   });
@@ -378,7 +381,8 @@ describe('SalesService', () => {
       mockDataSource.query.mockResolvedValueOnce([
         { sales_count: 0, total_revenue: 0, vat_collected: 0 },
       ]);
-      const result = await service.getDailySummary('branch-uuid-001');
+      mockDataSource.query.mockResolvedValueOnce([{ organization_id: 'org-001' }]);
+      const result = await service.getDailySummary(actor);
       expect(result.totalRevenueFormatted).toBe('GH₵0.00');
     });
   });

@@ -1,7 +1,9 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import ExcelJS from 'exceljs';
 import { JwtUser } from '../auth/decorators/current-user.decorator';
 import { SalesEffectiveAtService } from '../sales/sales-effective-at.service';
+import { ReportsService } from '../reports/reports.service';
 import {
   CreateExpenseInput,
   ApproveExpenseInput,
@@ -14,11 +16,14 @@ import {
   SupplierInvoiceOutput,
   CashFlowForecast,
   ProfitLossStatement,
+  AccountingWorkbookExport,
   InvoiceOcrIngestionResult,
   OcrColumnMappingPresetOutput,
   PaymentStatus,
   SupplierInvoiceOcrLineInput,
 } from './dto/accounting.types';
+
+const ORG_WIDE_ACCOUNTING_ROLES = ['owner', 'se_admin'] as const;
 
 interface ExpenseRow {
   id: string;
@@ -70,6 +75,18 @@ interface OcrPresetRow {
   updated_at: Date;
 }
 
+interface SalesLedgerRow {
+  sale_id: string;
+  sold_at: Date;
+  cashier_name: string | null;
+  customer_code: string | null;
+  status: string;
+  item_count: number;
+  subtotal_pesewas: number;
+  vat_pesewas: number;
+  total_pesewas: number;
+}
+
 @Injectable()
 export class AccountingService {
   private readonly logger = new Logger(AccountingService.name);
@@ -77,6 +94,7 @@ export class AccountingService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly effectiveSaleAt: SalesEffectiveAtService,
+    private readonly reportsService: ReportsService,
   ) {}
 
   // ── Expenses ──────────────────────────────────────────────────────────────
@@ -170,6 +188,11 @@ export class AccountingService {
    */
   async listExpenses(actor: JwtUser, status?: PaymentStatus): Promise<ExpenseOutput[]> {
     const isManager = ['owner', 'se_admin', 'manager'].includes(actor.role);
+    const orgWide = (ORG_WIDE_ACCOUNTING_ROLES as readonly string[]).includes(actor.role);
+
+    const branchClause = orgWide
+      ? `e.branch_id IN (SELECT id FROM branches WHERE organization_id = (SELECT organization_id FROM branches WHERE id = $1))`
+      : 'e.branch_id = $1';
 
     let query = `
       SELECT
@@ -181,13 +204,13 @@ export class AccountingService {
       FROM expenses e
       JOIN users u1 ON u1.id = e.created_by
       LEFT JOIN users u2 ON u2.id = e.approved_by
-      WHERE e.branch_id = $1
+      WHERE ${branchClause}
     `;
 
     const params: unknown[] = [actor.branchId];
 
     if (!isManager) {
-      query += ` AND e.created_by = $2`;
+      query += ` AND e.created_by = $${params.length + 1}`;
       params.push(actor.sub);
     }
 
@@ -273,7 +296,12 @@ export class AccountingService {
    * List supplier invoices for a branch.
    * RBAC: owner, se_admin, manager only.
    */
-  async listSupplierInvoices(branchId: string, supplierId?: string): Promise<SupplierInvoiceOutput[]> {
+  async listSupplierInvoices(actor: JwtUser, supplierId?: string): Promise<SupplierInvoiceOutput[]> {
+    const orgWide = (ORG_WIDE_ACCOUNTING_ROLES as readonly string[]).includes(actor.role);
+    const branchClause = orgWide
+      ? `si.branch_id IN (SELECT id FROM branches WHERE organization_id = (SELECT organization_id FROM branches WHERE id = $1))`
+      : 'si.branch_id = $1';
+
     let query = `
       SELECT
         si.id, si.supplier_id, s.name AS supplier_name, si.branch_id, si.grn_id,
@@ -281,13 +309,13 @@ export class AccountingService {
         si.total_amount, si.paid_amount, si.status, si.s3_pdf_key, si.created_at
       FROM supplier_invoices si
       JOIN suppliers s ON s.id = si.supplier_id
-      WHERE si.branch_id = $1
+      WHERE ${branchClause}
     `;
 
-    const params: unknown[] = [branchId];
+    const params: unknown[] = [actor.branchId];
 
     if (supplierId) {
-      query += ` AND si.supplier_id = $2`;
+      query += ` AND si.supplier_id = $${params.length + 1}`;
       params.push(supplierId);
     }
 
@@ -373,7 +401,7 @@ export class AccountingService {
 
     this.logger.log(`Supplier payment: invoice=${input.invoiceId} amount=${input.amountPesewas} by=${actor.sub}`);
 
-    const invoices = await this.listSupplierInvoices(actor.branchId);
+    const invoices = await this.listSupplierInvoices(actor);
     const updated = invoices.find((i) => i.id === input.invoiceId);
     if (!updated) throw new NotFoundException('Invoice not found after payment');
     return updated;
@@ -406,7 +434,7 @@ export class AccountingService {
 
     this.logger.log(`Invoice matched: invoice=${input.invoiceId} grn=${input.grnId} by=${actor.sub}`);
 
-    const invoices = await this.listSupplierInvoices(actor.branchId);
+    const invoices = await this.listSupplierInvoices(actor);
     const matched = invoices.find((i) => i.id === input.invoiceId);
     if (!matched) throw new NotFoundException('Invoice not found after match');
     return matched;
@@ -844,6 +872,152 @@ export class AccountingService {
     };
   }
 
+  async exportAccountingWorkbook(
+    actor: JwtUser,
+    periodStart: string,
+    periodEnd: string,
+  ): Promise<AccountingWorkbookExport> {
+    const [branch, revenue, topProducts, profitLoss, cashFlow, supplierInvoices, expenseRows, salesLedger] =
+      await Promise.all([
+        this.getBranchName(actor.branchId),
+        this.reportsService.getRevenueReport(actor.branchId, periodStart, periodEnd),
+        this.reportsService.getTopProducts(actor.branchId, periodStart, periodEnd, 30),
+        this.getProfitLoss(actor.branchId, periodStart, periodEnd),
+        this.getCashFlowForecast(actor.branchId),
+        this.listSupplierInvoices(actor),
+        this.listApprovedExpensesForBranch(actor.branchId, periodStart, periodEnd),
+        this.getSalesLedger(actor.branchId, periodStart, periodEnd),
+      ]);
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'PharmaPOS Pro';
+    wb.created = new Date();
+
+    const summary = wb.addWorksheet('Executive Summary');
+    summary.columns = [
+      { header: 'Metric', key: 'metric', width: 40 },
+      { header: 'Value', key: 'value', width: 26 },
+      { header: 'Value (pesewas)', key: 'pesewas', width: 20 },
+    ];
+    summary.addRows([
+      { metric: 'Branch', value: branch },
+      { metric: 'Period Start', value: periodStart },
+      { metric: 'Period End', value: periodEnd },
+      { metric: 'Revenue', value: revenue.totalRevenueFormatted, pesewas: revenue.totalRevenuePesewas },
+      { metric: 'VAT Collected', value: revenue.vatFormatted, pesewas: revenue.vatCollectedPesewas },
+      { metric: 'Sales Count', value: revenue.salesCount },
+      { metric: 'P&L Net Profit', value: profitLoss.netProfitFormatted, pesewas: profitLoss.netProfitPesewas },
+      { metric: 'Gross Margin %', value: profitLoss.grossProfitMarginPct },
+      { metric: 'Net Margin %', value: profitLoss.netProfitMarginPct },
+      { metric: 'Cash Runway (days)', value: cashFlow.cashRunwayDays },
+      { metric: 'Cash Recommendation', value: cashFlow.recommendation },
+      { metric: 'Cash Recommendation Reason', value: cashFlow.recommendationReason },
+    ]);
+
+    const salesSheet = wb.addWorksheet('Sales Ledger');
+    salesSheet.columns = [
+      { header: 'Sale ID', key: 'sale_id', width: 38 },
+      { header: 'Sold At (UTC)', key: 'sold_at', width: 24 },
+      { header: 'Cashier', key: 'cashier_name', width: 24 },
+      { header: 'Customer Code', key: 'customer_code', width: 16 },
+      { header: 'Status', key: 'status', width: 14 },
+      { header: 'Line Items', key: 'item_count', width: 12 },
+      { header: 'Subtotal (pesewas)', key: 'subtotal_pesewas', width: 18 },
+      { header: 'VAT (pesewas)', key: 'vat_pesewas', width: 16 },
+      { header: 'Total (pesewas)', key: 'total_pesewas', width: 18 },
+    ];
+    salesLedger.forEach((row) => salesSheet.addRow(row));
+
+    const plSheet = wb.addWorksheet('Profit and Loss');
+    plSheet.columns = [
+      { header: 'Line Item', key: 'line', width: 36 },
+      { header: 'Amount (pesewas)', key: 'pesewas', width: 20 },
+      { header: 'Formatted', key: 'formatted', width: 20 },
+    ];
+    plSheet.addRows([
+      { line: 'Revenue', pesewas: profitLoss.revenuePesewas, formatted: profitLoss.revenueFormatted },
+      { line: 'COGS', pesewas: profitLoss.cogsPesewas, formatted: profitLoss.cogsFormatted },
+      { line: 'Gross Profit', pesewas: profitLoss.grossProfitPesewas, formatted: profitLoss.grossProfitFormatted },
+      { line: 'Operating Expenses', pesewas: profitLoss.operatingExpensesPesewas, formatted: profitLoss.operatingExpensesFormatted },
+      { line: 'Net Profit', pesewas: profitLoss.netProfitPesewas, formatted: profitLoss.netProfitFormatted },
+      { line: 'Gross Margin %', pesewas: Math.round(profitLoss.grossProfitMarginPct * 100) },
+      { line: 'Net Margin %', pesewas: Math.round(profitLoss.netProfitMarginPct * 100) },
+    ]);
+
+    const cashSheet = wb.addWorksheet('Cash Flow');
+    cashSheet.columns = [
+      { header: 'Metric', key: 'metric', width: 38 },
+      { header: 'Value', key: 'value', width: 26 },
+      { header: 'Value (pesewas)', key: 'pesewas', width: 20 },
+    ];
+    cashSheet.addRows([
+      { metric: 'Current Cash', value: cashFlow.currentCashFormatted, pesewas: cashFlow.currentCashPesewas },
+      { metric: 'Payables Due 7 Days', value: cashFlow.payablesDue7DaysFormatted, pesewas: cashFlow.payablesDue7DaysPesewas },
+      { metric: 'Payables Due 30 Days', value: cashFlow.payablesDue30DaysFormatted, pesewas: cashFlow.payablesDue30DaysPesewas },
+      { metric: 'Projected Revenue 7 Days', value: cashFlow.projectedRevenue7DaysFormatted, pesewas: cashFlow.projectedRevenue7DaysPesewas },
+      { metric: 'Projected Revenue 30 Days', value: cashFlow.projectedRevenue30DaysFormatted, pesewas: cashFlow.projectedRevenue30DaysPesewas },
+      { metric: 'Cash Runway Days', value: cashFlow.cashRunwayDays },
+      { metric: 'Recommendation', value: cashFlow.recommendation },
+      { metric: 'Reason', value: cashFlow.recommendationReason },
+    ]);
+
+    const expenseSheet = wb.addWorksheet('Expenses');
+    expenseSheet.columns = [
+      { header: 'Expense Date', key: 'expenseDate', width: 18 },
+      { header: 'Category', key: 'category', width: 18 },
+      { header: 'Description', key: 'description', width: 40 },
+      { header: 'Status', key: 'status', width: 14 },
+      { header: 'Amount (pesewas)', key: 'amountPesewas', width: 20 },
+      { header: 'Amount', key: 'amountFormatted', width: 16 },
+      { header: 'Created By', key: 'createdByName', width: 22 },
+      { header: 'Approved By', key: 'approvedByName', width: 22 },
+    ];
+    expenseRows.forEach((row) => expenseSheet.addRow(row));
+
+    const invoicesSheet = wb.addWorksheet('Supplier Invoices');
+    invoicesSheet.columns = [
+      { header: 'Supplier', key: 'supplierName', width: 28 },
+      { header: 'Invoice Number', key: 'invoiceNumber', width: 22 },
+      { header: 'Invoice Date', key: 'invoiceDate', width: 18 },
+      { header: 'Due Date', key: 'dueDate', width: 18 },
+      { header: 'Status', key: 'status', width: 14 },
+      { header: 'Total (pesewas)', key: 'totalAmountPesewas', width: 18 },
+      { header: 'Paid (pesewas)', key: 'paidAmountPesewas', width: 18 },
+      { header: 'Balance (pesewas)', key: 'balancePesewas', width: 18 },
+    ];
+    supplierInvoices.forEach((inv) =>
+      invoicesSheet.addRow({
+        supplierName: inv.supplierName,
+        invoiceNumber: inv.invoiceNumber,
+        invoiceDate: inv.invoiceDate,
+        dueDate: inv.dueDate ?? '',
+        status: inv.status,
+        totalAmountPesewas: inv.totalAmountPesewas,
+        paidAmountPesewas: inv.paidAmountPesewas,
+        balancePesewas: inv.balancePesewas,
+      }),
+    );
+
+    const topProductsSheet = wb.addWorksheet('Top Products');
+    topProductsSheet.columns = [
+      { header: 'Product Name', key: 'productName', width: 40 },
+      { header: 'Units Sold', key: 'unitsSold', width: 12 },
+      { header: 'Revenue (pesewas)', key: 'revenuePesewas', width: 18 },
+      { header: 'Revenue', key: 'revenueFormatted', width: 16 },
+    ];
+    topProducts.forEach((product) => topProductsSheet.addRow(product));
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const base64Content = Buffer.from(buffer as ArrayBuffer).toString('base64');
+    const fileName = `accounting-workbook-${periodStart}-to-${periodEnd}.xlsx`;
+
+    return {
+      fileName,
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      base64Content,
+    };
+  }
+
   // ── Private helpers ───────────────────────────────────────────────────────
 
   private async postToGeneralLedger(entry: {
@@ -934,6 +1108,72 @@ export class AccountingService {
 
   private fmt(pesewas: number): string {
     return `GH₵${(pesewas / 100).toFixed(2)}`;
+  }
+
+  private async getBranchName(branchId: string): Promise<string> {
+    const [row] = await this.dataSource.query(`SELECT name FROM branches WHERE id = $1 LIMIT 1`, [
+      branchId,
+    ]) as Array<{ name: string }>;
+    return row?.name ?? branchId;
+  }
+
+  private async listApprovedExpensesForBranch(
+    branchId: string,
+    periodStart: string,
+    periodEnd: string,
+  ): Promise<ExpenseOutput[]> {
+    const rows = await this.dataSource.query(
+      `
+      SELECT
+        e.id, e.branch_id, e.category, e.amount_pesewas, e.description,
+        e.receipt_s3_key, e.expense_date, e.status, e.created_by,
+        u1.name AS created_by_name,
+        e.approved_by, u2.name AS approved_by_name,
+        e.approval_notes, e.created_at
+      FROM expenses e
+      JOIN users u1 ON u1.id = e.created_by
+      LEFT JOIN users u2 ON u2.id = e.approved_by
+      WHERE e.branch_id = $1
+        AND e.expense_date >= $2::date
+        AND e.expense_date <= $3::date
+      ORDER BY e.expense_date DESC, e.created_at DESC
+    `,
+      [branchId, periodStart, periodEnd],
+    ) as ExpenseRow[];
+
+    return rows.map((row) => this.mapExpenseOutput(row));
+  }
+
+  private async getSalesLedger(
+    branchId: string,
+    periodStart: string,
+    periodEnd: string,
+  ): Promise<SalesLedgerRow[]> {
+    const at = this.effectiveSaleAt.sql('s');
+    return (await this.dataSource.query(
+      `
+      SELECT
+        s.id AS sale_id,
+        (${at}) AS sold_at,
+        u.name AS cashier_name,
+        c.customer_code,
+        s.status,
+        COALESCE(COUNT(si.id), 0)::int AS item_count,
+        COALESCE(SUM(si.total), 0)::int AS subtotal_pesewas,
+        COALESCE(SUM(si.vat_amount), 0)::int AS vat_pesewas,
+        COALESCE(s.total_amount, 0)::int AS total_pesewas
+      FROM sales s
+      LEFT JOIN users u ON u.id = s.cashier_id
+      LEFT JOIN customers c ON c.id = s.customer_id
+      LEFT JOIN sale_items si ON si.sale_id = s.id
+      WHERE s.branch_id = $1
+        AND (${at}) >= $2::timestamptz
+        AND (${at}) < ($3::date + INTERVAL '1 day')::timestamptz
+      GROUP BY s.id, (${at}), u.name, c.customer_code, s.status, s.total_amount
+      ORDER BY (${at}) DESC
+    `,
+      [branchId, periodStart, periodEnd],
+    )) as SalesLedgerRow[];
   }
 
   private mapOcrPresetOutput(row: OcrPresetRow): OcrColumnMappingPresetOutput {

@@ -171,6 +171,29 @@ __decorate([
     __metadata("design:type", String)
 ], UpdateStaffProfileInput.prototype, "notes", void 0);
 __decorate([
+    (0, graphql_1.Field)({ nullable: true, description: 'Profile photo URL (CDN/S3/public URL).' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdateStaffProfileInput.prototype, "photo_url", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true, description: 'Salary in GHS pesewas (÷100 for display). Always GHS.' }),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], UpdateStaffProfileInput.prototype, "salary_amount_pesewas", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true, description: 'Salary period: daily | weekly | monthly | annual' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdateStaffProfileInput.prototype, "salary_period", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true, description: 'Bank name for payroll' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdateStaffProfileInput.prototype, "bank_name", void 0);
+__decorate([
     (0, graphql_1.Field)({
         nullable: true,
         description: 'Phone number. Stored AES-256 encrypted — Ghana Data Protection Act 2012. ' +
@@ -293,12 +316,32 @@ __decorate([
     __metadata("design:type", Date)
 ], StaffMemberOutput.prototype, "start_date", void 0);
 __decorate([
+    (0, graphql_1.Field)({ nullable: true, description: 'Profile photo URL for avatar rendering.' }),
+    __metadata("design:type", String)
+], StaffMemberOutput.prototype, "photo_url", void 0);
+__decorate([
     (0, graphql_1.Field)(() => [String], {
         description: 'S3 keys for uploaded certificates (professional licences, training certs). ' +
             'Use the pre-signed URL endpoint to download.',
     }),
     __metadata("design:type", Array)
 ], StaffMemberOutput.prototype, "certificate_s3_keys", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true, description: 'Salary amount in GHS pesewas (÷100 for display). Always GHS.' }),
+    __metadata("design:type", Number)
+], StaffMemberOutput.prototype, "salary_amount_pesewas", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true, description: 'Salary period: daily | weekly | monthly | annual' }),
+    __metadata("design:type", String)
+], StaffMemberOutput.prototype, "salary_period", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true, description: 'Bank name for payroll' }),
+    __metadata("design:type", String)
+], StaffMemberOutput.prototype, "bank_name", void 0);
+__decorate([
+    (0, graphql_1.Field)({ description: 'True when this staff member currently has an open session (on duty)' }),
+    __metadata("design:type", Boolean)
+], StaffMemberOutput.prototype, "is_on_duty", void 0);
 __decorate([
     (0, graphql_1.Field)({ description: 'ISO 8601 timestamp when the account was created' }),
     __metadata("design:type", Date)

@@ -173,8 +173,18 @@ let StaffService = StaffService_1 = class StaffService {
             updates.emergency_contact_name = input.emergency_contact_name;
         if (input.emergency_contact_phone !== undefined)
             updates.emergency_contact_phone = input.emergency_contact_phone;
+        if (input.photo_url !== undefined)
+            updates.photo_url = input.photo_url;
         if (input.notes !== undefined && isManager)
             updates.notes = input.notes;
+        if (isManager) {
+            if (input.salary_amount_pesewas !== undefined)
+                updates.salary_amount_pesewas = input.salary_amount_pesewas;
+            if (input.salary_period !== undefined)
+                updates.salary_period = input.salary_period;
+            if (input.bank_name !== undefined)
+                updates.bank_name = input.bank_name;
+        }
         if (input.phone !== undefined)
             updates.phone_encrypted = encryptPii(this.encryptionKey, input.phone);
         if (input.address !== undefined)
@@ -330,7 +340,15 @@ let StaffService = StaffService_1 = class StaffService {
         sp.professional_licence_no,
         sp.licence_expiry_date,
         sp.start_date,
-        sp.certificate_s3_keys
+        sp.photo_url,
+        sp.certificate_s3_keys,
+        sp.salary_amount_pesewas,
+        sp.salary_period,
+        sp.bank_name,
+        EXISTS (
+          SELECT 1 FROM staff_sessions ss
+          WHERE ss.user_id = u.id AND ss.ended_at IS NULL
+        ) AS is_on_duty
       FROM users u
       LEFT JOIN staff_profiles sp ON sp.user_id = u.id
       WHERE u.branch_id = $1
@@ -352,7 +370,12 @@ let StaffService = StaffService_1 = class StaffService {
                 professional_licence_no: r.professional_licence_no,
                 licence_expiry_date: r.licence_expiry_date,
                 start_date: r.start_date,
+                photo_url: r.photo_url,
                 certificate_s3_keys: (_a = r.certificate_s3_keys) !== null && _a !== void 0 ? _a : [],
+                salary_amount_pesewas: r.salary_amount_pesewas,
+                salary_period: r.salary_period,
+                bank_name: r.bank_name,
+                is_on_duty: r.is_on_duty,
                 created_at: r.created_at,
             });
         });
@@ -364,7 +387,12 @@ let StaffService = StaffService_1 = class StaffService {
         u.id, u.name, u.email, u.role, u.branch_id, u.is_active, u.created_at,
         sp.position, sp.department, sp.employment_type,
         sp.professional_licence_no, sp.licence_expiry_date,
-        sp.start_date, sp.certificate_s3_keys
+        sp.start_date, sp.photo_url, sp.certificate_s3_keys,
+        sp.salary_amount_pesewas, sp.salary_period, sp.bank_name,
+        EXISTS (
+          SELECT 1 FROM staff_sessions ss
+          WHERE ss.user_id = u.id AND ss.ended_at IS NULL
+        ) AS is_on_duty
       FROM users u
       LEFT JOIN staff_profiles sp ON sp.user_id = u.id
       WHERE u.id = $1
@@ -385,7 +413,12 @@ let StaffService = StaffService_1 = class StaffService {
             professional_licence_no: r.professional_licence_no,
             licence_expiry_date: r.licence_expiry_date,
             start_date: r.start_date,
+            photo_url: r.photo_url,
             certificate_s3_keys: (_a = r.certificate_s3_keys) !== null && _a !== void 0 ? _a : [],
+            salary_amount_pesewas: r.salary_amount_pesewas,
+            salary_period: r.salary_period,
+            bank_name: r.bank_name,
+            is_on_duty: r.is_on_duty,
             created_at: r.created_at,
         };
     }

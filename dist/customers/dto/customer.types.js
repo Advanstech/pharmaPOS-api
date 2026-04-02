@@ -159,10 +159,10 @@ __decorate([
 __decorate([
     (0, graphql_1.Field)(() => graphql_1.Int, { nullable: true }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.ValidateIf)((o) => o.ageYears !== null && o.ageYears !== undefined),
     (0, class_validator_1.Min)(0),
     (0, class_validator_1.Max)(130),
-    __metadata("design:type", Number)
+    __metadata("design:type", Object)
 ], UpdateCustomerInput.prototype, "ageYears", void 0);
 __decorate([
     (0, graphql_1.Field)({ nullable: true, description: 'Set to empty string to clear stored Ghana Card.' }),

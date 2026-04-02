@@ -63,6 +63,8 @@ const CUSTOMER_UPDATE_ROLES = [
   'pharmacist',
 ] as const;
 
+const ORG_WIDE_CUSTOMER_ROLES = ['owner', 'se_admin'] as const;
+
 @Injectable()
 export class CustomersService {
   private readonly logger = new Logger(CustomersService.name);
@@ -218,10 +220,28 @@ export class CustomersService {
   }
 
   async updateCustomer(input: UpdateCustomerInput, actor: JwtUser): Promise<CustomerOutput> {
+    this.logger.log(`UpdateCustomer called: customerId=${input.customerId}, actor=${actor.sub}, role=${actor.role}, branchId=${actor.branchId}`);
+    
     this.assertCanUpdate(actor);
+    this.logger.log(`Actor ${actor.sub} passed assertCanUpdate`);
+    
     const existing = await this.getCustomerRow(input.customerId);
+    this.logger.log(`Found customer: branch_id=${existing.branch_id}, customer_code=${existing.customer_code}`);
+
+    // Allow owners/se_admins to update any customer in their organization
+    const orgWide = (ORG_WIDE_CUSTOMER_ROLES as readonly string[]).includes(actor.role);
     if (existing.branch_id !== actor.branchId) {
-      throw new ForbiddenException('Customer is not in your branch');
+      if (!orgWide) {
+        this.logger.warn(`Forbidden: Customer branch ${existing.branch_id} != actor branch ${actor.branchId}`);
+        throw new ForbiddenException('Customer is not in your branch');
+      }
+      // Verify the customer's branch is in the same organization
+      const actorOrgId = await this.getOrganizationIdForBranch(actor.branchId);
+      const customerOrgId = await this.getOrganizationIdForBranch(existing.branch_id);
+      if (actorOrgId !== customerOrgId) {
+        this.logger.warn(`Forbidden: Customer org ${customerOrgId} != actor org ${actorOrgId}`);
+        throw new ForbiddenException('Customer is not in your organization');
+      }
     }
 
     let nameEnc = existing.name_encrypted;
@@ -231,14 +251,23 @@ export class CustomersService {
 
     let phoneHash = existing.phone_hash;
     if (input.phone !== undefined) {
-      phoneHash = input.phone.trim() ? this.hashPhone(actor.branchId, input.phone.trim()) : null;
+      phoneHash = input.phone.trim() ? this.hashPhone(existing.branch_id, input.phone.trim()) : null;
     }
 
     let sex: string | null = existing.sex;
     if (input.sex !== undefined) sex = input.sex;
 
     let ageYears: number | null = existing.age_years;
-    if (input.ageYears !== undefined) ageYears = input.ageYears;
+    if (input.ageYears !== undefined) {
+      if (input.ageYears === null) {
+        ageYears = null;
+      } else if (typeof input.ageYears === 'string') {
+        const parsed = parseInt(input.ageYears, 10);
+        ageYears = isNaN(parsed) ? null : parsed;
+      } else {
+        ageYears = input.ageYears;
+      }
+    }
 
     let ghEnc = existing.ghana_card_encrypted;
     if (input.ghanaCardNumber !== undefined) {
@@ -278,7 +307,21 @@ export class CustomersService {
     }>;
 
     if (!row) throw new NotFoundException('Customer not found');
+    this.logger.log(`Customer updated id=${row.id} code=${row.customer_code} branch=${existing.branch_id} by=${actor.sub}`);
     return this.mapRow(row);
+  }
+
+  private async getOrganizationIdForBranch(branchId: string): Promise<string> {
+    const [row] = (await this.dataSource.query(
+      `SELECT organization_id FROM branches WHERE id = $1`,
+      [branchId],
+    )) as Array<{ organization_id: string }>;
+
+    if (!row?.organization_id) {
+      throw new NotFoundException(`Branch ${branchId} not found`);
+    }
+
+    return row.organization_id;
   }
 
   private async getCustomerRow(id: string): Promise<{

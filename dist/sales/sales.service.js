@@ -21,6 +21,7 @@ const pharmacy_service_1 = require("../pharmacy/pharmacy.service");
 const notifications_service_1 = require("../notifications/notifications.service");
 const email_templates_1 = require("../notifications/email-templates");
 const BRANCH_WIDE_SALES_ROLES = ['owner', 'se_admin', 'manager'];
+const ORG_WIDE_SALES_ROLES = ['owner', 'se_admin'];
 let SalesService = SalesService_1 = class SalesService {
     constructor(dataSource, realtimeStock, effectiveSaleAt, pharmacy, notifications) {
         this.dataSource = dataSource;
@@ -244,7 +245,9 @@ let SalesService = SalesService_1 = class SalesService {
         if (!sale)
             throw new common_1.NotFoundException(`Sale ${saleId} not found`);
         if (sale.branch_id !== actor.branchId) {
-            throw new common_1.ForbiddenException('Sale is not in your branch');
+            if (!(await this.canAccessBranch(actor, sale.branch_id))) {
+                throw new common_1.ForbiddenException('Sale is not in your accessible branches');
+            }
         }
         const branchWide = BRANCH_WIDE_SALES_ROLES.includes(actor.role);
         if (!branchWide && sale.cashier_id !== actor.sub) {
@@ -271,9 +274,10 @@ let SalesService = SalesService_1 = class SalesService {
     `, [saleId, sale.branch_id]);
         return this.mapSaleOutput(sale, items);
     }
-    async getDailySummary(branchId, date) {
+    async getDailySummary(actor, date) {
         var _a, _b, _c;
-        const targetDate = date !== null && date !== void 0 ? date : new Date().toISOString().split('T')[0];
+        const targetDate = date !== null && date !== void 0 ? date : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Accra' });
+        const { clause, params } = await this.branchScopeSql(actor);
         const at = this.effectiveSaleAt.sql('s');
         const [row] = await this.dataSource.query(`
       SELECT
@@ -281,10 +285,10 @@ let SalesService = SalesService_1 = class SalesService {
         COALESCE(SUM(s.total_amount), 0)::int AS total_revenue,
         COALESCE(SUM(s.vat_amount), 0)::int AS vat_collected
       FROM sales s
-      WHERE s.branch_id = $1
+      WHERE ${clause}
         AND s.status = 'COMPLETED'
-        AND (${at})::date = $2::date
-    `, [branchId, targetDate]);
+        AND (${at} AT TIME ZONE 'Africa/Accra')::date = $${params.length + 1}::date
+    `, [...params, targetDate]);
         const count = (_a = row === null || row === void 0 ? void 0 : row.sales_count) !== null && _a !== void 0 ? _a : 0;
         const revenue = (_b = row === null || row === void 0 ? void 0 : row.total_revenue) !== null && _b !== void 0 ? _b : 0;
         const vat = (_c = row === null || row === void 0 ? void 0 : row.vat_collected) !== null && _c !== void 0 ? _c : 0;
@@ -302,21 +306,26 @@ let SalesService = SalesService_1 = class SalesService {
         const rowSelect = this.effectiveSaleAt.hasSoldAt
             ? 'id, branch_id, cashier_id, total_amount, vat_amount, status, idempotency_key, sold_at, created_at'
             : 'id, branch_id, cashier_id, total_amount, vat_amount, status, idempotency_key, NULL::timestamptz AS sold_at, created_at';
-        const sales = ownSalesOnly
-            ? (await this.dataSource.query(`
+        let sales;
+        if (ownSalesOnly) {
+            sales = (await this.dataSource.query(`
         SELECT ${rowSelect}
         FROM sales
         WHERE branch_id = $1 AND status = 'COMPLETED' AND cashier_id = $3
         ORDER BY ${orderAt} DESC
         LIMIT $2
-      `, [actor.branchId, limit, actor.sub]))
-            : (await this.dataSource.query(`
+      `, [actor.branchId, limit, actor.sub]));
+        }
+        else {
+            const { clause, params } = await this.branchScopeSql(actor);
+            sales = (await this.dataSource.query(`
         SELECT ${rowSelect}
-        FROM sales
-        WHERE branch_id = $1 AND status = 'COMPLETED'
+        FROM sales s
+        WHERE ${clause} AND status = 'COMPLETED'
         ORDER BY ${orderAt} DESC
-        LIMIT $2
-      `, [actor.branchId, limit]));
+        LIMIT $${params.length + 1}
+      `, [...params, limit]));
+        }
         return Promise.all(sales.map((s) => this.getSale(s.id, actor)));
     }
     parseOptionalSoldAt(iso) {
@@ -382,6 +391,35 @@ let SalesService = SalesService_1 = class SalesService {
         if (quantityOnHand <= reorderLevel)
             return 'low';
         return 'ok';
+    }
+    async branchScopeSql(actor) {
+        if (ORG_WIDE_SALES_ROLES.includes(actor.role)) {
+            const orgId = await this.getOrganizationIdForBranch(actor.branchId);
+            return {
+                clause: `s.branch_id IN (SELECT id FROM branches WHERE organization_id = $1)`,
+                params: [orgId],
+            };
+        }
+        return {
+            clause: 's.branch_id = $1',
+            params: [actor.branchId],
+        };
+    }
+    async canAccessBranch(actor, branchId) {
+        if (branchId === actor.branchId)
+            return true;
+        if (!ORG_WIDE_SALES_ROLES.includes(actor.role))
+            return false;
+        const actorOrgId = await this.getOrganizationIdForBranch(actor.branchId);
+        const [row] = (await this.dataSource.query(`SELECT id FROM branches WHERE id = $1 AND organization_id = $2`, [branchId, actorOrgId]));
+        return !!row;
+    }
+    async getOrganizationIdForBranch(branchId) {
+        const [row] = (await this.dataSource.query(`SELECT organization_id FROM branches WHERE id = $1`, [branchId]));
+        if (!(row === null || row === void 0 ? void 0 : row.organization_id)) {
+            throw new common_1.NotFoundException(`Branch ${branchId} not found`);
+        }
+        return row.organization_id;
     }
 };
 exports.SalesService = SalesService;

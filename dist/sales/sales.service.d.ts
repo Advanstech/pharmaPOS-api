@@ -15,10 +15,13 @@ export declare class SalesService {
     constructor(dataSource: DataSource, realtimeStock: RealtimeStockService, effectiveSaleAt: SalesEffectiveAtService, pharmacy: PharmacyService, notifications: NotificationsService);
     createSale(input: CreateSaleInput, actor: JwtUser): Promise<SaleOutput>;
     getSale(saleId: string, actor: JwtUser): Promise<SaleOutput>;
-    getDailySummary(branchId: string, date?: string): Promise<DailySummary>;
+    getDailySummary(actor: JwtUser, date?: string): Promise<DailySummary>;
     getRecentSales(actor: JwtUser, limit?: number): Promise<SaleOutput[]>;
     private parseOptionalSoldAt;
     private mapSaleOutput;
     private formatGhs;
     private calcStockStatus;
+    private branchScopeSql;
+    private canAccessBranch;
+    private getOrganizationIdForBranch;
 }

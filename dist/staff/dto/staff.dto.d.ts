@@ -31,6 +31,10 @@ export declare class UpdateStaffProfileInput {
     emergency_contact_name?: string;
     emergency_contact_phone?: string;
     notes?: string;
+    photo_url?: string;
+    salary_amount_pesewas?: number;
+    salary_period?: string;
+    bank_name?: string;
     phone?: string;
     address?: string;
     date_of_birth?: string;
@@ -53,7 +57,12 @@ export declare class StaffMemberOutput {
     professional_licence_no?: string;
     licence_expiry_date?: Date;
     start_date?: Date;
+    photo_url?: string;
     certificate_s3_keys: string[];
+    salary_amount_pesewas?: number;
+    salary_period?: string;
+    bank_name?: string;
+    is_on_duty: boolean;
     created_at: Date;
 }
 export declare class StaffSessionOutput {

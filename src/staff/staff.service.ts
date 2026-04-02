@@ -232,9 +232,17 @@ export class StaffService {
     if (input.licence_expiry_date !== undefined) updates.licence_expiry_date = input.licence_expiry_date;
     if (input.emergency_contact_name !== undefined) updates.emergency_contact_name = input.emergency_contact_name;
     if (input.emergency_contact_phone !== undefined) updates.emergency_contact_phone = input.emergency_contact_phone;
+    if (input.photo_url !== undefined) updates.photo_url = input.photo_url;
 
     // RBAC: notes only for managers
     if (input.notes !== undefined && isManager) updates.notes = input.notes;
+
+    // Salary fields — manager/owner only (Ghana Cedis only, never USD)
+    if (isManager) {
+      if (input.salary_amount_pesewas !== undefined) updates.salary_amount_pesewas = input.salary_amount_pesewas;
+      if (input.salary_period !== undefined) updates.salary_period = input.salary_period;
+      if (input.bank_name !== undefined) updates.bank_name = input.bank_name;
+    }
 
     // PII — encrypt before storing (Ghana Data Protection Act 2012)
     if (input.phone !== undefined) updates.phone_encrypted = encryptPii(this.encryptionKey, input.phone);
@@ -451,7 +459,15 @@ export class StaffService {
         sp.professional_licence_no,
         sp.licence_expiry_date,
         sp.start_date,
-        sp.certificate_s3_keys
+        sp.photo_url,
+        sp.certificate_s3_keys,
+        sp.salary_amount_pesewas,
+        sp.salary_period,
+        sp.bank_name,
+        EXISTS (
+          SELECT 1 FROM staff_sessions ss
+          WHERE ss.user_id = u.id AND ss.ended_at IS NULL
+        ) AS is_on_duty
       FROM users u
       LEFT JOIN staff_profiles sp ON sp.user_id = u.id
       WHERE u.branch_id = $1
@@ -472,7 +488,12 @@ export class StaffService {
       professional_licence_no: r.professional_licence_no as string | undefined,
       licence_expiry_date: r.licence_expiry_date as Date | undefined,
       start_date: r.start_date as Date | undefined,
+      photo_url: r.photo_url as string | undefined,
       certificate_s3_keys: (r.certificate_s3_keys as string[]) ?? [],
+      salary_amount_pesewas: r.salary_amount_pesewas as number | undefined,
+      salary_period: r.salary_period as string | undefined,
+      bank_name: r.bank_name as string | undefined,
+      is_on_duty: r.is_on_duty as boolean,
       created_at: r.created_at as Date,
     }));
   }
@@ -485,7 +506,12 @@ export class StaffService {
         u.id, u.name, u.email, u.role, u.branch_id, u.is_active, u.created_at,
         sp.position, sp.department, sp.employment_type,
         sp.professional_licence_no, sp.licence_expiry_date,
-        sp.start_date, sp.certificate_s3_keys
+        sp.start_date, sp.photo_url, sp.certificate_s3_keys,
+        sp.salary_amount_pesewas, sp.salary_period, sp.bank_name,
+        EXISTS (
+          SELECT 1 FROM staff_sessions ss
+          WHERE ss.user_id = u.id AND ss.ended_at IS NULL
+        ) AS is_on_duty
       FROM users u
       LEFT JOIN staff_profiles sp ON sp.user_id = u.id
       WHERE u.id = $1
@@ -507,7 +533,12 @@ export class StaffService {
       professional_licence_no: r.professional_licence_no as string | undefined,
       licence_expiry_date: r.licence_expiry_date as Date | undefined,
       start_date: r.start_date as Date | undefined,
+      photo_url: r.photo_url as string | undefined,
       certificate_s3_keys: (r.certificate_s3_keys as string[]) ?? [],
+      salary_amount_pesewas: r.salary_amount_pesewas as number | undefined,
+      salary_period: r.salary_period as string | undefined,
+      bank_name: r.bank_name as string | undefined,
+      is_on_duty: r.is_on_duty as boolean,
       created_at: r.created_at as Date,
     };
   }

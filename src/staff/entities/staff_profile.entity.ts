@@ -85,6 +85,29 @@ export class StaffProfile {
   @Column({ nullable: true })
   emergency_contact_phone?: string;
 
+  @Field({ nullable: true })
+  @Column({ nullable: true })
+  photo_url?: string;
+
+  // Compensation — all amounts in GHS pesewas (×100). Never USD.
+  @Field({ nullable: true })
+  @Column({ type: 'bigint', nullable: true })
+  salary_amount_pesewas?: number;
+
+  @Field({ nullable: true })
+  @Column({ nullable: true, default: 'monthly' })
+  salary_period?: string;
+
+  @Field({ nullable: true })
+  @Column({ nullable: true })
+  bank_name?: string;
+
+  @Column({ nullable: true })
+  bank_account_encrypted?: string;
+
+  @Column({ nullable: true })
+  momo_number_encrypted?: string;
+
   // RBAC: notes visible to manager/owner/se_admin only
   @Field({ nullable: true })
   @Column({ nullable: true })

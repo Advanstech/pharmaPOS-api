@@ -15,6 +15,7 @@ export declare class CustomersService {
     private mapRow;
     createCustomer(input: CreateCustomerInput, actor: JwtUser): Promise<CustomerOutput>;
     updateCustomer(input: UpdateCustomerInput, actor: JwtUser): Promise<CustomerOutput>;
+    private getOrganizationIdForBranch;
     private getCustomerRow;
     getCustomer(id: string, actor: JwtUser): Promise<CustomerOutput>;
     listCustomers(actor: JwtUser, limit?: number, offset?: number): Promise<CustomerOutput[]>;

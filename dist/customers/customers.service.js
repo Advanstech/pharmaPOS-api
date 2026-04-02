@@ -56,6 +56,7 @@ const CUSTOMER_UPDATE_ROLES = [
     'head_pharmacist',
     'pharmacist',
 ];
+const ORG_WIDE_CUSTOMER_ROLES = ['owner', 'se_admin'];
 let CustomersService = CustomersService_1 = class CustomersService {
     constructor(dataSource) {
         this.dataSource = dataSource;
@@ -164,10 +165,23 @@ let CustomersService = CustomersService_1 = class CustomersService {
         return this.mapRow(row);
     }
     async updateCustomer(input, actor) {
+        this.logger.log(`UpdateCustomer called: customerId=${input.customerId}, actor=${actor.sub}, role=${actor.role}, branchId=${actor.branchId}`);
         this.assertCanUpdate(actor);
+        this.logger.log(`Actor ${actor.sub} passed assertCanUpdate`);
         const existing = await this.getCustomerRow(input.customerId);
+        this.logger.log(`Found customer: branch_id=${existing.branch_id}, customer_code=${existing.customer_code}`);
+        const orgWide = ORG_WIDE_CUSTOMER_ROLES.includes(actor.role);
         if (existing.branch_id !== actor.branchId) {
-            throw new common_1.ForbiddenException('Customer is not in your branch');
+            if (!orgWide) {
+                this.logger.warn(`Forbidden: Customer branch ${existing.branch_id} != actor branch ${actor.branchId}`);
+                throw new common_1.ForbiddenException('Customer is not in your branch');
+            }
+            const actorOrgId = await this.getOrganizationIdForBranch(actor.branchId);
+            const customerOrgId = await this.getOrganizationIdForBranch(existing.branch_id);
+            if (actorOrgId !== customerOrgId) {
+                this.logger.warn(`Forbidden: Customer org ${customerOrgId} != actor org ${actorOrgId}`);
+                throw new common_1.ForbiddenException('Customer is not in your organization');
+            }
         }
         let nameEnc = existing.name_encrypted;
         if (input.name !== undefined) {
@@ -175,14 +189,24 @@ let CustomersService = CustomersService_1 = class CustomersService {
         }
         let phoneHash = existing.phone_hash;
         if (input.phone !== undefined) {
-            phoneHash = input.phone.trim() ? this.hashPhone(actor.branchId, input.phone.trim()) : null;
+            phoneHash = input.phone.trim() ? this.hashPhone(existing.branch_id, input.phone.trim()) : null;
         }
         let sex = existing.sex;
         if (input.sex !== undefined)
             sex = input.sex;
         let ageYears = existing.age_years;
-        if (input.ageYears !== undefined)
-            ageYears = input.ageYears;
+        if (input.ageYears !== undefined) {
+            if (input.ageYears === null) {
+                ageYears = null;
+            }
+            else if (typeof input.ageYears === 'string') {
+                const parsed = parseInt(input.ageYears, 10);
+                ageYears = isNaN(parsed) ? null : parsed;
+            }
+            else {
+                ageYears = input.ageYears;
+            }
+        }
         let ghEnc = existing.ghana_card_encrypted;
         if (input.ghanaCardNumber !== undefined) {
             ghEnc = input.ghanaCardNumber.trim()
@@ -203,7 +227,15 @@ let CustomersService = CustomersService_1 = class CustomersService {
     `, [input.customerId, nameEnc, phoneHash, sex, ageYears, ghEnc]);
         if (!row)
             throw new common_1.NotFoundException('Customer not found');
+        this.logger.log(`Customer updated id=${row.id} code=${row.customer_code} branch=${existing.branch_id} by=${actor.sub}`);
         return this.mapRow(row);
+    }
+    async getOrganizationIdForBranch(branchId) {
+        const [row] = (await this.dataSource.query(`SELECT organization_id FROM branches WHERE id = $1`, [branchId]));
+        if (!(row === null || row === void 0 ? void 0 : row.organization_id)) {
+            throw new common_1.NotFoundException(`Branch ${branchId} not found`);
+        }
+        return row.organization_id;
     }
     async getCustomerRow(id) {
         const [row] = await this.dataSource.query(`
