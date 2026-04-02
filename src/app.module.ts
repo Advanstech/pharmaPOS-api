@@ -31,7 +31,9 @@ import { CustomersModule } from './customers/customers.module';
     GraphQLModule.forRootAsync<ApolloDriverConfig>({
       driver: ApolloDriver,
       useFactory: () => ({
-        autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
+        autoSchemaFile: process.env['NODE_ENV'] === 'production'
+          ? true  // In-memory schema generation — no filesystem write needed in prod
+          : join(process.cwd(), 'src/schema.gql'),
         sortSchema: true,
         // WS: graphql-ws transport for subscriptions (not subscriptions-transport-ws)
         subscriptions: {
