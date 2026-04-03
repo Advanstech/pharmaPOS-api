@@ -20,6 +20,7 @@ const config_1 = require("@nestjs/config");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const user_entity_1 = require("../entities/user.entity");
+const roles_1 = require("../../config/roles");
 let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(passport_jwt_1.Strategy) {
     constructor(config, users) {
         super({
@@ -38,7 +39,7 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         }
         return {
             sub: payload.sub,
-            role: user.role,
+            role: (0, roles_1.normalizeRoleForApi)(user.role),
             branchId: user.branch_id,
             branchType: payload.branchType,
             sessionId: payload.sessionId,

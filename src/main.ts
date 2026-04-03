@@ -5,6 +5,7 @@ import { WinstonModule } from 'nest-winston';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import * as winston from 'winston';
 import helmet from 'helmet';
+import { isOriginAllowed } from './config/cors-origins';
 
 // ── GraphQL operation reference — embedded in Swagger description ─────────
 // This is the canonical reference for the frontend team and third-party
@@ -861,18 +862,24 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    // WEB_URL supports comma-separated origins for Railway preview deployments
-    // e.g. WEB_URL=https://pharmapos.com,https://pharmapos-web.up.railway.app
+    // WEB_URL: comma-separated browser origins (Vercel app + local dev). Same list as graphql-ws.
+    // Reflecting the request origin (not `*`) keeps credentials + Authorization working.
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      const allowed = (process.env['WEB_URL'] ?? 'http://localhost:3000')
-        .split(',')
-        .map((u) => u.trim());
-      if (!origin || allowed.includes(origin) || allowed.includes('*')) {
+      if (isOriginAllowed(origin)) {
         callback(null, true);
       } else {
         callback(new Error(`CORS: origin ${origin} not allowed`));
       }
     },
+    methods: ['GET', 'POST', 'OPTIONS', 'HEAD'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Apollo-Require-Preflight',
+      'X-Apollo-Operation-Name',
+      'X-Apollo-Query-Name',
+      'apollo-require-preflight',
+    ],
     credentials: true,
   });
 

@@ -30,6 +30,7 @@ const health_module_1 = require("./health/health.module");
 const audit_module_1 = require("./audit/audit.module");
 const sales_effective_at_module_1 = require("./sales/sales-effective-at.module");
 const customers_module_1 = require("./customers/customers.module");
+const cors_origins_1 = require("./config/cors-origins");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -45,12 +46,20 @@ exports.AppModule = AppModule = __decorate([
                         ? true
                         : (0, path_1.join)(process.cwd(), 'src/schema.gql'),
                     sortSchema: true,
+                    csrfPrevention: false,
                     subscriptions: {
                         'graphql-ws': {
                             onConnect: (ctx) => {
-                                var _a;
-                                const token = (_a = ctx.connectionParams) === null || _a === void 0 ? void 0 : _a.Authorization;
-                                if (!token)
+                                const req = ctx.extra
+                                    .request;
+                                const raw = req.headers.origin;
+                                const origin = Array.isArray(raw) ? raw[0] : raw;
+                                if (typeof origin === 'string' && !(0, cors_origins_1.isOriginAllowed)(origin)) {
+                                    return false;
+                                }
+                                const params = ctx.connectionParams;
+                                const token = params === null || params === void 0 ? void 0 : params.Authorization;
+                                if (typeof token !== 'string' || !token)
                                     throw new Error('Unauthorized');
                                 return { token };
                             },

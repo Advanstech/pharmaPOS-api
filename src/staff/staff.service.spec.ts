@@ -3,10 +3,12 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ForbiddenException, ConflictException, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import * as crypto from 'crypto';
+import { ConfigService } from '@nestjs/config';
 import { StaffService } from './staff.service';
 import { User } from '../auth/entities/user.entity';
 import { StaffProfile } from './entities/staff_profile.entity';
 import { JwtUser } from '../auth/decorators/current-user.decorator';
+import { NotificationsService } from '../notifications/notifications.service';
 
 // ── Shared fixtures ───────────────────────────────────────────────────────
 
@@ -79,6 +81,8 @@ async function buildModule(): Promise<TestingModule> {
       { provide: getRepositoryToken(User), useValue: mockUsersRepo },
       { provide: getRepositoryToken(StaffProfile), useValue: mockProfilesRepo },
       { provide: DataSource, useValue: mockDataSource },
+      { provide: NotificationsService, useValue: { sendEmail: jest.fn() } },
+      { provide: ConfigService, useValue: { get: jest.fn() } },
     ],
   }).compile();
 }
@@ -109,6 +113,8 @@ describe('StaffService', () => {
             { provide: getRepositoryToken(User), useValue: mockUsersRepo },
             { provide: getRepositoryToken(StaffProfile), useValue: mockProfilesRepo },
             { provide: DataSource, useValue: mockDataSource },
+            { provide: NotificationsService, useValue: { sendEmail: jest.fn() } },
+            { provide: ConfigService, useValue: { get: jest.fn() } },
           ],
         }).compile(),
       ).rejects.toThrow('PII_ENCRYPTION_KEY');
@@ -126,6 +132,8 @@ describe('StaffService', () => {
             { provide: getRepositoryToken(User), useValue: mockUsersRepo },
             { provide: getRepositoryToken(StaffProfile), useValue: mockProfilesRepo },
             { provide: DataSource, useValue: mockDataSource },
+            { provide: NotificationsService, useValue: { sendEmail: jest.fn() } },
+            { provide: ConfigService, useValue: { get: jest.fn() } },
           ],
         }).compile(),
       ).rejects.toThrow('PII_ENCRYPTION_KEY');

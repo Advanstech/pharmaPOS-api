@@ -6,6 +6,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { JwtUser } from '../decorators/current-user.decorator';
+import { normalizeRoleForApi } from '../../config/roles';
 
 interface JwtPayload {
   sub: string;
@@ -40,7 +41,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // Prefer live DB values so role/branch changes apply without forcing re-login; JWT stays the session key.
     return {
       sub: payload.sub,
-      role: user.role,
+      role: normalizeRoleForApi(user.role),
       branchId: user.branch_id,
       branchType: payload.branchType,
       sessionId: payload.sessionId,

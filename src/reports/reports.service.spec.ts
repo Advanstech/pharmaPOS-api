@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
 import { ReportsService } from './reports.service';
+import { SalesEffectiveAtService } from '../sales/sales-effective-at.service';
 
 // ── Shared fixtures ───────────────────────────────────────────────────────
 
@@ -8,11 +9,16 @@ const mockDataSource = {
   query: jest.fn(),
 };
 
+const mockEffectiveAt: Pick<SalesEffectiveAtService, 'sql'> = {
+  sql: (alias: string) => `COALESCE(${alias}.sold_at, ${alias}.created_at)`,
+};
+
 async function buildModule(): Promise<TestingModule> {
   return Test.createTestingModule({
     providers: [
       ReportsService,
       { provide: DataSource, useValue: mockDataSource },
+      { provide: SalesEffectiveAtService, useValue: mockEffectiveAt },
     ],
   }).compile();
 }

@@ -1,5 +1,7 @@
 # Railway Deployment Guide — apps/api
 
+**Production API (current):** `https://happy-happiness-production-fd76.up.railway.app` — GraphQL at `/graphql`, health at `/health`.
+
 ## 1. Railway Project Setup
 
 1. Create a new Railway project
@@ -87,10 +89,10 @@ Point your DNS CNAME to the Railway-provided domain.
 ## 6. Verify Deploy
 
 ```bash
-curl https://your-api.up.railway.app/health
+curl https://happy-happiness-production-fd76.up.railway.app/health
 # → { "status": "ok", ... }
 
-curl -X POST https://your-api.up.railway.app/graphql \
+curl -X POST https://happy-happiness-production-fd76.up.railway.app/graphql \
   -H "Content-Type: application/json" \
   -d '{"query":"{ __typename }"}'
 # → { "data": { "__typename": "Query" } }

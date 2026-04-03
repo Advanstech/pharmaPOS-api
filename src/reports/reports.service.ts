@@ -34,6 +34,8 @@ export class ReportsService {
     periodEnd: string,
   ): Promise<RevenueReport> {
     const at = this.effectiveSaleAt.sql('s');
+    /** Inclusive Accra calendar days (YYYY-MM-DD from the web). */
+    const saleAccraDay = `(${at} AT TIME ZONE 'Africa/Accra')::date`;
     const [row] = await this.dataSource.query(`
       SELECT
         COALESCE(SUM(CASE WHEN s.status = 'COMPLETED' THEN s.total_amount ELSE 0 END), 0)::int AS total_revenue,
@@ -42,8 +44,8 @@ export class ReportsService {
         COALESCE(SUM(CASE WHEN s.status = 'REFUNDED' THEN s.total_amount ELSE 0 END), 0)::int AS refunds
       FROM sales s
       WHERE s.branch_id = $1
-        AND (${at}) >= $2::timestamptz
-        AND (${at}) < ($3::date + INTERVAL '1 day')::timestamptz
+        AND ${saleAccraDay} >= $2::date
+        AND ${saleAccraDay} <= $3::date
     `, [branchId, periodStart, periodEnd]) as RevRow[];
 
     const revenue = row?.total_revenue ?? 0;
@@ -71,6 +73,7 @@ export class ReportsService {
     limit = 10,
   ): Promise<TopProduct[]> {
     const at = this.effectiveSaleAt.sql('s');
+    const saleAccraDay = `(${at} AT TIME ZONE 'Africa/Accra')::date`;
     const rows = await this.dataSource.query(`
       SELECT
         si.product_id,
@@ -82,8 +85,8 @@ export class ReportsService {
       JOIN products p ON p.id = si.product_id
       WHERE s.branch_id = $1
         AND s.status = 'COMPLETED'
-        AND (${at}) >= $2::timestamptz
-        AND (${at}) < ($3::date + INTERVAL '1 day')::timestamptz
+        AND ${saleAccraDay} >= $2::date
+        AND ${saleAccraDay} <= $3::date
       GROUP BY si.product_id, p.name
       ORDER BY revenue DESC
       LIMIT $4
@@ -101,46 +104,40 @@ export class ReportsService {
   // ── Dashboard KPIs ────────────────────────────────────────────────────────
 
   async getDashboardKpis(branchId: string): Promise<DashboardKpis> {
-    const today = new Date().toISOString().split('T')[0];
-    const monthStart = today.substring(0, 8) + '01';
-
-    // Previous month for delta calculation
-    const d = new Date();
-    d.setMonth(d.getMonth() - 1);
-    const prevMonthStart = d.toISOString().substring(0, 8) + '01';
-    const prevMonthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0)
-      .toISOString()
-      .split('T')[0];
-
     const at = this.effectiveSaleAt.sql('s');
+    const saleAccraDay = `(${at} AT TIME ZONE 'Africa/Accra')::date`;
     const [todayRow, monthRow, prevMonthRow, lowStockRow, staffRow] = await Promise.all([
-      // Today
-      this.dataSource.query(`
-        SELECT
-          COALESCE(SUM(s.total_amount), 0)::int AS revenue,
-          COUNT(*)::int AS count
-        FROM sales s
-        WHERE s.branch_id = $1 AND s.status = 'COMPLETED' AND (${at})::date = $2::date
-      `, [branchId, today]) as Promise<Array<{ revenue: number; count: number }>>,
-
-      // This month
+      // Today (Africa/Accra calendar day)
       this.dataSource.query(`
         SELECT
           COALESCE(SUM(s.total_amount), 0)::int AS revenue,
           COUNT(*)::int AS count
         FROM sales s
         WHERE s.branch_id = $1 AND s.status = 'COMPLETED'
-          AND (${at}) >= $2::timestamptz
-      `, [branchId, monthStart]) as Promise<Array<{ revenue: number; count: number }>>,
+          AND ${saleAccraDay} = (NOW() AT TIME ZONE 'Africa/Accra')::date
+      `, [branchId]) as Promise<Array<{ revenue: number; count: number }>>,
 
-      // Previous month (for delta)
+      // This month (Accra calendar month)
+      this.dataSource.query(`
+        SELECT
+          COALESCE(SUM(s.total_amount), 0)::int AS revenue,
+          COUNT(*)::int AS count
+        FROM sales s
+        WHERE s.branch_id = $1 AND s.status = 'COMPLETED'
+          AND to_char(${at} AT TIME ZONE 'Africa/Accra', 'YYYY-MM')
+            = to_char(NOW() AT TIME ZONE 'Africa/Accra', 'YYYY-MM')
+      `, [branchId]) as Promise<Array<{ revenue: number; count: number }>>,
+
+      // Previous Accra calendar month (for delta)
       this.dataSource.query(`
         SELECT COALESCE(SUM(s.total_amount), 0)::int AS revenue
         FROM sales s
         WHERE s.branch_id = $1 AND s.status = 'COMPLETED'
-          AND (${at}) >= $2::timestamptz
-          AND (${at}) < ($3::date + INTERVAL '1 day')::timestamptz
-      `, [branchId, prevMonthStart, prevMonthEnd]) as Promise<Array<{ revenue: number }>>,
+          AND to_char(${at} AT TIME ZONE 'Africa/Accra', 'YYYY-MM') = to_char(
+            (NOW() AT TIME ZONE 'Africa/Accra')::date - INTERVAL '1 month',
+            'YYYY-MM'
+          )
+      `, [branchId]) as Promise<Array<{ revenue: number }>>,
 
       // Low stock count
       this.dataSource.query(`

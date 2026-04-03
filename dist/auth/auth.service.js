@@ -24,6 +24,7 @@ const user_entity_1 = require("./entities/user.entity");
 const auth_types_1 = require("./dto/auth.types");
 const constants_1 = require("../config/constants");
 const sales_effective_at_service_1 = require("../sales/sales-effective-at.service");
+const roles_1 = require("../config/roles");
 let AuthService = AuthService_1 = class AuthService {
     constructor(users, jwt, config, dataSource, effectiveSaleAt) {
         this.users = users;
@@ -110,7 +111,7 @@ let AuthService = AuthService_1 = class AuthService {
         const user = await this.users.findOne({ where: { id: userId, is_active: true } });
         if (!user)
             throw new common_1.NotFoundException('User not found');
-        return user;
+        return Object.assign(Object.assign({}, user), { role: (0, roles_1.normalizeRoleForApi)(user.role) });
     }
     async getSubscriptionOverview(actor) {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j;
@@ -201,7 +202,7 @@ let AuthService = AuthService_1 = class AuthService {
     buildAuthPayload(user, branchType, sessionId) {
         const jwtPayload = {
             sub: user.id,
-            role: user.role,
+            role: (0, roles_1.normalizeRoleForApi)(user.role),
             branchId: user.branch_id,
             branchType,
             sessionId,
@@ -218,7 +219,7 @@ let AuthService = AuthService_1 = class AuthService {
         payload.access_token = accessToken;
         payload.refresh_token = refreshToken;
         payload.expires_in = 900;
-        payload.user = user;
+        payload.user = Object.assign(Object.assign({}, user), { role: (0, roles_1.normalizeRoleForApi)(user.role) });
         return payload;
     }
 };

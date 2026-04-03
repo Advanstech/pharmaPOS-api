@@ -21,6 +21,7 @@ import { HealthModule } from './health/health.module';
 import { AuditModule } from './audit/audit.module';
 import { SalesEffectiveAtModule } from './sales/sales-effective-at.module';
 import { CustomersModule } from './customers/customers.module';
+import { isOriginAllowed } from './config/cors-origins';
 
 @Module({
   imports: [
@@ -35,13 +36,22 @@ import { CustomersModule } from './customers/customers.module';
           ? true  // In-memory schema generation — no filesystem write needed in prod
           : join(process.cwd(), 'src/schema.gql'),
         sortSchema: true,
+        // Apollo Server 5 defaults CSRF checks that reject some valid clients; we use Bearer JWT, not cookies.
+        csrfPrevention: false,
         // WS: graphql-ws transport for subscriptions (not subscriptions-transport-ws)
         subscriptions: {
           'graphql-ws': {
             onConnect: (ctx) => {
-              // JWT auth in connection_init
-              const token = (ctx.connectionParams as Record<string, string>)?.Authorization;
-              if (!token) throw new Error('Unauthorized');
+              const req = (ctx as { extra: { request: { headers: { origin?: string | string[] } } } }).extra
+                .request;
+              const raw = req.headers.origin;
+              const origin = Array.isArray(raw) ? raw[0] : raw;
+              if (typeof origin === 'string' && !isOriginAllowed(origin)) {
+                return false;
+              }
+              const params = (ctx as { connectionParams?: Record<string, unknown> }).connectionParams;
+              const token = params?.Authorization;
+              if (typeof token !== 'string' || !token) throw new Error('Unauthorized');
               return { token };
             },
           },

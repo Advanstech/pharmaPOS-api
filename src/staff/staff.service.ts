@@ -23,6 +23,7 @@ import { JwtUser } from '../auth/decorators/current-user.decorator';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EmailTemplates } from '../notifications/email-templates';
 import { ConfigService } from '@nestjs/config';
+import { normalizeRoleForApi } from '../config/roles';
 
 // RBAC: roles that can manage staff
 const STAFF_MANAGER_ROLES = ['owner', 'se_admin', 'manager'] as const;
@@ -195,7 +196,7 @@ export class StaffService {
       userId,
       name: input.name,
       email: input.email ?? undefined,
-      role: input.role,
+      role: normalizeRoleForApi(input.role),
       temporaryPassword: tempPassword,
       emailSent,
       message,
@@ -418,7 +419,7 @@ export class StaffService {
       id: r.id as string,
       user_id: r.user_id as string,
       user_name: r.user_name as string,
-      user_role: r.user_role as string,
+      user_role: normalizeRoleForApi(r.user_role as string),
       branch_id: r.branch_id as string,
       branch_name: r.branch_name as string,
       session_id: r.session_id as string,
@@ -440,9 +441,26 @@ export class StaffService {
   async listStaff(actor: JwtUser, branchId?: string): Promise<StaffMemberOutput[]> {
     this.assertStaffManager(actor);
 
-    // Managers are scoped to their own branch
-    const effectiveBranchId =
-      actor.role === 'manager' ? actor.branchId : (branchId ?? actor.branchId);
+    let effectiveBranchId: string;
+    if (actor.role === 'manager') {
+      effectiveBranchId = actor.branchId;
+    } else if (branchId) {
+      const [b] = await this.dataSource.query(
+        `
+        SELECT b.id
+        FROM branches b
+        INNER JOIN branches actor_branch ON actor_branch.id = $2
+        WHERE b.id = $1 AND b.organization_id = actor_branch.organization_id
+      `,
+        [branchId, actor.branchId],
+      ) as Array<{ id: string }>;
+      if (!b) {
+        throw new ForbiddenException('Branch is not in your organization');
+      }
+      effectiveBranchId = branchId;
+    } else {
+      effectiveBranchId = actor.branchId;
+    }
 
     const rows = await this.dataSource.query(`
       SELECT
@@ -479,7 +497,7 @@ export class StaffService {
       id: r.id as string,
       name: r.name as string,
       email: r.email as string | undefined,
-      role: r.role as string,
+      role: normalizeRoleForApi(r.role as string),
       branch_id: r.branch_id as string,
       is_active: r.is_active as boolean,
       position: r.position as string | undefined,
@@ -524,7 +542,7 @@ export class StaffService {
       id: r.id as string,
       name: r.name as string,
       email: r.email as string | undefined,
-      role: r.role as string,
+      role: normalizeRoleForApi(r.role as string),
       branch_id: r.branch_id as string,
       is_active: r.is_active as boolean,
       position: r.position as string | undefined,

@@ -23,6 +23,7 @@ let ReportsService = ReportsService_1 = class ReportsService {
     async getRevenueReport(branchId, periodStart, periodEnd) {
         var _a, _b, _c, _d, _e;
         const at = this.effectiveSaleAt.sql('s');
+        const saleAccraDay = `(${at} AT TIME ZONE 'Africa/Accra')::date`;
         const [row] = await this.dataSource.query(`
       SELECT
         COALESCE(SUM(CASE WHEN s.status = 'COMPLETED' THEN s.total_amount ELSE 0 END), 0)::int AS total_revenue,
@@ -31,8 +32,8 @@ let ReportsService = ReportsService_1 = class ReportsService {
         COALESCE(SUM(CASE WHEN s.status = 'REFUNDED' THEN s.total_amount ELSE 0 END), 0)::int AS refunds
       FROM sales s
       WHERE s.branch_id = $1
-        AND (${at}) >= $2::timestamptz
-        AND (${at}) < ($3::date + INTERVAL '1 day')::timestamptz
+        AND ${saleAccraDay} >= $2::date
+        AND ${saleAccraDay} <= $3::date
     `, [branchId, periodStart, periodEnd]);
         const revenue = (_a = row === null || row === void 0 ? void 0 : row.total_revenue) !== null && _a !== void 0 ? _a : 0;
         const count = (_b = row === null || row === void 0 ? void 0 : row.sales_count) !== null && _b !== void 0 ? _b : 0;
@@ -50,6 +51,7 @@ let ReportsService = ReportsService_1 = class ReportsService {
     }
     async getTopProducts(branchId, periodStart, periodEnd, limit = 10) {
         const at = this.effectiveSaleAt.sql('s');
+        const saleAccraDay = `(${at} AT TIME ZONE 'Africa/Accra')::date`;
         const rows = await this.dataSource.query(`
       SELECT
         si.product_id,
@@ -61,8 +63,8 @@ let ReportsService = ReportsService_1 = class ReportsService {
       JOIN products p ON p.id = si.product_id
       WHERE s.branch_id = $1
         AND s.status = 'COMPLETED'
-        AND (${at}) >= $2::timestamptz
-        AND (${at}) < ($3::date + INTERVAL '1 day')::timestamptz
+        AND ${saleAccraDay} >= $2::date
+        AND ${saleAccraDay} <= $3::date
       GROUP BY si.product_id, p.name
       ORDER BY revenue DESC
       LIMIT $4
@@ -77,38 +79,35 @@ let ReportsService = ReportsService_1 = class ReportsService {
     }
     async getDashboardKpis(branchId) {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
-        const today = new Date().toISOString().split('T')[0];
-        const monthStart = today.substring(0, 8) + '01';
-        const d = new Date();
-        d.setMonth(d.getMonth() - 1);
-        const prevMonthStart = d.toISOString().substring(0, 8) + '01';
-        const prevMonthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0)
-            .toISOString()
-            .split('T')[0];
         const at = this.effectiveSaleAt.sql('s');
+        const saleAccraDay = `(${at} AT TIME ZONE 'Africa/Accra')::date`;
         const [todayRow, monthRow, prevMonthRow, lowStockRow, staffRow] = await Promise.all([
             this.dataSource.query(`
         SELECT
           COALESCE(SUM(s.total_amount), 0)::int AS revenue,
           COUNT(*)::int AS count
         FROM sales s
-        WHERE s.branch_id = $1 AND s.status = 'COMPLETED' AND (${at})::date = $2::date
-      `, [branchId, today]),
+        WHERE s.branch_id = $1 AND s.status = 'COMPLETED'
+          AND ${saleAccraDay} = (NOW() AT TIME ZONE 'Africa/Accra')::date
+      `, [branchId]),
             this.dataSource.query(`
         SELECT
           COALESCE(SUM(s.total_amount), 0)::int AS revenue,
           COUNT(*)::int AS count
         FROM sales s
         WHERE s.branch_id = $1 AND s.status = 'COMPLETED'
-          AND (${at}) >= $2::timestamptz
-      `, [branchId, monthStart]),
+          AND to_char(${at} AT TIME ZONE 'Africa/Accra', 'YYYY-MM')
+            = to_char(NOW() AT TIME ZONE 'Africa/Accra', 'YYYY-MM')
+      `, [branchId]),
             this.dataSource.query(`
         SELECT COALESCE(SUM(s.total_amount), 0)::int AS revenue
         FROM sales s
         WHERE s.branch_id = $1 AND s.status = 'COMPLETED'
-          AND (${at}) >= $2::timestamptz
-          AND (${at}) < ($3::date + INTERVAL '1 day')::timestamptz
-      `, [branchId, prevMonthStart, prevMonthEnd]),
+          AND to_char(${at} AT TIME ZONE 'Africa/Accra', 'YYYY-MM') = to_char(
+            (NOW() AT TIME ZONE 'Africa/Accra')::date - INTERVAL '1 month',
+            'YYYY-MM'
+          )
+      `, [branchId]),
             this.dataSource.query(`
         SELECT COUNT(*)::int AS cnt
         FROM products p

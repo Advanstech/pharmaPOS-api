@@ -11,6 +11,7 @@ import { SUBSCRIPTION_TIERS, type SubscriptionTier } from '../config/constants';
 import { SubscriptionOverview } from './dto/subscription.types';
 import { SalesEffectiveAtService } from '../sales/sales-effective-at.service';
 import type { ClientSessionMeta } from './client-session-meta';
+import { normalizeRoleForApi } from '../config/roles';
 
 interface BranchRow { id: string; type: 'pharmaceutical' | 'chemical' }
 interface SubscriptionRow {
@@ -161,7 +162,7 @@ export class AuthService {
   async me(userId: string): Promise<User> {
     const user = await this.users.findOne({ where: { id: userId, is_active: true } });
     if (!user) throw new NotFoundException('User not found');
-    return user;
+    return { ...user, role: normalizeRoleForApi(user.role) } as User;
   }
 
   async getSubscriptionOverview(actor: JwtUser): Promise<SubscriptionOverview> {
@@ -292,7 +293,7 @@ export class AuthService {
   ): AuthPayload {
     const jwtPayload = {
       sub: user.id,
-      role: user.role,
+      role: normalizeRoleForApi(user.role),
       branchId: user.branch_id,
       branchType,
       sessionId,
@@ -315,7 +316,7 @@ export class AuthService {
     payload.access_token = accessToken;
     payload.refresh_token = refreshToken;
     payload.expires_in = 900; // 15 minutes in seconds
-    payload.user = user;
+    payload.user = { ...user, role: normalizeRoleForApi(user.role) } as User;
     return payload;
   }
 }

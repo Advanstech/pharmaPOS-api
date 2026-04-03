@@ -24,6 +24,7 @@ const staff_profile_entity_1 = require("./entities/staff_profile.entity");
 const notifications_service_1 = require("../notifications/notifications.service");
 const email_templates_1 = require("../notifications/email-templates");
 const config_1 = require("@nestjs/config");
+const roles_1 = require("../config/roles");
 const STAFF_MANAGER_ROLES = ['owner', 'se_admin', 'manager'];
 function encryptPii(key, plaintext) {
     const iv = crypto.randomBytes(12);
@@ -137,7 +138,7 @@ let StaffService = StaffService_1 = class StaffService {
             userId,
             name: input.name,
             email: (_a = input.email) !== null && _a !== void 0 ? _a : undefined,
-            role: input.role,
+            role: (0, roles_1.normalizeRoleForApi)(input.role),
             temporaryPassword: tempPassword,
             emailSent,
             message,
@@ -309,7 +310,7 @@ let StaffService = StaffService_1 = class StaffService {
                 id: r.id,
                 user_id: r.user_id,
                 user_name: r.user_name,
-                user_role: r.user_role,
+                user_role: (0, roles_1.normalizeRoleForApi)(r.user_role),
                 branch_id: r.branch_id,
                 branch_name: r.branch_name,
                 session_id: r.session_id,
@@ -324,7 +325,25 @@ let StaffService = StaffService_1 = class StaffService {
     }
     async listStaff(actor, branchId) {
         this.assertStaffManager(actor);
-        const effectiveBranchId = actor.role === 'manager' ? actor.branchId : (branchId !== null && branchId !== void 0 ? branchId : actor.branchId);
+        let effectiveBranchId;
+        if (actor.role === 'manager') {
+            effectiveBranchId = actor.branchId;
+        }
+        else if (branchId) {
+            const [b] = await this.dataSource.query(`
+        SELECT b.id
+        FROM branches b
+        INNER JOIN branches actor_branch ON actor_branch.id = $2
+        WHERE b.id = $1 AND b.organization_id = actor_branch.organization_id
+      `, [branchId, actor.branchId]);
+            if (!b) {
+                throw new common_1.ForbiddenException('Branch is not in your organization');
+            }
+            effectiveBranchId = branchId;
+        }
+        else {
+            effectiveBranchId = actor.branchId;
+        }
         const rows = await this.dataSource.query(`
       SELECT
         u.id,
@@ -361,7 +380,7 @@ let StaffService = StaffService_1 = class StaffService {
                 id: r.id,
                 name: r.name,
                 email: r.email,
-                role: r.role,
+                role: (0, roles_1.normalizeRoleForApi)(r.role),
                 branch_id: r.branch_id,
                 is_active: r.is_active,
                 position: r.position,
@@ -404,7 +423,7 @@ let StaffService = StaffService_1 = class StaffService {
             id: r.id,
             name: r.name,
             email: r.email,
-            role: r.role,
+            role: (0, roles_1.normalizeRoleForApi)(r.role),
             branch_id: r.branch_id,
             is_active: r.is_active,
             position: r.position,

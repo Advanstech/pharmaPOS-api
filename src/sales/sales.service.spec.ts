@@ -8,6 +8,7 @@ import { JwtUser } from '../auth/decorators/current-user.decorator';
 import { RealtimeStockService } from '../inventory/realtime-stock.service';
 import { SalesEffectiveAtService } from './sales-effective-at.service';
 import { PharmacyService } from '../pharmacy/pharmacy.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 // ── Shared fixtures ───────────────────────────────────────────────────────
 
@@ -102,6 +103,7 @@ async function buildModule(): Promise<TestingModule> {
       { provide: RealtimeStockService, useValue: { publishStockChanged: jest.fn() } },
       { provide: SalesEffectiveAtService, useValue: mockEffectiveSaleAt },
       { provide: PharmacyService, useValue: mockPharmacyService },
+      { provide: NotificationsService, useValue: { sendEmail: jest.fn() } },
     ],
   }).compile();
 }

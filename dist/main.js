@@ -7,6 +7,7 @@ const nest_winston_1 = require("nest-winston");
 const swagger_1 = require("@nestjs/swagger");
 const winston = require("winston");
 const helmet_1 = require("helmet");
+const cors_origins_1 = require("./config/cors-origins");
 const GQL_REFERENCE = `
 ---
 
@@ -843,17 +844,22 @@ async function bootstrap() {
     app.useGlobalPipes(new common_1.ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
     app.enableCors({
         origin: (origin, callback) => {
-            var _a;
-            const allowed = ((_a = process.env['WEB_URL']) !== null && _a !== void 0 ? _a : 'http://localhost:3000')
-                .split(',')
-                .map((u) => u.trim());
-            if (!origin || allowed.includes(origin) || allowed.includes('*')) {
+            if ((0, cors_origins_1.isOriginAllowed)(origin)) {
                 callback(null, true);
             }
             else {
                 callback(new Error(`CORS: origin ${origin} not allowed`));
             }
         },
+        methods: ['GET', 'POST', 'OPTIONS', 'HEAD'],
+        allowedHeaders: [
+            'Content-Type',
+            'Authorization',
+            'Apollo-Require-Preflight',
+            'X-Apollo-Operation-Name',
+            'X-Apollo-Query-Name',
+            'apollo-require-preflight',
+        ],
         credentials: true,
     });
     const port = (_a = process.env.PORT) !== null && _a !== void 0 ? _a : 4000;
