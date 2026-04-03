@@ -114,10 +114,11 @@ PharmaPOS Pro is the first POS to include built-in AI agents. These are accessib
 Analyzes the branch ledger, calculates runway, detects revenue signals, and provides actionable investment ideas.
 
 ```graphql
-query GetCfoBriefing($branchId: String!) {
-  getCfoBriefing(branchId: $branchId) {
+query GetCfoBriefing {
+  cfoBriefing {
     executiveSummary
     overallHealthScore
+    healthScoreNumeric
     monthRevenueFormatted
     monthNetProfitFormatted
     workingCapital {
@@ -140,8 +141,8 @@ query GetCfoBriefing($branchId: String!) {
 Scans the database for compliance violations, financial anomalies, and staff behavior risks.
 
 ```graphql
-query GetInternalAuditReport($branchId: String!) {
-  getInternalAuditReport(input: { branchId: $branchId }) {
+query GetInternalAuditReport($periodStart: String!, $periodEnd: String!) {
+  internalAuditReport(input: { periodStart: $periodStart, periodEnd: $periodEnd }) {
     overallRiskScore
     executiveSummary
     dispensingCompliance {
@@ -155,18 +156,8 @@ query GetInternalAuditReport($branchId: String!) {
 }
 ```
 
-### 3. Clinical Intelligence (`checkDrugInteractions`)
-Cross-references prescriptions against global drug databases to prevent adverse reactions.
-
-```graphql
-query CheckInteractions($productIds: [String!]!) {
-  checkDrugInteractions(productIds: $productIds) {
-    severity
-    description
-    canOverride
-  }
-}
-```
+### 3. Clinical Intelligence
+Drug interaction checking is performed automatically during prescription verification and sale creation. The system checks for interactions between prescribed medications and blocks contraindicated combinations at the API level.
 
 ---
 

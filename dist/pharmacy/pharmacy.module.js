@@ -11,6 +11,7 @@ const common_1 = require("@nestjs/common");
 const cache_manager_1 = require("@nestjs/cache-manager");
 const pharmacy_service_1 = require("./pharmacy.service");
 const pharmacy_resolver_1 = require("./pharmacy.resolver");
+const prescription_webhook_controller_1 = require("./prescription-webhook.controller");
 const auth_module_1 = require("../auth/auth.module");
 let PharmacyModule = class PharmacyModule {
 };
@@ -21,6 +22,7 @@ exports.PharmacyModule = PharmacyModule = __decorate([
             auth_module_1.AuthModule,
             cache_manager_1.CacheModule.register({ ttl: 86400 }),
         ],
+        controllers: [prescription_webhook_controller_1.PrescriptionWebhookController],
         providers: [pharmacy_service_1.PharmacyService, pharmacy_resolver_1.PharmacyResolver],
         exports: [pharmacy_service_1.PharmacyService],
     })
