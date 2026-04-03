@@ -13,6 +13,7 @@ const inventory_resolver_1 = require("./inventory.resolver");
 const auth_module_1 = require("../auth/auth.module");
 const realtime_stock_service_1 = require("./realtime-stock.service");
 const stock_alerts_service_1 = require("./stock-alerts.service");
+const stock_count_service_1 = require("./stock-count.service");
 const notifications_module_1 = require("../notifications/notifications.module");
 let InventoryModule = class InventoryModule {
 };
@@ -20,8 +21,8 @@ exports.InventoryModule = InventoryModule;
 exports.InventoryModule = InventoryModule = __decorate([
     (0, common_1.Module)({
         imports: [auth_module_1.AuthModule, notifications_module_1.NotificationsModule],
-        providers: [inventory_service_1.InventoryService, inventory_resolver_1.InventoryResolver, realtime_stock_service_1.RealtimeStockService, stock_alerts_service_1.StockAlertsService],
-        exports: [inventory_service_1.InventoryService, realtime_stock_service_1.RealtimeStockService],
+        providers: [inventory_service_1.InventoryService, inventory_resolver_1.InventoryResolver, realtime_stock_service_1.RealtimeStockService, stock_alerts_service_1.StockAlertsService, stock_count_service_1.StockCountService],
+        exports: [inventory_service_1.InventoryService, realtime_stock_service_1.RealtimeStockService, stock_count_service_1.StockCountService],
     })
 ], InventoryModule);
 //# sourceMappingURL=inventory.module.js.map

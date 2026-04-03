@@ -22,10 +22,12 @@ const roles_guard_1 = require("../auth/guards/roles.guard");
 const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 const current_user_decorator_1 = require("../auth/decorators/current-user.decorator");
 const realtime_stock_service_1 = require("./realtime-stock.service");
+const stock_count_service_1 = require("./stock-count.service");
 let InventoryResolver = class InventoryResolver {
-    constructor(inventoryService, realtimeStock) {
+    constructor(inventoryService, realtimeStock, stockCountService) {
         this.inventoryService = inventoryService;
         this.realtimeStock = realtimeStock;
+        this.stockCountService = stockCountService;
     }
     inventory(actor) {
         return this.inventoryService.listInventory(actor.branchId);
@@ -50,6 +52,30 @@ let InventoryResolver = class InventoryResolver {
     }
     listGRNs(actor, limit) {
         return this.inventoryService.listGRNs(actor.branchId, limit);
+    }
+    async createStockCount(input, actor) {
+        return this.stockCountService.createStockCount(input, actor);
+    }
+    async updateStockCounts(input, actor) {
+        const items = await this.stockCountService.updateStockCounts(input, actor);
+        return items;
+    }
+    async completeStockCount(input, actor) {
+        return this.stockCountService.completeStockCount(input, actor);
+    }
+    async stockCountSession(id, actor) {
+        return this.stockCountService.getStockCountSession(id);
+    }
+    async stockCountItems(sessionId, actor) {
+        const items = await this.stockCountService.getStockCountItems(sessionId);
+        return items;
+    }
+    async listStockCounts(actor, limit) {
+        const sessions = await this.stockCountService.listStockCounts(actor.branchId, limit);
+        return sessions;
+    }
+    async cancelStockCount(sessionId, actor) {
+        return this.stockCountService.cancelStockCount(sessionId, actor);
     }
     stockChanged(_branchId) {
         return this.realtimeStock.asyncIterator();
@@ -128,6 +154,69 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], InventoryResolver.prototype, "listGRNs", null);
 __decorate([
+    (0, graphql_1.Mutation)(() => inventory_types_1.StockCountSessionOutput, { name: 'createStockCount' }),
+    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager', 'head_pharmacist'),
+    __param(0, (0, graphql_1.Args)('input')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [inventory_types_1.CreateStockCountInput, Object]),
+    __metadata("design:returntype", Promise)
+], InventoryResolver.prototype, "createStockCount", null);
+__decorate([
+    (0, graphql_1.Mutation)(() => [inventory_types_1.StockCountItemOutput], { name: 'updateStockCounts' }),
+    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician'),
+    __param(0, (0, graphql_1.Args)('input')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [inventory_types_1.UpdateStockCountInput, Object]),
+    __metadata("design:returntype", Promise)
+], InventoryResolver.prototype, "updateStockCounts", null);
+__decorate([
+    (0, graphql_1.Mutation)(() => inventory_types_1.StockCountSessionOutput, { name: 'completeStockCount' }),
+    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager', 'head_pharmacist'),
+    __param(0, (0, graphql_1.Args)('input')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [inventory_types_1.CompleteStockCountInput, Object]),
+    __metadata("design:returntype", Promise)
+], InventoryResolver.prototype, "completeStockCount", null);
+__decorate([
+    (0, graphql_1.Query)(() => inventory_types_1.StockCountSessionOutput, { name: 'stockCountSession' }),
+    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager', 'head_pharmacist'),
+    __param(0, (0, graphql_1.Args)('id', { type: () => graphql_1.ID })),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], InventoryResolver.prototype, "stockCountSession", null);
+__decorate([
+    (0, graphql_1.Query)(() => [inventory_types_1.StockCountItemOutput], { name: 'stockCountItems' }),
+    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician'),
+    __param(0, (0, graphql_1.Args)('sessionId', { type: () => graphql_1.ID })),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], InventoryResolver.prototype, "stockCountItems", null);
+__decorate([
+    (0, graphql_1.Query)(() => [inventory_types_1.StockCountSessionOutput], { name: 'listStockCounts' }),
+    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager', 'head_pharmacist'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, graphql_1.Args)('limit', { type: () => graphql_1.Int, nullable: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Number]),
+    __metadata("design:returntype", Promise)
+], InventoryResolver.prototype, "listStockCounts", null);
+__decorate([
+    (0, graphql_1.Mutation)(() => Boolean, { name: 'cancelStockCount' }),
+    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager', 'head_pharmacist'),
+    __param(0, (0, graphql_1.Args)('sessionId', { type: () => graphql_1.ID })),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], InventoryResolver.prototype, "cancelStockCount", null);
+__decorate([
     (0, graphql_1.Subscription)(() => inventory_types_1.StockChangedEvent, {
         name: 'stockChanged',
         filter: (payload, variables) => !variables.branchId || payload.stockChanged.branchId === variables.branchId,
@@ -143,6 +232,7 @@ exports.InventoryResolver = InventoryResolver = __decorate([
     (0, graphql_1.Resolver)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     __metadata("design:paramtypes", [inventory_service_1.InventoryService,
-        realtime_stock_service_1.RealtimeStockService])
+        realtime_stock_service_1.RealtimeStockService,
+        stock_count_service_1.StockCountService])
 ], InventoryResolver);
 //# sourceMappingURL=inventory.resolver.js.map

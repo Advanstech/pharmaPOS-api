@@ -88,4 +88,62 @@ export class ProductsResolver {
       name: cat['name'] as string,
     };
   }
+
+  // ── Product Image Management ───────────────────────────────────────────────
+
+  @Query(() => [ProductImageType], {
+    description: 'Get all images for a product',
+  })
+  async getProductImages(
+    @Args('productId', { type: () => String }) productId: string,
+    @CurrentUser() user: JwtUser,
+  ): Promise<ProductImageType[]> {
+    const images = await this.productsService.getProductImages(productId);
+    return images.map((img) => ({
+      id: img.id,
+      cdnUrl: img.cdnUrl,
+      urlThumb: img.urlThumb,
+      source: img.source,
+      isApproved: img.isApproved,
+    })) as ProductImageType[];
+  }
+
+  @Mutation(() => ProductImageType)
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician')
+  async uploadProductImage(
+    @Args('productId', { type: () => String }) productId: string,
+    @Args('fileBase64', { type: () => String }) fileBase64: string,
+    @Args('filename', { type: () => String }) filename: string,
+    @Args('mimetype', { type: () => String }) mimetype: string,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<ProductImageType> {
+    const buffer = Buffer.from(fileBase64, 'base64');
+    const image = await this.productsService.uploadProductImage(productId, buffer, filename, mimetype, actor);
+    return {
+      id: image.id,
+      cdnUrl: image.cdnUrl,
+      urlThumb: image.urlThumb,
+      source: image.source,
+      isApproved: image.isApproved,
+    } as ProductImageType;
+  }
+
+  @Mutation(() => Boolean)
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician')
+  async deleteProductImage(
+    @Args('imageId', { type: () => String }) imageId: string,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<boolean> {
+    return this.productsService.deleteProductImage(imageId, actor);
+  }
+
+  @Mutation(() => Boolean)
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician')
+  async setPrimaryProductImage(
+    @Args('productId', { type: () => String }) productId: string,
+    @Args('imageId', { type: () => String }) imageId: string,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<boolean> {
+    return this.productsService.setPrimaryImage(productId, imageId, actor);
+  }
 }

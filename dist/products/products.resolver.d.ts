@@ -19,5 +19,9 @@ export declare class ProductsResolver {
     category(product: ProductType & {
         category: RawRow | null;
     }): ProductCategoryType | null;
+    getProductImages(productId: string, user: JwtUser): Promise<ProductImageType[]>;
+    uploadProductImage(productId: string, fileBase64: string, filename: string, mimetype: string, actor: JwtUser): Promise<ProductImageType>;
+    deleteProductImage(imageId: string, actor: JwtUser): Promise<boolean>;
+    setPrimaryProductImage(productId: string, imageId: string, actor: JwtUser): Promise<boolean>;
 }
 export {};

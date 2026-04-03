@@ -74,6 +74,33 @@ let ProductsResolver = class ProductsResolver {
             name: cat['name'],
         };
     }
+    async getProductImages(productId, user) {
+        const images = await this.productsService.getProductImages(productId);
+        return images.map((img) => ({
+            id: img.id,
+            cdnUrl: img.cdnUrl,
+            urlThumb: img.urlThumb,
+            source: img.source,
+            isApproved: img.isApproved,
+        }));
+    }
+    async uploadProductImage(productId, fileBase64, filename, mimetype, actor) {
+        const buffer = Buffer.from(fileBase64, 'base64');
+        const image = await this.productsService.uploadProductImage(productId, buffer, filename, mimetype, actor);
+        return {
+            id: image.id,
+            cdnUrl: image.cdnUrl,
+            urlThumb: image.urlThumb,
+            source: image.source,
+            isApproved: image.isApproved,
+        };
+    }
+    async deleteProductImage(imageId, actor) {
+        return this.productsService.deleteProductImage(imageId, actor);
+    }
+    async setPrimaryProductImage(productId, imageId, actor) {
+        return this.productsService.setPrimaryImage(productId, imageId, actor);
+    }
 };
 exports.ProductsResolver = ProductsResolver;
 __decorate([
@@ -125,6 +152,47 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Object)
 ], ProductsResolver.prototype, "category", null);
+__decorate([
+    (0, graphql_1.Query)(() => [product_types_1.ProductImageType], {
+        description: 'Get all images for a product',
+    }),
+    __param(0, (0, graphql_1.Args)('productId', { type: () => String })),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ProductsResolver.prototype, "getProductImages", null);
+__decorate([
+    (0, graphql_1.Mutation)(() => product_types_1.ProductImageType),
+    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician'),
+    __param(0, (0, graphql_1.Args)('productId', { type: () => String })),
+    __param(1, (0, graphql_1.Args)('fileBase64', { type: () => String })),
+    __param(2, (0, graphql_1.Args)('filename', { type: () => String })),
+    __param(3, (0, graphql_1.Args)('mimetype', { type: () => String })),
+    __param(4, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, String, Object]),
+    __metadata("design:returntype", Promise)
+], ProductsResolver.prototype, "uploadProductImage", null);
+__decorate([
+    (0, graphql_1.Mutation)(() => Boolean),
+    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician'),
+    __param(0, (0, graphql_1.Args)('imageId', { type: () => String })),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ProductsResolver.prototype, "deleteProductImage", null);
+__decorate([
+    (0, graphql_1.Mutation)(() => Boolean),
+    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician'),
+    __param(0, (0, graphql_1.Args)('productId', { type: () => String })),
+    __param(1, (0, graphql_1.Args)('imageId', { type: () => String })),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", Promise)
+], ProductsResolver.prototype, "setPrimaryProductImage", null);
 exports.ProductsResolver = ProductsResolver = __decorate([
     (0, graphql_1.Resolver)(() => product_types_1.ProductType),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),

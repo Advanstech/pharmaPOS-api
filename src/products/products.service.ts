@@ -1,9 +1,20 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { JwtUser } from '../auth/decorators/current-user.decorator';
 import { CreateProductInput } from './dto/product.types';
+import { S3UploadService } from './s3-upload.service';
+
+export interface ProductImage {
+  id: string;
+  productId: string;
+  cdnUrl: string;
+  urlThumb: string;
+  source: string;
+  isApproved: boolean;
+  createdAt: Date;
+}
 
 interface ProductRow {
   p_id: string;
@@ -43,6 +54,7 @@ export class ProductsService {
     @InjectRepository(Product)
     private readonly productRepo: Repository<Product>,
     private readonly dataSource: DataSource,
+    private readonly s3Upload: S3UploadService,
   ) {}
 
   /**
@@ -302,6 +314,157 @@ export class ProductsService {
     if (!['owner', 'se_admin', 'manager', 'head_pharmacist'].includes(actor.role)) {
       throw new ForbiddenException(
         `Role '${actor.role}' cannot create products. Required: owner, se_admin, manager, head_pharmacist`,
+      );
+    }
+  }
+
+  // ── Product Image Management ─────────────────────────────────────────────
+
+  async uploadProductImage(
+    productId: string,
+    buffer: Buffer,
+    filename: string,
+    mimetype: string,
+    actor: JwtUser,
+  ): Promise<ProductImage> {
+    this.assertImageManager(actor);
+
+    const product = await this.findById(productId);
+    if (!product) {
+      throw new NotFoundException(`Product ${productId} not found`);
+    }
+
+    const uploadResult = await this.s3Upload.uploadProductImage(buffer, filename, mimetype, productId);
+
+    const [image] = await this.dataSource.query(
+      `
+      INSERT INTO product_images (id, product_id, cdn_url, url_thumb, source, is_approved)
+      VALUES (gen_random_uuid(), $1, $2, $3, 'MANUAL_UPLOAD', true)
+      RETURNING id, product_id, cdn_url, url_thumb, source, is_approved, created_at
+    `,
+      [productId, uploadResult.url, uploadResult.thumbnailUrl || uploadResult.url],
+    ) as Array<ProductImage>;
+
+    await this.dataSource.query(
+      `UPDATE products SET image_id = $1 WHERE id = $2`,
+      [image.id, productId],
+    );
+
+    await this.dataSource.query(
+      `
+      INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+      VALUES (gen_random_uuid(), $1, $2, 'PRODUCT_IMAGE_UPLOADED', 'product_image', $3, $4)
+    `,
+      [
+        actor.branchId,
+        actor.sub,
+        image.id,
+        JSON.stringify({ product_id: productId, filename, s3_key: uploadResult.key }),
+      ],
+    );
+
+    this.logger.log(`Product image uploaded: ${image.id} for product ${productId} by ${actor.sub}`);
+    return image;
+  }
+
+  async getProductImages(productId: string): Promise<ProductImage[]> {
+    return this.dataSource.query(
+      `
+      SELECT id, product_id, cdn_url, url_thumb, source, is_approved, created_at
+      FROM product_images
+      WHERE product_id = $1
+      ORDER BY created_at DESC
+    `,
+      [productId],
+    ) as Promise<ProductImage[]>;
+  }
+
+  async deleteProductImage(imageId: string, actor: JwtUser): Promise<boolean> {
+    this.assertImageManager(actor);
+
+    const [image] = await this.dataSource.query(
+      `
+      SELECT pi.*, p.id as product_id
+      FROM product_images pi
+      JOIN products p ON p.id = pi.product_id
+      WHERE pi.id = $1
+    `,
+      [imageId],
+    ) as Array<{ id: string; product_id: string; cdn_url: string }>;
+
+    if (!image) {
+      throw new NotFoundException(`Image ${imageId} not found`);
+    }
+
+    const key = image.cdn_url.split('/').slice(3).join('/');
+    await this.s3Upload.deleteImage(key);
+
+    await this.dataSource.query(`DELETE FROM product_images WHERE id = $1`, [imageId]);
+
+    const [remaining] = await this.dataSource.query(
+      `
+      SELECT id FROM product_images 
+      WHERE product_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `,
+      [image.product_id],
+    ) as Array<{ id: string }>;
+
+    if (remaining) {
+      await this.dataSource.query(
+        `UPDATE products SET image_id = $1 WHERE id = $2`,
+        [remaining.id, image.product_id],
+      );
+    } else {
+      await this.dataSource.query(
+        `UPDATE products SET image_id = NULL WHERE id = $1`,
+        [image.product_id],
+      );
+    }
+
+    await this.dataSource.query(
+      `
+      INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+      VALUES (gen_random_uuid(), $1, $2, 'PRODUCT_IMAGE_DELETED', 'product_image', $3, $4)
+    `,
+      [
+        actor.branchId,
+        actor.sub,
+        imageId,
+        JSON.stringify({ product_id: image.product_id }),
+      ],
+    );
+
+    this.logger.log(`Product image deleted: ${imageId} by ${actor.sub}`);
+    return true;
+  }
+
+  async setPrimaryImage(productId: string, imageId: string, actor: JwtUser): Promise<boolean> {
+    this.assertImageManager(actor);
+
+    const [image] = await this.dataSource.query(
+      `SELECT id FROM product_images WHERE id = $1 AND product_id = $2`,
+      [imageId, productId],
+    ) as Array<{ id: string }>;
+
+    if (!image) {
+      throw new NotFoundException(`Image ${imageId} not found for product ${productId}`);
+    }
+
+    await this.dataSource.query(
+      `UPDATE products SET image_id = $1 WHERE id = $2`,
+      [imageId, productId],
+    );
+
+    this.logger.log(`Primary image set: ${imageId} for product ${productId} by ${actor.sub}`);
+    return true;
+  }
+
+  private assertImageManager(actor: JwtUser): void {
+    if (!['owner', 'se_admin', 'manager', 'head_pharmacist', 'technician'].includes(actor.role)) {
+      throw new ForbiddenException(
+        `Role '${actor.role}' cannot manage product images. Required: owner, se_admin, manager, head_pharmacist, technician`,
       );
     }
   }

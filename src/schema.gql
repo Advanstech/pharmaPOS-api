@@ -212,6 +212,15 @@ type CfoBriefing {
   workingCapital: WorkingCapitalReport!
 }
 
+"""Complete a stock count session"""
+input CompleteStockCountInput {
+  """Final notes/review comments"""
+  notes: String
+
+  """Stock count session ID"""
+  sessionId: ID!
+}
+
 """
 Register a customer at the branch. Name and phone are optional (walk-ins). A unique **customerCode** (e.g. `PP-X7K2M9P4`) is always generated for receipts and linkage. Ghana Card is stored encrypted.
 """
@@ -393,6 +402,15 @@ input CreateSaleInput {
   Payment tenders. Total tendered amount must be ≥ total sale amount. Multiple tenders allowed for split payments.
   """
   tenders: [TenderInput!]!
+}
+
+"""Create a new stock count session (cycle counting)"""
+input CreateStockCountInput {
+  """Optional notes for this count session"""
+  notes: String
+
+  """Specific product IDs to count. If empty, counts all products."""
+  productIds: [ID!]
 }
 
 """Create a new supplier. Requires role: owner or manager."""
@@ -1107,15 +1125,19 @@ type Mutation {
   adjustStock(input: AdjustStockInput!): InventoryItem!
   approveExpense(input: ApproveExpenseInput!): ExpenseOutput!
   bulkUpdateProductPrices(input: BulkUpdatePriceInput!): [PriceUpdateResult!]!
+  cancelStockCount(sessionId: ID!): Boolean!
+  completeStockCount(input: CompleteStockCountInput!): StockCountSessionOutput!
   createCustomer(input: CreateCustomerInput!): CustomerOutput!
   createExpense(input: CreateExpenseInput!): ExpenseOutput!
   createGRN(input: CreateGRNInput!): GRNOutput!
   createPrescription(input: CreatePrescriptionInput!): PrescriptionOutput!
   createProduct(input: CreateProductInput!): ProductType!
   createSale(input: CreateSaleInput!): SaleOutput!
+  createStockCount(input: CreateStockCountInput!): StockCountSessionOutput!
   createSupplier(input: CreateSupplierInput!): Supplier!
   deactivateStaff(userId: ID!): Boolean!
   deleteOcrColumnMappingPreset(presetId: ID!): Boolean!
+  deleteProductImage(imageId: String!): Boolean!
   deleteSupplier(id: String!): Boolean!
   ingestSupplierInvoiceOcr(input: IngestSupplierInvoiceOcrInput!): InvoiceOcrIngestionResult!
   inviteStaff(input: InviteStaffInput!): InviteStaffResult!
@@ -1127,11 +1149,14 @@ type Mutation {
   refreshToken(token: String!): AuthPayload!
   register(input: RegisterInput!): AuthPayload!
   resetStaffPassword(input: ResetStaffPasswordInput!): Boolean!
+  setPrimaryProductImage(imageId: String!, productId: String!): Boolean!
   setUsdExchangeRate(input: SetExchangeRateInput!): ExchangeRate!
   updateCustomer(input: UpdateCustomerInput!): CustomerOutput!
   updateProductPrice(input: UpdatePriceInput!): PriceUpdateResult!
   updateStaffProfile(input: UpdateStaffProfileInput!): StaffMemberOutput!
+  updateStockCounts(input: UpdateStockCountInput!): [StockCountItemOutput!]!
   updateSupplier(id: String!, input: UpdateSupplierInput!): Supplier!
+  uploadProductImage(fileBase64: String!, filename: String!, mimetype: String!, productId: String!): ProductImageType!
   upsertOcrColumnMappingPreset(input: UpsertOcrColumnMappingPresetInput!): OcrColumnMappingPresetOutput!
   verifyPrescription(input: VerifyPrescriptionInput!): PrescriptionOutput!
 }
@@ -1568,6 +1593,9 @@ type Query {
   Financial integrity audit — revenue reconciliation, void/refund analysis, cash dominance, duplicate invoices, expense fraud signals, GL integrity. RBAC: owner, se_admin only.
   """
   financialIntegrityAudit(input: AuditPeriodInput!): FinancialIntegrityAudit!
+
+  """Get all images for a product"""
+  getProductImages(productId: String!): [ProductImageType!]!
   grn(id: ID!): GRNOutput!
 
   """
@@ -1596,6 +1624,7 @@ type Query {
   listExpenses(status: String): [ExpenseOutput!]!
   listGRNs(limit: Float): [GRNOutput!]!
   listStaff(branchId: ID): [StaffMemberOutput!]!
+  listStockCounts(limit: Int): [StockCountSessionOutput!]!
   lowStockAlerts: [LowStockAlert!]!
   me: User!
   myStockAlerts(limit: Int): [StockAlertNotification!]!
@@ -1644,6 +1673,8 @@ type Query {
     """YYYY-MM-DD (Accra calendar day)"""
     toDate: String
   ): [StaffSessionOutput!]!
+  stockCountItems(sessionId: ID!): [StockCountItemOutput!]!
+  stockCountSession(id: ID!): StockCountSessionOutput!
   stockMovements(limit: Int, productId: ID!): [StockMovementOutput!]!
   subscriptionOverview: SubscriptionOverview!
   supplier(id: String!): Supplier!
@@ -2137,6 +2168,65 @@ type StockChangedEvent {
   stockStatus: String!
 }
 
+"""Single product count entry"""
+input StockCountItemInput {
+  """Physical count quantity"""
+  countedQuantity: Int!
+
+  """Product ID"""
+  productId: ID!
+}
+
+"""Single stock count item with variance details"""
+type StockCountItemOutput {
+  """Physical counted quantity"""
+  countedQuantity: Int!
+
+  """Expected quantity from system"""
+  expectedQuantity: Int!
+  productId: ID!
+
+  """Product name"""
+  productName: String!
+
+  """Unit cost for value calculation"""
+  unitCostPesewas: Int
+
+  """Variance (counted - expected)"""
+  variance: Int!
+}
+
+"""Stock count session (cycle counting audit)"""
+type StockCountSessionOutput {
+  branchId: ID!
+
+  """When counting completed"""
+  completedAt: DateTime
+
+  """User who started the count"""
+  countedBy: ID!
+  id: ID!
+  notes: String
+
+  """User who reviewed/completed"""
+  reviewedBy: ID
+
+  """When counting started"""
+  startedAt: DateTime!
+
+  """Session status: pending | in_progress | completed | cancelled"""
+  status: String!
+
+  """Total number of items to count"""
+  totalItems: Int!
+
+  """Total value impact of variance (pesewas)"""
+  totalValueVariance: Int!
+
+  """Total variance across all items"""
+  totalVariance: Int!
+}
+
 """A single stock movement event (sale, receive, adjustment, return)"""
 type StockMovementOutput {
   """Batch number associated with this movement"""
@@ -2543,6 +2633,15 @@ input UpdateStaffProfileInput {
 
   """UUID of the user to update"""
   userId: String!
+}
+
+"""Submit counted quantities for products"""
+input UpdateStockCountInput {
+  """Product count entries"""
+  counts: [StockCountItemInput!]!
+
+  """Stock count session ID"""
+  sessionId: ID!
 }
 
 """

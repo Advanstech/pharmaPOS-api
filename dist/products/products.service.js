@@ -18,10 +18,12 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const product_entity_1 = require("./entities/product.entity");
+const s3_upload_service_1 = require("./s3-upload.service");
 let ProductsService = ProductsService_1 = class ProductsService {
-    constructor(productRepo, dataSource) {
+    constructor(productRepo, dataSource, s3Upload) {
         this.productRepo = productRepo;
         this.dataSource = dataSource;
+        this.s3Upload = s3Upload;
         this.logger = new common_1.Logger(ProductsService_1.name);
     }
     async search(query, branchId, branchType, limit = 20, retries = 2) {
@@ -238,12 +240,99 @@ let ProductsService = ProductsService_1 = class ProductsService {
             throw new common_1.ForbiddenException(`Role '${actor.role}' cannot create products. Required: owner, se_admin, manager, head_pharmacist`);
         }
     }
+    async uploadProductImage(productId, buffer, filename, mimetype, actor) {
+        this.assertImageManager(actor);
+        const product = await this.findById(productId);
+        if (!product) {
+            throw new common_1.NotFoundException(`Product ${productId} not found`);
+        }
+        const uploadResult = await this.s3Upload.uploadProductImage(buffer, filename, mimetype, productId);
+        const [image] = await this.dataSource.query(`
+      INSERT INTO product_images (id, product_id, cdn_url, url_thumb, source, is_approved)
+      VALUES (gen_random_uuid(), $1, $2, $3, 'MANUAL_UPLOAD', true)
+      RETURNING id, product_id, cdn_url, url_thumb, source, is_approved, created_at
+    `, [productId, uploadResult.url, uploadResult.thumbnailUrl || uploadResult.url]);
+        await this.dataSource.query(`UPDATE products SET image_id = $1 WHERE id = $2`, [image.id, productId]);
+        await this.dataSource.query(`
+      INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+      VALUES (gen_random_uuid(), $1, $2, 'PRODUCT_IMAGE_UPLOADED', 'product_image', $3, $4)
+    `, [
+            actor.branchId,
+            actor.sub,
+            image.id,
+            JSON.stringify({ product_id: productId, filename, s3_key: uploadResult.key }),
+        ]);
+        this.logger.log(`Product image uploaded: ${image.id} for product ${productId} by ${actor.sub}`);
+        return image;
+    }
+    async getProductImages(productId) {
+        return this.dataSource.query(`
+      SELECT id, product_id, cdn_url, url_thumb, source, is_approved, created_at
+      FROM product_images
+      WHERE product_id = $1
+      ORDER BY created_at DESC
+    `, [productId]);
+    }
+    async deleteProductImage(imageId, actor) {
+        this.assertImageManager(actor);
+        const [image] = await this.dataSource.query(`
+      SELECT pi.*, p.id as product_id
+      FROM product_images pi
+      JOIN products p ON p.id = pi.product_id
+      WHERE pi.id = $1
+    `, [imageId]);
+        if (!image) {
+            throw new common_1.NotFoundException(`Image ${imageId} not found`);
+        }
+        const key = image.cdn_url.split('/').slice(3).join('/');
+        await this.s3Upload.deleteImage(key);
+        await this.dataSource.query(`DELETE FROM product_images WHERE id = $1`, [imageId]);
+        const [remaining] = await this.dataSource.query(`
+      SELECT id FROM product_images 
+      WHERE product_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `, [image.product_id]);
+        if (remaining) {
+            await this.dataSource.query(`UPDATE products SET image_id = $1 WHERE id = $2`, [remaining.id, image.product_id]);
+        }
+        else {
+            await this.dataSource.query(`UPDATE products SET image_id = NULL WHERE id = $1`, [image.product_id]);
+        }
+        await this.dataSource.query(`
+      INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+      VALUES (gen_random_uuid(), $1, $2, 'PRODUCT_IMAGE_DELETED', 'product_image', $3, $4)
+    `, [
+            actor.branchId,
+            actor.sub,
+            imageId,
+            JSON.stringify({ product_id: image.product_id }),
+        ]);
+        this.logger.log(`Product image deleted: ${imageId} by ${actor.sub}`);
+        return true;
+    }
+    async setPrimaryImage(productId, imageId, actor) {
+        this.assertImageManager(actor);
+        const [image] = await this.dataSource.query(`SELECT id FROM product_images WHERE id = $1 AND product_id = $2`, [imageId, productId]);
+        if (!image) {
+            throw new common_1.NotFoundException(`Image ${imageId} not found for product ${productId}`);
+        }
+        await this.dataSource.query(`UPDATE products SET image_id = $1 WHERE id = $2`, [imageId, productId]);
+        this.logger.log(`Primary image set: ${imageId} for product ${productId} by ${actor.sub}`);
+        return true;
+    }
+    assertImageManager(actor) {
+        if (!['owner', 'se_admin', 'manager', 'head_pharmacist', 'technician'].includes(actor.role)) {
+            throw new common_1.ForbiddenException(`Role '${actor.role}' cannot manage product images. Required: owner, se_admin, manager, head_pharmacist, technician`);
+        }
+    }
 };
 exports.ProductsService = ProductsService;
 exports.ProductsService = ProductsService = ProductsService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(product_entity_1.Product)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        typeorm_2.DataSource])
+        typeorm_2.DataSource,
+        s3_upload_service_1.S3UploadService])
 ], ProductsService);
 //# sourceMappingURL=products.service.js.map

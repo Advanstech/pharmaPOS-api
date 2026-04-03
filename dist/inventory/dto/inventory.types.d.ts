@@ -96,3 +96,40 @@ export declare class GRNOutput {
     receivedAt: Date;
     isMatched: boolean;
 }
+export declare class CreateStockCountInput {
+    productIds?: string[];
+    notes?: string;
+}
+export declare class UpdateStockCountInput {
+    sessionId: string;
+    counts: StockCountItemInput[];
+}
+export declare class StockCountItemInput {
+    productId: string;
+    countedQuantity: number;
+}
+export declare class CompleteStockCountInput {
+    sessionId: string;
+    notes?: string;
+}
+export declare class StockCountSessionOutput {
+    id: string;
+    branchId: string;
+    status: string;
+    startedAt: Date;
+    completedAt?: Date;
+    countedBy: string;
+    reviewedBy?: string;
+    totalItems: number;
+    totalVariance: number;
+    totalValueVariance: number;
+    notes?: string;
+}
+export declare class StockCountItemOutput {
+    productId: string;
+    productName: string;
+    expectedQuantity: number;
+    countedQuantity: number;
+    variance: number;
+    unitCostPesewas?: number;
+}

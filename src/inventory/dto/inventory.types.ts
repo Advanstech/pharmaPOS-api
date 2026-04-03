@@ -418,3 +418,116 @@ export class GRNOutput {
   })
   isMatched!: boolean;
 }
+
+// ── Stock Count (Cycle Counting) Workflow ─────────────────────────────────
+
+@InputType({
+  description: 'Create a new stock count session (cycle counting)',
+})
+export class CreateStockCountInput {
+  @Field(() => [ID], {
+    nullable: true,
+    description: 'Specific product IDs to count. If empty, counts all products.',
+  })
+  @IsOptional()
+  @IsUUID('4', { each: true })
+  productIds?: string[];
+
+  @Field({ nullable: true, description: 'Optional notes for this count session' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+@InputType({ description: 'Submit counted quantities for products' })
+export class UpdateStockCountInput {
+  @Field(() => ID, { description: 'Stock count session ID' })
+  @IsUUID()
+  sessionId!: string;
+
+  @Field(() => [StockCountItemInput], { description: 'Product count entries' })
+  @IsArray()
+  counts!: StockCountItemInput[];
+}
+
+@InputType({ description: 'Single product count entry' })
+export class StockCountItemInput {
+  @Field(() => ID, { description: 'Product ID' })
+  @IsUUID()
+  productId!: string;
+
+  @Field(() => Int, { description: 'Physical count quantity' })
+  @IsInt()
+  @Min(0)
+  countedQuantity!: number;
+}
+
+@InputType({ description: 'Complete a stock count session' })
+export class CompleteStockCountInput {
+  @Field(() => ID, { description: 'Stock count session ID' })
+  @IsUUID()
+  sessionId!: string;
+
+  @Field({ nullable: true, description: 'Final notes/review comments' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+@ObjectType({ description: 'Stock count session (cycle counting audit)' })
+export class StockCountSessionOutput {
+  @Field(() => ID)
+  id!: string;
+
+  @Field(() => ID)
+  branchId!: string;
+
+  @Field({ description: 'Session status: pending | in_progress | completed | cancelled' })
+  status!: string;
+
+  @Field({ description: 'When counting started' })
+  startedAt!: Date;
+
+  @Field({ nullable: true, description: 'When counting completed' })
+  completedAt?: Date;
+
+  @Field(() => ID, { description: 'User who started the count' })
+  countedBy!: string;
+
+  @Field(() => ID, { nullable: true, description: 'User who reviewed/completed' })
+  reviewedBy?: string;
+
+  @Field(() => Int, { description: 'Total number of items to count' })
+  totalItems!: number;
+
+  @Field(() => Int, { description: 'Total variance across all items' })
+  totalVariance!: number;
+
+  @Field(() => Int, { description: 'Total value impact of variance (pesewas)' })
+  totalValueVariance!: number;
+
+  @Field({ nullable: true })
+  notes?: string;
+}
+
+@ObjectType({ description: 'Single stock count item with variance details' })
+export class StockCountItemOutput {
+  @Field(() => ID)
+  productId!: string;
+
+  @Field({ description: 'Product name' })
+  productName!: string;
+
+  @Field(() => Int, { description: 'Expected quantity from system' })
+  expectedQuantity!: number;
+
+  @Field(() => Int, { description: 'Physical counted quantity' })
+  countedQuantity!: number;
+
+  @Field(() => Int, { description: 'Variance (counted - expected)' })
+  variance!: number;
+
+  @Field(() => Int, { nullable: true, description: 'Unit cost for value calculation' })
+  unitCostPesewas?: number;
+}
+

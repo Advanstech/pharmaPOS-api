@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.GRNOutput = exports.GRNItemOutput = exports.CreateGRNInput = exports.GRNItemInput = exports.StockChangedEvent = exports.LowStockAlert = exports.StockMovementOutput = exports.InventoryItem = exports.ReceiveStockInput = exports.AdjustStockInput = void 0;
+exports.StockCountItemOutput = exports.StockCountSessionOutput = exports.CompleteStockCountInput = exports.StockCountItemInput = exports.UpdateStockCountInput = exports.CreateStockCountInput = exports.GRNOutput = exports.GRNItemOutput = exports.CreateGRNInput = exports.GRNItemInput = exports.StockChangedEvent = exports.LowStockAlert = exports.StockMovementOutput = exports.InventoryItem = exports.ReceiveStockInput = exports.AdjustStockInput = void 0;
 const graphql_1 = require("@nestjs/graphql");
 const class_validator_1 = require("class-validator");
 let AdjustStockInput = class AdjustStockInput {
@@ -517,4 +517,157 @@ exports.GRNOutput = GRNOutput = __decorate([
             'Links to supplier invoice for 3-way match (PO → GRN → Invoice) and payment tracking.',
     })
 ], GRNOutput);
+let CreateStockCountInput = class CreateStockCountInput {
+};
+exports.CreateStockCountInput = CreateStockCountInput;
+__decorate([
+    (0, graphql_1.Field)(() => [graphql_1.ID], {
+        nullable: true,
+        description: 'Specific product IDs to count. If empty, counts all products.',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)('4', { each: true }),
+    __metadata("design:type", Array)
+], CreateStockCountInput.prototype, "productIds", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true, description: 'Optional notes for this count session' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateStockCountInput.prototype, "notes", void 0);
+exports.CreateStockCountInput = CreateStockCountInput = __decorate([
+    (0, graphql_1.InputType)({
+        description: 'Create a new stock count session (cycle counting)',
+    })
+], CreateStockCountInput);
+let UpdateStockCountInput = class UpdateStockCountInput {
+};
+exports.UpdateStockCountInput = UpdateStockCountInput;
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.ID, { description: 'Stock count session ID' }),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], UpdateStockCountInput.prototype, "sessionId", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => [StockCountItemInput], { description: 'Product count entries' }),
+    (0, class_validator_1.IsArray)(),
+    __metadata("design:type", Array)
+], UpdateStockCountInput.prototype, "counts", void 0);
+exports.UpdateStockCountInput = UpdateStockCountInput = __decorate([
+    (0, graphql_1.InputType)({ description: 'Submit counted quantities for products' })
+], UpdateStockCountInput);
+let StockCountItemInput = class StockCountItemInput {
+};
+exports.StockCountItemInput = StockCountItemInput;
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.ID, { description: 'Product ID' }),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], StockCountItemInput.prototype, "productId", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.Int, { description: 'Physical count quantity' }),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], StockCountItemInput.prototype, "countedQuantity", void 0);
+exports.StockCountItemInput = StockCountItemInput = __decorate([
+    (0, graphql_1.InputType)({ description: 'Single product count entry' })
+], StockCountItemInput);
+let CompleteStockCountInput = class CompleteStockCountInput {
+};
+exports.CompleteStockCountInput = CompleteStockCountInput;
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.ID, { description: 'Stock count session ID' }),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CompleteStockCountInput.prototype, "sessionId", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true, description: 'Final notes/review comments' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CompleteStockCountInput.prototype, "notes", void 0);
+exports.CompleteStockCountInput = CompleteStockCountInput = __decorate([
+    (0, graphql_1.InputType)({ description: 'Complete a stock count session' })
+], CompleteStockCountInput);
+let StockCountSessionOutput = class StockCountSessionOutput {
+};
+exports.StockCountSessionOutput = StockCountSessionOutput;
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.ID),
+    __metadata("design:type", String)
+], StockCountSessionOutput.prototype, "id", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.ID),
+    __metadata("design:type", String)
+], StockCountSessionOutput.prototype, "branchId", void 0);
+__decorate([
+    (0, graphql_1.Field)({ description: 'Session status: pending | in_progress | completed | cancelled' }),
+    __metadata("design:type", String)
+], StockCountSessionOutput.prototype, "status", void 0);
+__decorate([
+    (0, graphql_1.Field)({ description: 'When counting started' }),
+    __metadata("design:type", Date)
+], StockCountSessionOutput.prototype, "startedAt", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true, description: 'When counting completed' }),
+    __metadata("design:type", Date)
+], StockCountSessionOutput.prototype, "completedAt", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.ID, { description: 'User who started the count' }),
+    __metadata("design:type", String)
+], StockCountSessionOutput.prototype, "countedBy", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.ID, { nullable: true, description: 'User who reviewed/completed' }),
+    __metadata("design:type", String)
+], StockCountSessionOutput.prototype, "reviewedBy", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.Int, { description: 'Total number of items to count' }),
+    __metadata("design:type", Number)
+], StockCountSessionOutput.prototype, "totalItems", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.Int, { description: 'Total variance across all items' }),
+    __metadata("design:type", Number)
+], StockCountSessionOutput.prototype, "totalVariance", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.Int, { description: 'Total value impact of variance (pesewas)' }),
+    __metadata("design:type", Number)
+], StockCountSessionOutput.prototype, "totalValueVariance", void 0);
+__decorate([
+    (0, graphql_1.Field)({ nullable: true }),
+    __metadata("design:type", String)
+], StockCountSessionOutput.prototype, "notes", void 0);
+exports.StockCountSessionOutput = StockCountSessionOutput = __decorate([
+    (0, graphql_1.ObjectType)({ description: 'Stock count session (cycle counting audit)' })
+], StockCountSessionOutput);
+let StockCountItemOutput = class StockCountItemOutput {
+};
+exports.StockCountItemOutput = StockCountItemOutput;
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.ID),
+    __metadata("design:type", String)
+], StockCountItemOutput.prototype, "productId", void 0);
+__decorate([
+    (0, graphql_1.Field)({ description: 'Product name' }),
+    __metadata("design:type", String)
+], StockCountItemOutput.prototype, "productName", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.Int, { description: 'Expected quantity from system' }),
+    __metadata("design:type", Number)
+], StockCountItemOutput.prototype, "expectedQuantity", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.Int, { description: 'Physical counted quantity' }),
+    __metadata("design:type", Number)
+], StockCountItemOutput.prototype, "countedQuantity", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.Int, { description: 'Variance (counted - expected)' }),
+    __metadata("design:type", Number)
+], StockCountItemOutput.prototype, "variance", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.Int, { nullable: true, description: 'Unit cost for value calculation' }),
+    __metadata("design:type", Number)
+], StockCountItemOutput.prototype, "unitCostPesewas", void 0);
+exports.StockCountItemOutput = StockCountItemOutput = __decorate([
+    (0, graphql_1.ObjectType)({ description: 'Single stock count item with variance details' })
+], StockCountItemOutput);
 //# sourceMappingURL=inventory.types.js.map
