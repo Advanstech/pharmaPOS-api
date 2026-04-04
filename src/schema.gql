@@ -1135,6 +1135,9 @@ type Mutation {
   createSale(input: CreateSaleInput!): SaleOutput!
   createStockCount(input: CreateStockCountInput!): StockCountSessionOutput!
   createSupplier(input: CreateSupplierInput!): Supplier!
+
+  """Deactivate a product (soft delete). Owner only."""
+  deactivateProduct(id: String!): Boolean!
   deactivateStaff(userId: ID!): Boolean!
   deleteOcrColumnMappingPreset(presetId: ID!): Boolean!
   deleteProductImage(imageId: String!): Boolean!
@@ -1152,6 +1155,9 @@ type Mutation {
   setPrimaryProductImage(imageId: String!, productId: String!): Boolean!
   setUsdExchangeRate(input: SetExchangeRateInput!): ExchangeRate!
   updateCustomer(input: UpdateCustomerInput!): CustomerOutput!
+
+  """Update product fields. Price changes tracked in cost history."""
+  updateProduct(id: String!, input: UpdateProductInput!): ProductType!
   updateProductPrice(input: UpdatePriceInput!): PriceUpdateResult!
   updateStaffProfile(input: UpdateStaffProfileInput!): StaffMemberOutput!
   updateStockCounts(input: UpdateStockCountInput!): [StockCountItemOutput!]!
@@ -2562,6 +2568,47 @@ input UpdatePriceInput {
   New unit price in GHS pesewas (integer). Example: GH 25.00 = 2500. GH 1.50 = 150. All prices are GHS — never USD.
   """
   unitPriceGhsPesewas: Int!
+}
+
+"""
+Update an existing product. Only provided fields are changed. Price changes are tracked in product_cost_history + audit_log.
+"""
+input UpdateProductInput {
+  """Barcode (EAN-13 or custom)"""
+  barcode: String
+
+  """Branch type: pharmaceutical | chemical | both"""
+  branchType: String
+
+  """Linked category UUID"""
+  categoryId: ID
+
+  """Classification: OTC | POM | CONTROLLED"""
+  classification: String
+
+  """Generic/INN name"""
+  genericName: String
+
+  """Brand/trade name"""
+  name: String
+
+  """Reason for the change (required for price changes)"""
+  reason: String
+
+  """Reorder level for this branch"""
+  reorderLevel: Int
+
+  """Requires prescription flag"""
+  requiresRx: Boolean
+
+  """Linked supplier UUID"""
+  supplierId: ID
+
+  """Unit price in GHS pesewas"""
+  unitPrice: Int
+
+  """VAT exempt flag"""
+  vatExempt: Boolean
 }
 
 """

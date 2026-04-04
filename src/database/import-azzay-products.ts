@@ -14,7 +14,7 @@ function classify(cat: string, name: string): 'OTC' | 'POM' | 'CONTROLLED' {
   const n = name.toUpperCase();
   if (/MORPHINE|PETHIDINE|DIHYDROCODEINE|CODEINE|DIAZEPAM|MIDAZOLAM|BROMAZEPAM|LIBRIUM/.test(n)) return 'CONTROLLED';
   if (['Antibiotics','Antimalarials','Antifungals','Antiparasitics','Antivirals',
-    'Cardiovascular','Diabetes','Neurology & CNS','Hormones & Endocrine','Women\'s Health'].includes(cat)) return 'POM';
+    'Cardiovascular','Diabetes','Neurology & CNS','Hormones & Endocrine','Women\'s Health','Womens Health'].includes(cat)) return 'POM';
   if (/INJECTION|INFUSION|NEBUL/.test(n)) return 'POM';
   if (/TRAMADOL|PREGABALIN|WARFARIN|SILDENAFIL|TADALAFIL|MISOPROSTOL|CLOMID|FINASTERIDE|OLANZAPINE|FLUOXETINE|AMITRIPTYLINE|CARBAMAZEPINE/.test(n)) return 'POM';
   return 'OTC';
@@ -24,7 +24,7 @@ const PRICES: Record<string, number> = {
   'Vitamins & Supplements':3500,'Antimalarials':2500,'Antibiotics':4000,'Antifungals':2000,
   'Antiparasitics':1500,'Antivirals':5000,'Analgesics & NSAIDs':1500,'Cardiovascular':6000,
   'Gastrointestinal':2000,'Respiratory & Cough':2500,'Diabetes':5000,'Eye / ENT':3000,
-  'Dermatology & Topical':2500,'Women\'s Health':3000,'Neurology & CNS':5000,
+  'Dermatology & Topical':2500,'Women\'s Health':3000,'Womens Health':3000,'Neurology & CNS':5000,
   'Rheumatology & MSK':4000,'Urology':4000,'Hormones & Endocrine':5000,
   'Antihistamines & Allergy':1500,'Oral & Dental':2000,'Paediatrics & Infant Care':2000,
   'Devices & Monitoring':8000,'Infusions & Injections':3000,'Wound Care & Dressings':1500,

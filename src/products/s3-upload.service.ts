@@ -2,7 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 export interface UploadResult {
   key: string;
@@ -48,7 +48,7 @@ export class S3UploadService {
     }
 
     const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
-    const key = `products/${productId}/${uuidv4()}.${ext}`;
+    const key = `products/${productId}/${randomUUID()}.${ext}`;
 
     try {
       await this.s3Client.send(
@@ -103,7 +103,7 @@ export class S3UploadService {
     }
 
     const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
-    const key = `products/${productId}/${uuidv4()}.${ext}`;
+    const key = `products/${productId}/${randomUUID()}.${ext}`;
 
     const command = new PutObjectCommand({
       Bucket: this.bucket,
