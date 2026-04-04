@@ -2,6 +2,7 @@ import { Resolver, Query, Args, Int, ResolveField, Parent, Mutation } from '@nes
 import { UseGuards } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { ProductType, ProductInventoryType, ProductImageType, ProductSupplierType, ProductCategoryType, CreateProductInput } from './dto/product.types';
+import { UpdateProductInput } from './dto/update-product.input';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
@@ -22,6 +23,26 @@ export class ProductsResolver {
     @CurrentUser() actor: JwtUser,
   ): Promise<ProductType> {
     return this.productsService.createProduct(input, actor) as unknown as ProductType;
+  }
+
+  @Mutation(() => ProductType, { description: 'Update product fields. Price changes tracked in cost history.' })
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist')
+  async updateProduct(
+    @Args('id', { type: () => String }) id: string,
+    @Args('input') input: UpdateProductInput,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<ProductType> {
+    return this.productsService.updateProduct(id, input, actor) as unknown as ProductType;
+  }
+
+  // RBAC: owner only — soft delete
+  @Mutation(() => Boolean, { description: 'Deactivate a product (soft delete). Owner only.' })
+  @Roles('owner')
+  async deactivateProduct(
+    @Args('id', { type: () => String }) id: string,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<boolean> {
+    return this.productsService.deactivateProduct(id, actor);
   }
 
   @Query(() => [ProductType], {

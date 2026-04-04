@@ -17,6 +17,7 @@ const graphql_1 = require("@nestjs/graphql");
 const common_1 = require("@nestjs/common");
 const products_service_1 = require("./products.service");
 const product_types_1 = require("./dto/product.types");
+const update_product_input_1 = require("./dto/update-product.input");
 const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 const roles_guard_1 = require("../auth/guards/roles.guard");
 const current_user_decorator_1 = require("../auth/decorators/current-user.decorator");
@@ -27,6 +28,12 @@ let ProductsResolver = class ProductsResolver {
     }
     async createProduct(input, actor) {
         return this.productsService.createProduct(input, actor);
+    }
+    async updateProduct(id, input, actor) {
+        return this.productsService.updateProduct(id, input, actor);
+    }
+    async deactivateProduct(id, actor) {
+        return this.productsService.deactivateProduct(id, actor);
     }
     async searchProducts(query, branchId, limit, user) {
         return this.productsService.search(query, branchId, user.branchType, limit);
@@ -112,6 +119,25 @@ __decorate([
     __metadata("design:paramtypes", [product_types_1.CreateProductInput, Object]),
     __metadata("design:returntype", Promise)
 ], ProductsResolver.prototype, "createProduct", null);
+__decorate([
+    (0, graphql_1.Mutation)(() => product_types_1.ProductType, { description: 'Update product fields. Price changes tracked in cost history.' }),
+    (0, roles_decorator_1.Roles)('owner', 'se_admin', 'manager', 'head_pharmacist'),
+    __param(0, (0, graphql_1.Args)('id', { type: () => String })),
+    __param(1, (0, graphql_1.Args)('input')),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, update_product_input_1.UpdateProductInput, Object]),
+    __metadata("design:returntype", Promise)
+], ProductsResolver.prototype, "updateProduct", null);
+__decorate([
+    (0, graphql_1.Mutation)(() => Boolean, { description: 'Deactivate a product (soft delete). Owner only.' }),
+    (0, roles_decorator_1.Roles)('owner'),
+    __param(0, (0, graphql_1.Args)('id', { type: () => String })),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ProductsResolver.prototype, "deactivateProduct", null);
 __decorate([
     (0, graphql_1.Query)(() => [product_types_1.ProductType], {
         description: 'Search products by name, generic name, or barcode. Returns up to 20 results ordered by relevance.',

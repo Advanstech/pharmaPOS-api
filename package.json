@@ -36,7 +36,7 @@
     "migration:revert": "ts-node --project tsconfig.json -r dotenv/config node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts",
     "migration:generate": "ts-node --project tsconfig.json -r dotenv/config node_modules/typeorm/cli.js migration:generate -d src/database/data-source.ts",
     "db:seed": "ts-node --project tsconfig.json -r dotenv/config src/database/seed.ts",
-    "db:import-products": "cd ../../scripts/migration && python import-products.py"
+    "db:import-products": "ts-node --project tsconfig.json -r dotenv/config src/database/import-azzay-products.ts"
   },
   "dependencies": {
     "@apollo/server": "^5.0.0",

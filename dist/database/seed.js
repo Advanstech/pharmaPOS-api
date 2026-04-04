@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const data_source_1 = require("./data-source");
 async function seed() {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     await data_source_1.AppDataSource.initialize();
     const q = data_source_1.AppDataSource.createQueryRunner();
     try {
@@ -55,22 +55,18 @@ async function seed() {
           name = EXCLUDED.name
       `, [branchId, name, email, hash, role]);
         }
-        console.log('Seeding 14 suppliers...');
+        console.log('Seeding 10 real Azzay suppliers...');
         const suppliers = [
-            ['Ernest Chemists Ltd', 'Kwame Mensah', 'Kofi', 'Mensah', '+233-24-123-4567', 'kwame.mensah@ernestchemists.com', 'Plot 5, Ring Road Central, Accra, Ghana', 'Ernest Chemists Ltd', 'Pharmaceutical Distributor'],
-            ['Tobinco Pharmaceuticals', 'Ama Serwaa', 'Ama', 'Serwaa', '+233-20-987-6543', 'ama.serwaa@tobinco.com', 'Adum, Kumasi, Ashanti Region, Ghana', 'Tobinco Pharmaceuticals Ltd', 'Pharmaceutical Wholesaler'],
-            ['Kinapharma Ltd', 'Kofi Asante', 'Kofi', 'Asante', '+233-55-555-1234', 'kofi.asante@kinapharma.com', 'Community 1, Tema, Greater Accra, Ghana', 'Kinapharma Limited', 'Medical Supplies'],
-            ['Danadams Pharmaceuticals', 'Abena Osei', 'Abena', 'Osei', '+233-24-777-8888', 'abena.osei@danadams.com', 'Spintex Road, Accra, Ghana', 'Danadams Pharmaceutical Industry Ltd', 'Pharmaceutical Manufacturer'],
-            ['Entrance Pharmaceuticals', 'Yaw Boateng', 'Yaw', 'Boateng', '+233-20-111-2222', 'yaw.boateng@entrance.com', 'Market Circle, Takoradi, Western Region, Ghana', 'Entrance Pharmaceuticals Ltd', 'Pharmaceutical Importer'],
-            ['ADD Pharma Limited', 'Joe Mensah', 'Joe', 'Mensah', '+233-50-130-9353', 'joe.mensah@addpharma.com', 'East Legon, Accra, Ghana', 'ADD Pharma Limited', 'Pharmaceutical Distributor'],
-            ['Bedither Pharmaceuticals', 'Mike Owusu', 'Mike', 'Owusu', '+233-54-169-2789', 'mike.owusu@bedither.com', 'Achimota, Accra, Ghana', 'Bedither Pharmaceuticals Ltd', 'Medical Supplies'],
-            ['Danny Pharma', 'Daniel Appiah', 'Daniel', 'Appiah', '+233-24-555-7890', 'daniel.appiah@dannypharma.com', 'Osu, Accra, Ghana', 'Danny Pharma Ltd', 'Pharmaceutical Wholesaler'],
-            ['East Cantonments Pharmacy Ltd', 'Sarah Adjei', 'Sarah', 'Adjei', '+233-50-150-1864', 'sarah.adjei@eastcantoments.com', 'Cantonments, Accra, Ghana', 'East Cantonments Pharmacy Limited', 'Retail Pharmacy Supplier'],
-            ['Greenlight Pharmacy', 'Emmanuel Darko', 'Emmanuel', 'Darko', '+233-54-327-3839', 'emmanuel.darko@greenlight.com', 'Dansoman, Accra, Ghana', 'Greenlight Pharmacy Ltd', 'Pharmaceutical Distributor'],
-            ['Jojo Pharmacy', 'Joseph Amoah', 'Joseph', 'Amoah', '+233-20-922-1210', 'joseph.amoah@jojopharmacy.com', 'Madina, Accra, Ghana', 'Jojo Pharmacy Ltd', 'Medical Supplies'],
-            ['Manno Pharma', 'Emmanuel Manno', 'Emmanuel', 'Manno', '+233-20-946-2027', 'emmanuel.manno@mannopharma.com', 'Kasoa, Central Region, Ghana', 'Manno Pharma Ltd', 'Pharmaceutical Wholesaler'],
-            ['OA&J Pharmaceuticals', 'Olivia Agyeman', 'Olivia', 'Agyeman', '+233-55-501-2520', 'olivia.agyeman@oajpharma.com', 'Lapaz, Accra, Ghana', 'OA&J Pharmaceuticals Ltd', 'Pharmaceutical Importer'],
-            ['Sixx Star Pharmacy', 'Stephen Siaw', 'Stephen', 'Siaw', '+233-54-510-0230', 'stephen.siaw@sixxstar.com', 'Teshie, Accra, Ghana', 'Sixx Star Pharmacy Ltd', 'Retail Pharmacy Supplier'],
+            ['ADD Pharma Limited', 'Mr Joe', 'Joe', 'Mensah', '0501309353', 'joe@addpharma.com', 'East Legon, Accra, Ghana', 'ADD Pharma Limited', 'Pharmaceutical Distributor'],
+            ['Bedither Pharmaceuticals', 'Mr Mike', 'Mike', 'Owusu', '0541692789', 'mike@bedither.com', 'Achimota, Accra, Ghana', 'Bedither Pharmaceuticals Ltd', 'Medical Supplies'],
+            ['Danny Pharma', 'Daniel Appiah', 'Daniel', 'Appiah', '', '', 'Osu, Accra, Ghana', 'Danny Pharma Ltd', 'Pharmaceutical Wholesaler'],
+            ['East Cantonments Pharmacy Ltd', 'Sarah Adjei', 'Sarah', 'Adjei', '0501501864', '', 'Cantonments, Accra, Ghana', 'East Cantonments Pharmacy Limited', 'Retail Pharmacy Supplier'],
+            ['Greenlight Pharmacy', 'Emmanuel Darko', 'Emmanuel', 'Darko', '0543273839', '', 'Dansoman, Accra, Ghana', 'Greenlight Pharmacy Ltd', 'Pharmaceutical Distributor'],
+            ['Jojo Pharmacy', 'Joseph Amoah', 'Joseph', 'Amoah', '0209221210', '', 'Madina, Accra, Ghana', 'Jojo Pharmacy Ltd', 'Medical Supplies'],
+            ['Manno Pharma', 'Emmanuel Manno', 'Emmanuel', 'Manno', '0209462027', '', 'Kasoa, Central Region, Ghana', 'Manno Pharma Ltd', 'Pharmaceutical Wholesaler'],
+            ['OA&J Pharmaceuticals', 'Olivia Agyeman', 'Olivia', 'Agyeman', '0555012520', '', 'Lapaz, Accra, Ghana', 'OA&J Pharmaceuticals Ltd', 'Pharmaceutical Importer'],
+            ['Sixx Star Pharmacy', 'Stephen Siaw', 'Stephen', 'Siaw', '0545100230', '', 'Teshie, Accra, Ghana', 'Sixx Star Pharmacy Ltd', 'Retail Pharmacy Supplier'],
+            ['Tobinco Pharmaceuticals', 'Ama Serwaa', 'Ama', 'Serwaa', '0240467925', '', 'Adum, Kumasi, Ashanti Region, Ghana', 'Tobinco Pharmaceuticals Ltd', 'Pharmaceutical Wholesaler'],
         ];
         for (const [name, contactName, firstName, lastName, phone, email, address, company, bizType] of suppliers) {
             await q.query(`
@@ -81,54 +77,69 @@ async function seed() {
         }
         console.log('Seeding product categories...');
         const categories = [
-            'Antibiotic', 'Analgesic', 'Antihypertensive', 'Antidiabetic',
-            'Antimalarial', 'Antiretroviral', 'Antifungal', 'Antiparasitic',
-            'Vitamin & Supplement', 'Dermatology', 'Respiratory', 'Gastrointestinal',
-            'Cardiovascular', 'Hormonal', 'Ophthalmic', 'Ear & Nose',
-            'Contraceptive', 'Paediatric', 'Wound Care', 'General Health',
+            'Vitamins & Supplements', 'Antimalarials', 'Antibiotics', 'Antifungals',
+            'Antiparasitics', 'Antivirals', 'Analgesics & NSAIDs', 'Cardiovascular',
+            'Gastrointestinal', 'Respiratory & Cough', 'Diabetes', 'Eye / ENT',
+            'Dermatology & Topical', 'Women\'s Health', 'Neurology & CNS',
+            'Rheumatology & MSK', 'Urology', 'Hormones & Endocrine',
+            'Antihistamines & Allergy', 'Oral & Dental', 'Paediatrics & Infant Care',
+            'Devices & Monitoring', 'Infusions & Injections', 'Wound Care & Dressings',
+            'Consumables & Sundries', 'Sexual Health', 'Personal Care & Cosmetics',
+            'Herbal & Traditional', 'Miscellaneous',
         ];
         for (const name of categories) {
             await q.query(`INSERT INTO product_categories (id, name) VALUES (gen_random_uuid(), $1) ON CONFLICT (name) DO NOTHING`, [name]);
         }
-        console.log('Seeding sample products...');
-        const supplierRows = await q.query(`SELECT id FROM suppliers ORDER BY name`);
+        console.log('Seeding core products (run pnpm db:import-products for full catalog)...');
+        const supplierRows = await q.query(`SELECT id, name FROM suppliers WHERE is_active = true ORDER BY name`);
         const supplierIds = supplierRows.map(r => r.id);
+        const supplierNameToId = new Map(supplierRows.map(r => [r.name, r.id]));
         const sampleProducts = [
-            ['Paracetamol 500mg Tablet', 'PARA500', 'Analgesic', 'OTC', 200, 500, 1200],
-            ['Ibuprofen 400mg Tablet', 'IBU400', 'Analgesic', 'OTC', 350, 800, 800],
-            ['Amoxicillin 500mg Capsule', 'AMOX500', 'Antibiotic', 'POM', 500, 1200, 600],
-            ['Ciprofloxacin 500mg Tablet', 'CIPRO500', 'Antibiotic', 'POM', 800, 1800, 400],
-            ['Amlodipine 10mg Tablet', 'AMLO10', 'Cardiovascular', 'POM', 150, 400, 700],
-            ['Metformin 500mg Tablet', 'METF500', 'Antidiabetic', 'POM', 100, 300, 900],
-            ['Coartem 20/120mg Tablet', 'COAR20', 'Antimalarial', 'POM', 1200, 2500, 400],
-            ['Vitamin C 1000mg Tablet', 'VITC1000', 'Vitamin & Supplement', 'OTC', 300, 700, 600],
-            ['Folic Acid 5mg Tablet', 'FOLIC5', 'Vitamin & Supplement', 'OTC', 50, 150, 1100],
-            ['Cough Syrup Adult 100ml', 'COUGH100', 'Respiratory', 'OTC', 800, 1500, 350],
+            ['Paracetamol 500mg Tablet', 'Paracetamol 500mg', 'Analgesics & NSAIDs', 'OTC', 200, 500, 996, 'ADD Pharma Limited'],
+            ['Amoxicillin 500mg Capsule', 'Amoxicillin 500mg', 'Antibiotics', 'POM', 500, 1200, 500, 'Bedither Pharmaceuticals'],
+            ['Vitamin C 1000mg Tablet', 'Vitamin C 1000mg', 'Vitamins & Supplements', 'OTC', 300, 700, 399, 'Tobinco Pharmaceuticals'],
+            ['Coartem 20/120mg', 'Artemether 20mg + Lumefantrine 120mg', 'Antimalarials', 'POM', 1200, 2500, 300, 'Danny Pharma'],
+            ['Amoxicillin 250mg Suspension', 'Amoxicillin 250mg/5ml', 'Antibiotics', 'POM', 400, 400, 300, 'Greenlight Pharmacy'],
+            ['Omeprazole 20mg Capsule', 'Omeprazole 20mg', 'Gastrointestinal', 'OTC', 150, 1200, 400, 'Jojo Pharmacy'],
+            ['Metformin 500mg Tablet', 'Metformin HCl 500mg', 'Diabetes', 'POM', 100, 300, 500, 'Manno Pharma'],
+            ['Amlodipine 10mg Tablet', 'Amlodipine Besilate 10mg', 'Cardiovascular', 'POM', 150, 400, 350, 'OA&J Pharmaceuticals'],
+            ['Ibuprofen 400mg Tablet', 'Ibuprofen 400mg', 'Analgesics & NSAIDs', 'OTC', 350, 800, 600, 'Sixx Star Pharmacy'],
+            ['Folic Acid 5mg Tablet', 'Folic Acid 5mg', 'Vitamins & Supplements', 'OTC', 50, 150, 800, 'East Cantonments Pharmacy Ltd'],
+            ['Ciprofloxacin 500mg Tablet', 'Ciprofloxacin 500mg', 'Antibiotics', 'POM', 800, 1800, 250, 'ADD Pharma Limited'],
+            ['Azithromycin 500mg Tablet', 'Azithromycin 500mg', 'Antibiotics', 'POM', 600, 2000, 200, 'Tobinco Pharmaceuticals'],
+            ['Cefuroxime 500mg Tablet', 'Cefuroxime 500mg', 'Antibiotics', 'POM', 400, 1500, 180, 'Bedither Pharmaceuticals'],
+            ['Diclofenac 50mg Tablet', 'Diclofenac Sodium 50mg', 'Analgesics & NSAIDs', 'OTC', 200, 600, 700, 'Greenlight Pharmacy'],
+            ['Ventolin Inhaler', 'Salbutamol 100mcg/dose', 'Respiratory & Cough', 'POM', 100, 3500, 120, 'Danny Pharma'],
+            ['Fluconazole 150mg Capsule', 'Fluconazole 150mg', 'Antifungals', 'POM', 200, 800, 300, 'Manno Pharma'],
+            ['Losartan 50mg Tablet', 'Losartan Potassium 50mg', 'Cardiovascular', 'POM', 150, 1200, 250, 'OA&J Pharmaceuticals'],
+            ['Pregnacare Original', 'Prenatal Multivitamin', 'Vitamins & Supplements', 'OTC', 100, 5000, 150, 'Sixx Star Pharmacy'],
+            ['Tramadol 50mg Capsule', 'Tramadol 50mg', 'Analgesics & NSAIDs', 'CONTROLLED', 50, 800, 100, 'Jojo Pharmacy'],
+            ['Morphine Injection 40mg', 'Morphine Sulphate 40mg/2ml', 'Analgesics & NSAIDs', 'CONTROLLED', 20, 5000, 30, 'East Cantonments Pharmacy Ltd'],
         ];
         for (let i = 0; i < sampleProducts.length; i++) {
-            const [name, barcode, cat, classification, reorderLevel, price, stock] = sampleProducts[i];
-            const supplierId = supplierIds[i % supplierIds.length];
+            const [name, genericName, cat, classification, reorderLevel, price, stock, preferredSupplier] = sampleProducts[i];
+            const supplierId = preferredSupplier ? ((_c = supplierNameToId.get(preferredSupplier)) !== null && _c !== void 0 ? _c : supplierIds[i % supplierIds.length]) : supplierIds[i % supplierIds.length];
             const catRow = await q.query(`SELECT id FROM product_categories WHERE name = $1`, [cat]);
-            const catId = (_c = catRow[0]) === null || _c === void 0 ? void 0 : _c.id;
+            const catId = (_d = catRow[0]) === null || _d === void 0 ? void 0 : _d.id;
             const requiresRx = classification === 'POM' || classification === 'CONTROLLED';
             const vatExempt = requiresRx;
-            const existing = (await q.query(`SELECT id FROM products WHERE barcode = $1 LIMIT 1`, [barcode]));
-            let productId = (_d = existing[0]) === null || _d === void 0 ? void 0 : _d.id;
+            const existing = (await q.query(`SELECT id FROM products WHERE LOWER(name) = LOWER($1) LIMIT 1`, [name]));
+            let productId = (_e = existing[0]) === null || _e === void 0 ? void 0 : _e.id;
             if (!productId) {
                 const inserted = (await q.query(`
-          INSERT INTO products (id, name, barcode, unit_price, classification, requires_rx, vat_exempt, category_id, supplier_id, is_active)
+          INSERT INTO products (id, name, generic_name, unit_price, classification, requires_rx, vat_exempt, category_id, supplier_id, is_active)
           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, true)
           RETURNING id
-        `, [name, barcode, price, classification, requiresRx, vatExempt, catId, supplierId]));
-                productId = (_e = inserted[0]) === null || _e === void 0 ? void 0 : _e.id;
+        `, [name, genericName, price, classification, requiresRx, vatExempt, catId, supplierId]));
+                productId = (_f = inserted[0]) === null || _f === void 0 ? void 0 : _f.id;
             }
             else {
                 await q.query(`
           UPDATE products
-          SET name = $1, unit_price = $2, classification = $3, requires_rx = $4, vat_exempt = $5,
+          SET generic_name = $1, unit_price = $2, classification = $3, requires_rx = $4, vat_exempt = $5,
               category_id = $6, supplier_id = $7, is_active = true
           WHERE id = $8
-        `, [name, price, classification, requiresRx, vatExempt, catId, supplierId, productId]);
+        `, [genericName, price, classification, requiresRx, vatExempt, catId, supplierId, productId]);
             }
             if (productId) {
                 await q.query(`

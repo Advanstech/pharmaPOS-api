@@ -1,11 +1,14 @@
 import { ProductsService } from './products.service';
 import { ProductType, ProductInventoryType, ProductImageType, ProductSupplierType, ProductCategoryType, CreateProductInput } from './dto/product.types';
+import { UpdateProductInput } from './dto/update-product.input';
 import { JwtUser } from '../auth/decorators/current-user.decorator';
 type RawRow = Record<string, unknown>;
 export declare class ProductsResolver {
     private readonly productsService;
     constructor(productsService: ProductsService);
     createProduct(input: CreateProductInput, actor: JwtUser): Promise<ProductType>;
+    updateProduct(id: string, input: UpdateProductInput, actor: JwtUser): Promise<ProductType>;
+    deactivateProduct(id: string, actor: JwtUser): Promise<boolean>;
     searchProducts(query: string, branchId: string, limit: number, user: JwtUser): Promise<ProductType[]>;
     inventory(product: ProductType & {
         inventory: RawRow | null;

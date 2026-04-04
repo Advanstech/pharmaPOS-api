@@ -2,6 +2,7 @@ import { DataSource, Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { JwtUser } from '../auth/decorators/current-user.decorator';
 import { CreateProductInput } from './dto/product.types';
+import { UpdateProductInput } from './dto/update-product.input';
 import { S3UploadService } from './s3-upload.service';
 export interface ProductImage {
     id: string;
@@ -22,6 +23,8 @@ export declare class ProductsService {
     findById(id: string): Promise<Product | null>;
     createProduct(input: CreateProductInput, actor: JwtUser): Promise<Product>;
     private assertProductCreator;
+    updateProduct(id: string, input: UpdateProductInput, actor: JwtUser): Promise<Product>;
+    deactivateProduct(id: string, actor: JwtUser): Promise<boolean>;
     uploadProductImage(productId: string, buffer: Buffer, filename: string, mimetype: string, actor: JwtUser): Promise<ProductImage>;
     getProductImages(productId: string): Promise<ProductImage[]>;
     deleteProductImage(imageId: string, actor: JwtUser): Promise<boolean>;

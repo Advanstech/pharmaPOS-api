@@ -240,6 +240,88 @@ let ProductsService = ProductsService_1 = class ProductsService {
             throw new common_1.ForbiddenException(`Role '${actor.role}' cannot create products. Required: owner, se_admin, manager, head_pharmacist`);
         }
     }
+    async updateProduct(id, input, actor) {
+        var _a, _b, _c;
+        this.assertProductCreator(actor);
+        const [existing] = await this.dataSource.query(`SELECT id, name, unit_price, classification, branch_type FROM products WHERE id = $1 AND is_active = true`, [id]);
+        if (!existing)
+            throw new common_1.NotFoundException(`Product ${id} not found`);
+        const sets = [];
+        const params = [];
+        let paramIdx = 1;
+        const addField = (column, value) => {
+            if (value !== undefined && value !== null) {
+                sets.push(`${column} = $${paramIdx}`);
+                params.push(value);
+                paramIdx++;
+            }
+        };
+        addField('name', (_a = input.name) === null || _a === void 0 ? void 0 : _a.trim());
+        addField('generic_name', (_b = input.genericName) === null || _b === void 0 ? void 0 : _b.trim());
+        addField('barcode', (_c = input.barcode) === null || _c === void 0 ? void 0 : _c.trim());
+        addField('unit_price', input.unitPrice);
+        addField('classification', input.classification);
+        addField('branch_type', input.branchType);
+        addField('vat_exempt', input.vatExempt);
+        addField('requires_rx', input.requiresRx);
+        addField('supplier_id', input.supplierId);
+        addField('category_id', input.categoryId);
+        if (sets.length === 0 && input.reorderLevel === undefined) {
+            throw new common_1.BadRequestException('No fields to update');
+        }
+        await this.dataSource.transaction(async (em) => {
+            var _a, _b;
+            if (sets.length > 0) {
+                sets.push(`updated_at = NOW()`);
+                await em.query(`UPDATE products SET ${sets.join(', ')} WHERE id = $${paramIdx}`, [...params, id]);
+            }
+            if (input.reorderLevel !== undefined) {
+                await em.query(`UPDATE inventory SET reorder_level = $1, updated_at = NOW() WHERE product_id = $2 AND branch_id = $3`, [Math.max(1, input.reorderLevel), id, actor.branchId]);
+            }
+            if (input.unitPrice !== undefined && input.unitPrice !== existing.unit_price) {
+                await em.query(`INSERT INTO product_cost_history (id, product_id, old_price, new_price, changed_by, reason)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)`, [id, existing.unit_price, input.unitPrice, actor.sub, (_a = input.reason) !== null && _a !== void 0 ? _a : 'Price update']);
+                await em.query(`INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+           VALUES (gen_random_uuid(), $1, $2, 'PRODUCT_PRICE_CHANGED', 'product', $3, $4)`, [
+                    actor.branchId,
+                    actor.sub,
+                    id,
+                    JSON.stringify({
+                        old_price: existing.unit_price,
+                        new_price: input.unitPrice,
+                        reason: (_b = input.reason) !== null && _b !== void 0 ? _b : 'Price update',
+                    }),
+                ]);
+            }
+            await em.query(`INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+         VALUES (gen_random_uuid(), $1, $2, 'PRODUCT_UPDATED', 'product', $3, $4)`, [
+                actor.branchId,
+                actor.sub,
+                id,
+                JSON.stringify({ fields: Object.keys(input).filter((k) => input[k] !== undefined) }),
+            ]);
+        });
+        this.logger.log(`Product updated: id=${id} by user=${actor.sub}`);
+        const updated = await this.findById(id);
+        if (!updated)
+            throw new common_1.NotFoundException(`Product ${id} not found after update`);
+        return updated;
+    }
+    async deactivateProduct(id, actor) {
+        if (actor.role !== 'owner') {
+            throw new common_1.ForbiddenException('Only the owner can deactivate products');
+        }
+        const [existing] = await this.dataSource.query(`SELECT id, name FROM products WHERE id = $1 AND is_active = true`, [id]);
+        if (!existing)
+            throw new common_1.NotFoundException(`Product ${id} not found`);
+        await this.dataSource.transaction(async (em) => {
+            await em.query(`UPDATE products SET is_active = false, updated_at = NOW() WHERE id = $1`, [id]);
+            await em.query(`INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+         VALUES (gen_random_uuid(), $1, $2, 'PRODUCT_DEACTIVATED', 'product', $3, $4)`, [actor.branchId, actor.sub, id, JSON.stringify({ name: existing.name })]);
+        });
+        this.logger.log(`Product deactivated: id=${id} name=${existing.name} by user=${actor.sub}`);
+        return true;
+    }
     async uploadProductImage(productId, buffer, filename, mimetype, actor) {
         this.assertImageManager(actor);
         const product = await this.findById(productId);
