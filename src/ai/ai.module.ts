@@ -1,9 +1,30 @@
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bull';
+import { ProductImageService } from './product-image.service';
+import { ImagePipelineProcessor } from './image-pipeline.processor';
+import { ProductsModule } from '../products/products.module';
 
-// Spec 10: AI Capabilities — implementation pending
-// Queue: demand-forecast - runs every Sunday 03:00 Africa/Accra
-// Queue: image-pipeline - runs on product creation
-// Queue: invoice-extraction - runs on supplier invoice upload
-// Queue: anomaly-detection - runs hourly
-@Module({})
+/**
+ * AI Capabilities Module
+ * 
+ * Features:
+ * - Product image sourcing (RxImage, OpenFDA, Google, Unsplash, DALL-E)
+ * - Demand forecasting (planned)
+ * - Invoice OCR extraction (planned)
+ * - Anomaly detection (planned)
+ */
+@Module({
+  imports: [
+    // BullMQ queue for async image processing
+    BullModule.registerQueue({
+      name: 'image-pipeline',
+    }),
+    ProductsModule,
+  ],
+  providers: [
+    ProductImageService,
+    ImagePipelineProcessor,
+  ],
+  exports: [ProductImageService],
+})
 export class AiModule {}
