@@ -12,6 +12,8 @@ const typeorm_1 = require("@nestjs/typeorm");
 const accounting_service_1 = require("./accounting.service");
 const accounting_resolver_1 = require("./accounting.resolver");
 const financial_intelligence_service_1 = require("./financial-intelligence.service");
+const expense_service_1 = require("./expense.service");
+const expense_resolver_1 = require("./expense.resolver");
 const reports_module_1 = require("../reports/reports.module");
 let AccountingModule = class AccountingModule {
 };
@@ -19,8 +21,14 @@ exports.AccountingModule = AccountingModule;
 exports.AccountingModule = AccountingModule = __decorate([
     (0, common_1.Module)({
         imports: [typeorm_1.TypeOrmModule.forFeature([]), reports_module_1.ReportsModule],
-        providers: [accounting_service_1.AccountingService, financial_intelligence_service_1.FinancialIntelligenceService, accounting_resolver_1.AccountingResolver],
-        exports: [accounting_service_1.AccountingService, financial_intelligence_service_1.FinancialIntelligenceService],
+        providers: [
+            accounting_service_1.AccountingService,
+            financial_intelligence_service_1.FinancialIntelligenceService,
+            accounting_resolver_1.AccountingResolver,
+            expense_service_1.ExpenseService,
+            expense_resolver_1.ExpenseResolver,
+        ],
+        exports: [accounting_service_1.AccountingService, financial_intelligence_service_1.FinancialIntelligenceService, expense_service_1.ExpenseService],
     })
 ], AccountingModule);
 //# sourceMappingURL=accounting.module.js.map

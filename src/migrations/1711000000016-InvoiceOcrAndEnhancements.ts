@@ -2,6 +2,10 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class InvoiceOcrAndEnhancements1711000000016 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // Drop partially created tables from failed migrations
+    await queryRunner.query(`DROP TABLE IF EXISTS supplier_payments CASCADE`);
+    await queryRunner.query(`DROP TABLE IF EXISTS invoice_ocr_jobs CASCADE`);
+    
     // ── Invoice OCR Jobs ──────────────────────────────────────────────────
     await queryRunner.query(`
       CREATE TABLE invoice_ocr_jobs (
@@ -50,29 +54,15 @@ export class InvoiceOcrAndEnhancements1711000000016 implements MigrationInterfac
       ALTER TABLE supplier_invoices
       ADD COLUMN IF NOT EXISTS payment_terms VARCHAR(50) DEFAULT 'NET_30',
       ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'UNPAID',
-      ADD COLUMN IF NOT EXISTS days_outstanding INT GENERATED ALWAYS AS (
-        EXTRACT(DAY FROM (NOW() - invoice_date))
-      ) STORED,
-      ADD COLUMN IF NOT EXISTS is_overdue BOOLEAN GENERATED ALWAYS AS (
-        due_date IS NOT NULL AND due_date < CURRENT_DATE AND status != 'PAID'
-      ) STORED,
-      ADD COLUMN IF NOT EXISTS overdue_by_days INT GENERATED ALWAYS AS (
-        CASE 
-          WHEN due_date IS NOT NULL AND due_date < CURRENT_DATE AND status != 'PAID'
-          THEN EXTRACT(DAY FROM (CURRENT_DATE - due_date))
-          ELSE 0
-        END
-      ) STORED,
       ADD COLUMN IF NOT EXISTS ocr_job_id UUID REFERENCES invoice_ocr_jobs(id);
       
       CREATE INDEX idx_supplier_invoices_payment_status ON supplier_invoices(payment_status);
-      CREATE INDEX idx_supplier_invoices_overdue ON supplier_invoices(is_overdue) WHERE is_overdue = true;
       CREATE INDEX idx_supplier_invoices_due_date ON supplier_invoices(due_date) WHERE status != 'PAID';
     `);
 
     // ── Supplier Payments ─────────────────────────────────────────────────
     await queryRunner.query(`
-      CREATE TABLE supplier_payments (
+      CREATE TABLE IF NOT EXISTS supplier_payments (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         invoice_id UUID NOT NULL REFERENCES supplier_invoices(id),
         branch_id UUID NOT NULL REFERENCES branches(id),
@@ -94,14 +84,14 @@ export class InvoiceOcrAndEnhancements1711000000016 implements MigrationInterfac
         CONSTRAINT valid_payment_method CHECK (payment_method IN ('CASH', 'MTN_MOMO', 'VODAFONE_CASH', 'AIRTELTIGO_MONEY', 'BANK_TRANSFER', 'CHEQUE'))
       );
       
-      CREATE INDEX idx_supplier_payments_invoice ON supplier_payments(invoice_id);
-      CREATE INDEX idx_supplier_payments_branch ON supplier_payments(branch_id);
-      CREATE INDEX idx_supplier_payments_paid_at ON supplier_payments(paid_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_supplier_payments_invoice ON supplier_payments(invoice_id);
+      CREATE INDEX IF NOT EXISTS idx_supplier_payments_branch ON supplier_payments(branch_id);
+      CREATE INDEX IF NOT EXISTS idx_supplier_payments_paid_at ON supplier_payments(paid_at DESC);
     `);
 
     // ── Staff Expenses ────────────────────────────────────────────────────
     await queryRunner.query(`
-      CREATE TABLE staff_expenses (
+      CREATE TABLE IF NOT EXISTS staff_expenses (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         branch_id UUID NOT NULL REFERENCES branches(id),
         
@@ -141,16 +131,16 @@ export class InvoiceOcrAndEnhancements1711000000016 implements MigrationInterfac
         CONSTRAINT valid_payment_method CHECK (payment_method IN ('CASH', 'MOMO', 'PERSONAL_CARD'))
       );
       
-      CREATE INDEX idx_staff_expenses_branch ON staff_expenses(branch_id);
-      CREATE INDEX idx_staff_expenses_created_by ON staff_expenses(created_by);
-      CREATE INDEX idx_staff_expenses_status ON staff_expenses(status);
-      CREATE INDEX idx_staff_expenses_expense_date ON staff_expenses(expense_date DESC);
-      CREATE INDEX idx_staff_expenses_category ON staff_expenses(category);
+      CREATE INDEX IF NOT EXISTS idx_staff_expenses_branch ON staff_expenses(branch_id);
+      CREATE INDEX IF NOT EXISTS idx_staff_expenses_created_by ON staff_expenses(created_by);
+      CREATE INDEX IF NOT EXISTS idx_staff_expenses_status ON staff_expenses(status);
+      CREATE INDEX IF NOT EXISTS idx_staff_expenses_expense_date ON staff_expenses(expense_date DESC);
+      CREATE INDEX IF NOT EXISTS idx_staff_expenses_category ON staff_expenses(category);
     `);
 
     // ── Mobile Money Transactions ─────────────────────────────────────────
     await queryRunner.query(`
-      CREATE TABLE momo_transactions (
+      CREATE TABLE IF NOT EXISTS momo_transactions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         branch_id UUID NOT NULL REFERENCES branches(id),
         sale_id UUID REFERENCES sales(id),
@@ -189,64 +179,66 @@ export class InvoiceOcrAndEnhancements1711000000016 implements MigrationInterfac
         CONSTRAINT valid_status CHECK (status IN ('PENDING', 'PROCESSING', 'SUCCESS', 'FAILED', 'EXPIRED'))
       );
       
-      CREATE INDEX idx_momo_transactions_branch ON momo_transactions(branch_id);
-      CREATE INDEX idx_momo_transactions_sale ON momo_transactions(sale_id);
-      CREATE INDEX idx_momo_transactions_status ON momo_transactions(status);
-      CREATE INDEX idx_momo_transactions_provider ON momo_transactions(provider);
-      CREATE INDEX idx_momo_transactions_initiated_at ON momo_transactions(initiated_at DESC);
-      CREATE INDEX idx_momo_transactions_customer_phone ON momo_transactions(customer_phone);
+      CREATE INDEX IF NOT EXISTS idx_momo_transactions_branch ON momo_transactions(branch_id);
+      CREATE INDEX IF NOT EXISTS idx_momo_transactions_sale ON momo_transactions(sale_id);
+      CREATE INDEX IF NOT EXISTS idx_momo_transactions_status ON momo_transactions(status);
+      CREATE INDEX IF NOT EXISTS idx_momo_transactions_provider ON momo_transactions(provider);
+      CREATE INDEX IF NOT EXISTS idx_momo_transactions_initiated_at ON momo_transactions(initiated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_momo_transactions_customer_phone ON momo_transactions(customer_phone);
     `);
 
-    // ── Enhanced Sale Tenders ─────────────────────────────────────────────
-    await queryRunner.query(`
-      ALTER TABLE sale_tenders
-      ADD COLUMN IF NOT EXISTS momo_provider VARCHAR(50),
-      ADD COLUMN IF NOT EXISTS momo_reference VARCHAR(200),
-      ADD COLUMN IF NOT EXISTS momo_phone VARCHAR(20),
-      ADD COLUMN IF NOT EXISTS momo_transaction_id UUID REFERENCES momo_transactions(id),
-      ADD COLUMN IF NOT EXISTS card_last4 VARCHAR(4),
-      ADD COLUMN IF NOT EXISTS card_type VARCHAR(50),
-      ADD COLUMN IF NOT EXISTS cash_received_pesewas INT,
-      ADD COLUMN IF NOT EXISTS change_pesewas INT;
-      
-      CREATE INDEX idx_sale_tenders_momo_transaction ON sale_tenders(momo_transaction_id);
-    `);
+    // ── Enhanced Sale Tenders (Phase 3 - Mobile Money) ──────────────────
+    // Commented out for now - will be added in Phase 3
+    // await queryRunner.query(`
+    //   ALTER TABLE sale_tenders
+    //   ADD COLUMN IF NOT EXISTS momo_provider VARCHAR(50),
+    //   ADD COLUMN IF NOT EXISTS momo_reference VARCHAR(200),
+    //   ADD COLUMN IF NOT EXISTS momo_phone VARCHAR(20),
+    //   ADD COLUMN IF NOT EXISTS momo_transaction_id UUID REFERENCES momo_transactions(id),
+    //   ADD COLUMN IF NOT EXISTS card_last4 VARCHAR(4),
+    //   ADD COLUMN IF NOT EXISTS card_type VARCHAR(50),
+    //   ADD COLUMN IF NOT EXISTS cash_received_pesewas INT,
+    //   ADD COLUMN IF NOT EXISTS change_pesewas INT;
+    //   
+    //   CREATE INDEX idx_sale_tenders_momo_transaction ON sale_tenders(momo_transaction_id);
+    // `);
 
-    // ── API Keys (for SaaS) ───────────────────────────────────────────────
-    await queryRunner.query(`
-      CREATE TABLE api_keys (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id UUID NOT NULL REFERENCES organizations(id),
-        
-        -- Key details
-        name VARCHAR(200) NOT NULL,
-        key_hash VARCHAR(200) NOT NULL UNIQUE,  -- bcrypt hash of the key
-        key_prefix VARCHAR(20) NOT NULL,  -- "pk_live_..." for display
-        environment VARCHAR(50) NOT NULL,  -- PRODUCTION | SANDBOX
-        
-        -- Permissions (JSONB array)
-        permissions JSONB NOT NULL DEFAULT '[]',
-        
-        -- Rate limiting
-        rate_limit INT NOT NULL DEFAULT 1000,  -- Requests per minute
-        
-        -- Status
-        is_active BOOLEAN NOT NULL DEFAULT true,
-        last_used_at TIMESTAMPTZ,
-        expires_at TIMESTAMPTZ,
-        
-        -- Audit
-        created_by UUID NOT NULL REFERENCES users(id),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        
-        CONSTRAINT valid_environment CHECK (environment IN ('PRODUCTION', 'SANDBOX'))
-      );
-      
-      CREATE INDEX idx_api_keys_organization ON api_keys(organization_id);
-      CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
-      CREATE INDEX idx_api_keys_is_active ON api_keys(is_active) WHERE is_active = true;
-    `);
+    // ── API Keys (Phase 4 - SaaS) ────────────────────────────────────────
+    // Commented out for now - will be added in Phase 4
+    // await queryRunner.query(`
+    //   CREATE TABLE IF NOT EXISTS api_keys (
+    //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    //     organization_id UUID NOT NULL REFERENCES organizations(id),
+    //     
+    //     -- Key details
+    //     name VARCHAR(200) NOT NULL,
+    //     key_hash VARCHAR(200) NOT NULL UNIQUE,  -- bcrypt hash of the key
+    //     key_prefix VARCHAR(20) NOT NULL,  -- "pk_live_..." for display
+    //     environment VARCHAR(50) NOT NULL,  -- PRODUCTION | SANDBOX
+    //     
+    //     -- Permissions (JSONB array)
+    //     permissions JSONB NOT NULL DEFAULT '[]',
+    //     
+    //     -- Rate limiting
+    //     rate_limit INT NOT NULL DEFAULT 1000,  -- Requests per minute
+    //     
+    //     -- Status
+    //     is_active BOOLEAN NOT NULL DEFAULT true,
+    //     last_used_at TIMESTAMPTZ,
+    //     expires_at TIMESTAMPTZ,
+    //     
+    //     -- Audit
+    //     created_by UUID NOT NULL REFERENCES users(id),
+    //     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    //     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    //     
+    //     CONSTRAINT valid_environment CHECK (environment IN ('PRODUCTION', 'SANDBOX'))
+    //   );
+    //   
+    //   CREATE INDEX IF NOT EXISTS idx_api_keys_organization ON api_keys(organization_id);
+    //   CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
+    //   CREATE INDEX IF NOT EXISTS idx_api_keys_is_active ON api_keys(is_active) WHERE is_active = true;
+    // `);
 
     // ── Update payment_terms enum on suppliers ────────────────────────────
     await queryRunner.query(`
@@ -346,9 +338,6 @@ export class InvoiceOcrAndEnhancements1711000000016 implements MigrationInterfac
       ALTER TABLE supplier_invoices
       DROP COLUMN IF EXISTS payment_terms,
       DROP COLUMN IF EXISTS payment_status,
-      DROP COLUMN IF EXISTS days_outstanding,
-      DROP COLUMN IF EXISTS is_overdue,
-      DROP COLUMN IF EXISTS overdue_by_days,
       DROP COLUMN IF EXISTS ocr_job_id
     `);
   }

@@ -63,8 +63,27 @@ export class InvoiceOcrResolver {
     const buffer = Buffer.concat(chunks);
     const fileSizeBytes = buffer.length;
 
-    // Upload using S3 service
-    const fileUrl = await this.s3Upload.uploadFromBuffer(buffer, s3Key, mimetype);
+    // Upload using S3 client directly
+    const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+    const s3Client = new S3Client({
+      region: this.dataSource.options.extra?.awsRegion || 'us-east-1',
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+      },
+    });
+
+    const bucket = process.env.AWS_S3_BUCKET || 'pharmapos-images';
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: s3Key,
+        Body: buffer,
+        ContentType: mimetype,
+      }),
+    );
+
+    const fileUrl = `https://${bucket}.s3.amazonaws.com/${s3Key}`;
 
     // Create OCR job record
     const jobId = await this.ocrService.createOcrJob(
@@ -370,7 +389,14 @@ export class InvoiceOcrResolver {
       `
       SELECT 
         si.*,
-        s.name as supplier_name
+        s.name as supplier_name,
+        EXTRACT(DAY FROM (NOW() - si.invoice_date))::INT as days_outstanding,
+        (si.due_date IS NOT NULL AND si.due_date < CURRENT_DATE AND si.status != 'PAID') as is_overdue,
+        CASE 
+          WHEN si.due_date IS NOT NULL AND si.due_date < CURRENT_DATE AND si.status != 'PAID'
+          THEN EXTRACT(DAY FROM (CURRENT_DATE - si.due_date))::INT
+          ELSE 0
+        END as overdue_by_days
       FROM supplier_invoices si
       JOIN suppliers s ON s.id = si.supplier_id
       WHERE si.id = $1

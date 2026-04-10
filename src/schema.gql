@@ -221,6 +221,72 @@ input CompleteStockCountInput {
   sessionId: ID!
 }
 
+"""Confirmed invoice response"""
+type ConfirmInvoiceResponse {
+  """Created GRN ID"""
+  grnId: ID!
+
+  """Number of product images processed"""
+  imagesProcessed: Int!
+
+  """Success message"""
+  message: String!
+
+  """Stock updated successfully"""
+  stockUpdated: Boolean!
+
+  """Created supplier invoice ID"""
+  supplierInvoiceId: ID!
+}
+
+"""Confirm and create GRN from OCR data"""
+input ConfirmOcrInvoiceInput {
+  """Due date (YYYY-MM-DD)"""
+  dueDate: String
+
+  """Confirmed invoice date (YYYY-MM-DD)"""
+  invoiceDate: String!
+
+  """Confirmed invoice number"""
+  invoiceNumber: String!
+
+  """Confirmed invoice items"""
+  items: [ConfirmedInvoiceItemInput!]!
+
+  """Additional notes"""
+  notes: String
+
+  """OCR job ID"""
+  ocrJobId: ID!
+
+  """Total amount in pesewas"""
+  totalAmountPesewas: Int!
+}
+
+"""Confirmed invoice item with product match"""
+input ConfirmedInvoiceItemInput {
+  """Batch number"""
+  batchNumber: String!
+
+  """Expiry date (YYYY-MM-DD)"""
+  expiryDate: String!
+
+  """Original OCR description"""
+  ocrDescription: String!
+
+  """Matched or manually selected product ID"""
+  productId: ID!
+
+  """Product image URL (if fetched)"""
+  productImageUrl: String
+
+  """Quantity received"""
+  quantity: Int!
+
+  """Unit price in pesewas"""
+  unitPricePesewas: Int!
+}
+
 """
 Register a customer at the branch. Name and phone are optional (walk-ins). A unique **customerCode** (e.g. `PP-X7K2M9P4`) is always generated for receipts and linkage. Ghana Card is stored encrypted.
 """
@@ -561,6 +627,61 @@ type DispensingComplianceAudit {
   rxPdfCompliancePct: Float!
   rxWithExpiredGmdcLicenceCount: Int!
   rxWithoutGmdcValidationCount: Int!
+}
+
+"""Enhanced supplier invoice with payment tracking"""
+type EnhancedSupplierInvoice {
+  """Balance formatted"""
+  balanceFormatted: String!
+
+  """Balance in pesewas"""
+  balancePesewas: Int!
+
+  """Days outstanding"""
+  daysOutstanding: Int!
+
+  """Due date"""
+  dueDate: DateTime
+
+  """GRN ID"""
+  grnId: String
+  id: ID!
+
+  """Invoice date"""
+  invoiceDate: DateTime!
+
+  """Invoice number"""
+  invoiceNumber: String!
+
+  """Is overdue"""
+  isOverdue: Boolean!
+
+  """Overdue by days"""
+  overdueByDays: Int
+
+  """Paid amount formatted"""
+  paidAmountFormatted: String!
+
+  """Paid amount in pesewas"""
+  paidAmountPesewas: Int!
+
+  """Payment status"""
+  paymentStatus: PaymentStatus!
+
+  """Payment terms"""
+  paymentTerms: PaymentTerms!
+
+  """Payment history"""
+  payments: [SupplierPayment!]!
+
+  """Supplier name"""
+  supplierName: String!
+
+  """Total amount formatted"""
+  totalAmountFormatted: String!
+
+  """Total amount in pesewas"""
+  totalAmountPesewas: Int!
 }
 
 """Current USD/GHS exchange rate configuration"""
@@ -1055,6 +1176,54 @@ type InvoiceOcrIngestionResult {
   unmatchedLines: Int!
 }
 
+"""Invoice OCR job"""
+type InvoiceOcrJob {
+  """OCR confidence score"""
+  confidenceScore: Int
+
+  """Created at"""
+  createdAt: DateTime!
+
+  """Created by user name"""
+  createdByName: String!
+
+  """Error message if failed"""
+  errorMessage: String
+
+  """Extracted invoice data"""
+  extractedData: OcrExtractedData
+
+  """File S3 key"""
+  fileS3Key: String!
+
+  """File size in bytes"""
+  fileSizeBytes: Int!
+
+  """File type"""
+  fileType: String!
+
+  """Job UUID"""
+  id: ID!
+
+  """OCR provider used"""
+  ocrProvider: String
+
+  """Processing completed at"""
+  processingCompletedAt: DateTime
+
+  """Processing progress (0-100)"""
+  progress: Int!
+
+  """Requires manual review"""
+  requiresReview: Boolean!
+
+  """Processing status"""
+  status: OcrStatus!
+
+  """Supplier name"""
+  supplierName: String
+}
+
 """
 Licence and regulatory compliance status — Ghana FDA, HeFRA, Pharmacy Council
 """
@@ -1127,6 +1296,7 @@ type Mutation {
   bulkUpdateProductPrices(input: BulkUpdatePriceInput!): [PriceUpdateResult!]!
   cancelStockCount(sessionId: ID!): Boolean!
   completeStockCount(input: CompleteStockCountInput!): StockCountSessionOutput!
+  confirmOcrInvoice(input: ConfirmOcrInvoiceInput!): ConfirmInvoiceResponse!
   createCustomer(input: CreateCustomerInput!): CustomerOutput!
   createExpense(input: CreateExpenseInput!): ExpenseOutput!
   createGRN(input: CreateGRNInput!): GRNOutput!
@@ -1163,6 +1333,7 @@ type Mutation {
   updateStockCounts(input: UpdateStockCountInput!): [StockCountItemOutput!]!
   updateSupplier(id: String!, input: UpdateSupplierInput!): Supplier!
   uploadProductImage(fileBase64: String!, filename: String!, mimetype: String!, productId: String!): ProductImageType!
+  uploadSupplierInvoice(input: UploadSupplierInvoiceInput!): UploadInvoiceResponse!
   upsertOcrColumnMappingPreset(input: UpsertOcrColumnMappingPresetInput!): OcrColumnMappingPresetOutput!
   verifyPrescription(input: VerifyPrescriptionInput!): PrescriptionOutput!
 }
@@ -1195,6 +1366,98 @@ type OcrColumnMappingPresetOutput {
   supplierId: ID
   supplierName: String
   updatedAt: DateTime!
+}
+
+"""OCR extracted invoice data"""
+type OcrExtractedData {
+  """Overall OCR confidence (0-100)"""
+  confidence: Int!
+
+  """Invoice date"""
+  invoiceDate: String!
+
+  """Invoice number"""
+  invoiceNumber: String!
+
+  """Invoice items"""
+  items: [OcrInvoiceItem!]!
+
+  """Raw OCR text"""
+  rawText: String
+
+  """Subtotal in pesewas"""
+  subtotal: Int
+
+  """Supplier address"""
+  supplierAddress: String
+
+  """Supplier name"""
+  supplierName: String!
+
+  """Supplier phone"""
+  supplierPhone: String
+
+  """Total amount in pesewas"""
+  totalAmount: Int!
+
+  """VAT in pesewas"""
+  vat: Int
+}
+
+"""OCR extracted invoice item"""
+type OcrInvoiceItem {
+  """OCR confidence for this item (0-100)"""
+  confidence: Int!
+
+  """Product description from invoice"""
+  description: String!
+
+  """Image confidence score"""
+  imageConfidence: Int
+
+  """Image source (RXIMAGE, OPENFDA, etc)"""
+  imageSource: String
+
+  """Matched products from database"""
+  matches: [ProductMatch!]
+
+  """Quantity"""
+  quantity: Int!
+
+  """Suggested product image URL"""
+  suggestedImageUrl: String
+
+  """Total price in pesewas"""
+  totalPrice: Int!
+
+  """Unit price in pesewas"""
+  unitPrice: Int!
+}
+
+"""Invoice OCR processing status"""
+enum OcrStatus {
+  COMPLETED
+  FAILED
+  PENDING
+  PROCESSING
+}
+
+"""Invoice payment status"""
+enum PaymentStatus {
+  OVERDUE
+  PAID
+  PARTIAL
+  UNPAID
+}
+
+"""Supplier payment terms"""
+enum PaymentTerms {
+  CUSTOM
+  IMMEDIATE
+  NET_7
+  NET_30
+  NET_60
+  ON_DELIVERY
 }
 
 """Payroll efficiency metrics — staff cost vs revenue"""
@@ -1444,6 +1707,21 @@ type ProductInventoryType {
   reorderLevel: Int!
 }
 
+"""Product match result"""
+type ProductMatch {
+  """Match reason"""
+  matchReason: String!
+
+  """Match score (0-100)"""
+  matchScore: Int!
+
+  """Product UUID"""
+  productId: ID!
+
+  """Product name"""
+  productName: String!
+}
+
 """Profitability analysis for a single product"""
 type ProductProfitability {
   """A | B | C — ABC analysis tier"""
@@ -1616,6 +1894,7 @@ type Query {
   """
   inventoryIntegrityAudit(input: AuditPeriodInput!): InventoryIntegrityAudit!
   investmentIntelligence: InvestmentIntelligenceReport!
+  invoiceOcrJob(id: ID!): InvoiceOcrJob!
 
   """
   Latest observed supplier unit costs for a set of products in the current branch. Used by pricing control to prefill cost baselines from GRN/invoice ingestion.
@@ -1685,6 +1964,7 @@ type Query {
   subscriptionOverview: SubscriptionOverview!
   supplier(id: String!): Supplier!
   supplierCreditSummary(supplierId: ID!): SupplierCreditSummary!
+  supplierInvoice(id: ID!): EnhancedSupplierInvoice!
   supplierInvoices(supplierId: ID): [SupplierInvoiceOutput!]!
   supplierRestockWatch: [SupplierRestockWatch!]!
   suppliers: [Supplier!]!
@@ -2398,6 +2678,31 @@ type SupplierInvoiceOutput {
   totalAmountPesewas: Int!
 }
 
+"""Supplier payment record"""
+type SupplierPayment {
+  """Payment amount formatted"""
+  amountFormatted: String!
+
+  """Payment amount in pesewas"""
+  amountPesewas: Int!
+  id: ID!
+
+  """Payment notes"""
+  notes: String
+
+  """Payment date"""
+  paidAt: DateTime!
+
+  """Paid by user name"""
+  paidByName: String!
+
+  """Payment method"""
+  paymentMethod: String!
+
+  """Payment reference"""
+  reference: String
+}
+
 """
 A low/critical/out stock product linked to a supplier for restock action.
 """
@@ -2704,6 +3009,36 @@ input UpdateSupplierInput {
   isActive: Boolean
   name: String
   phone: String
+}
+
+"""The `Upload` scalar type represents a file upload."""
+scalar Upload
+
+"""Invoice OCR upload response"""
+type UploadInvoiceResponse {
+  """OCR job ID"""
+  id: ID!
+
+  """Message"""
+  message: String!
+
+  """OCR job ID for polling"""
+  ocrJobId: String!
+
+  """Initial status"""
+  status: OcrStatus!
+}
+
+"""Upload supplier invoice for OCR processing"""
+input UploadSupplierInvoiceInput {
+  """Delivery date (defaults to today)"""
+  deliveryDate: String
+
+  """Invoice file (PDF or Image)"""
+  invoiceFile: Upload!
+
+  """Supplier UUID (optional - will be matched from invoice)"""
+  supplierId: ID
 }
 
 """
