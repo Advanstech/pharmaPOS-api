@@ -47,10 +47,16 @@ export class ImagePipelineProcessor {
       }
 
       // Find best image from available sources
+      // By default: only exact product photos (RxImage, OpenFDA, Google)
+      // No generic stock photos or AI generation unless explicitly enabled
       const imageSource = await this.imageService.findProductImage(
         productName,
         genericName,
         classification,
+        {
+          allowGenericImages: false, // Only exact product photos
+          allowAiGeneration: false,  // No AI-generated images
+        },
       );
 
       if (!imageSource) {

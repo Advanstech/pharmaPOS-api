@@ -32,50 +32,75 @@ export class ProductImageService {
   /**
    * Find the best product image from multiple sources.
    * Priority: RxImage > OpenFDA > Google > Unsplash > AI Generated
+   * 
+   * IMPORTANT: RxImage and OpenFDA provide EXACT product photos (actual drug packaging).
+   * Google may provide exact or generic images. Unsplash and DALL-E are generic/artificial.
+   * 
+   * For customer-facing use, only RxImage, OpenFDA, and verified Google images are recommended.
    */
   async findProductImage(
     productName: string,
     genericName: string,
     classification: string,
+    options?: {
+      allowGenericImages?: boolean; // Default: false (only exact product photos)
+      allowAiGeneration?: boolean;  // Default: false (no AI-generated images)
+    },
   ): Promise<ProductImageSource | null> {
-    this.logger.log(`Finding image for: ${productName} (${genericName})`);
+    const allowGeneric = options?.allowGenericImages ?? false;
+    const allowAi = options?.allowAiGeneration ?? false;
 
-    // 1. Try RxImage API (free, high quality pharmaceutical images)
+    this.logger.log(`Finding image for: ${productName} (${genericName})`);
+    this.logger.log(`Options: allowGeneric=${allowGeneric}, allowAi=${allowAi}`);
+
+    // 1. Try RxImage API (free, EXACT product photos from NLM)
     const rxImage = await this.searchRxImage(genericName);
     if (rxImage) {
-      this.logger.log(`Found image via RxImage: ${rxImage.url}`);
+      this.logger.log(`✓ Found EXACT product photo via RxImage: ${rxImage.url}`);
       return rxImage;
     }
 
-    // 2. Try OpenFDA API (free, official FDA data)
+    // 2. Try OpenFDA API (free, EXACT product photos via RxCUI)
     const fdaImage = await this.searchOpenFDA(productName, genericName);
     if (fdaImage) {
-      this.logger.log(`Found image via OpenFDA: ${fdaImage.url}`);
+      this.logger.log(`✓ Found EXACT product photo via OpenFDA: ${fdaImage.url}`);
       return fdaImage;
     }
 
-    // 3. Try Google Custom Search (100 free queries/day)
+    // 3. Try Google Custom Search (100 free queries/day, MAY be exact)
     if (this.googleApiKey && this.googleCseId) {
       const googleImage = await this.searchGoogleImages(productName, genericName);
       if (googleImage) {
-        this.logger.log(`Found image via Google: ${googleImage.url}`);
+        this.logger.log(`⚠ Found image via Google (may be exact or generic): ${googleImage.url}`);
         return googleImage;
       }
     }
 
-    // 4. Try Unsplash (free, high quality stock photos)
+    // Stop here if only exact product photos are allowed
+    if (!allowGeneric) {
+      this.logger.warn(`No EXACT product photo found for: ${productName}. Set allowGenericImages=true to use stock photos.`);
+      return null;
+    }
+
+    // 4. Try Unsplash (free, GENERIC stock photos only)
     const unsplashImage = await this.searchUnsplash(productName, genericName);
     if (unsplashImage) {
-      this.logger.log(`Found image via Unsplash: ${unsplashImage.url}`);
+      this.logger.log(`⚠ Found GENERIC stock photo via Unsplash: ${unsplashImage.url}`);
       return unsplashImage;
     }
 
-    // 5. Generate with AI (requires OpenAI API key - paid)
+    // Stop here if AI generation is not allowed
+    if (!allowAi) {
+      this.logger.warn(`No image found for: ${productName}. Set allowAiGeneration=true to generate with DALL-E.`);
+      return null;
+    }
+
+    // 5. Generate with AI (requires OpenAI API key - paid, ARTIFICIAL images)
     if (this.openai && classification !== 'CONTROLLED') {
       // Don't generate images for controlled substances
       const aiImage = await this.generateProductImage(productName, genericName);
       if (aiImage) {
-        this.logger.log(`Generated AI image: ${aiImage.url}`);
+        this.logger.log(`⚠ Generated ARTIFICIAL image via DALL-E: ${aiImage.url}`);
         return aiImage;
       }
     }
