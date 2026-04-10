@@ -1,6 +1,6 @@
-import { Processor, Process } from '@nestjs/bull';
+import { Processor, Process, InjectQueue } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import { DataSource } from 'typeorm';
 import { ProductImageService } from './product-image.service';
 
@@ -19,6 +19,7 @@ export class ImagePipelineProcessor {
   constructor(
     private readonly imageService: ProductImageService,
     private readonly dataSource: DataSource,
+    @InjectQueue('image-pipeline') private readonly imageQueue: Queue,
   ) {}
 
   /**
@@ -100,7 +101,7 @@ export class ImagePipelineProcessor {
         `Successfully fetched and uploaded image for product ${productId} from ${imageSource.source} (confidence: ${imageSource.confidence})`,
       );
     } catch (error) {
-      this.logger.error(`Failed to fetch image for product ${productId}: ${error.message}`);
+      this.logger.error(`Failed to fetch image for product ${productId}: ${error instanceof Error ? error.message : String(error)}`);
       throw error; // Let BullMQ handle retry logic
     }
   }
@@ -142,7 +143,7 @@ export class ImagePipelineProcessor {
         // RxImage: no limit, OpenFDA: 240 requests/minute, Unsplash: 50/hour
         const delay = i * 2000; // 2 seconds between requests = 30 requests/minute
 
-        await job.queue.add(
+        await this.imageQueue.add(
           'fetch-product-image',
           {
             productId: product.id,
@@ -163,7 +164,7 @@ export class ImagePipelineProcessor {
 
       this.logger.log(`Queued ${products.length} image fetch jobs`);
     } catch (error) {
-      this.logger.error(`Batch image fetch failed: ${error.message}`);
+      this.logger.error(`Batch image fetch failed: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -200,7 +201,7 @@ export class ImagePipelineProcessor {
         const product = products[i];
         const delay = i * 3000; // 3 seconds between requests
 
-        await job.queue.add(
+        await this.imageQueue.add(
           'fetch-product-image',
           {
             productId: product.id,
@@ -214,7 +215,7 @@ export class ImagePipelineProcessor {
 
       this.logger.log(`Queued ${products.length} image refresh jobs`);
     } catch (error) {
-      this.logger.error(`Image refresh failed: ${error.message}`);
+      this.logger.error(`Image refresh failed: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }

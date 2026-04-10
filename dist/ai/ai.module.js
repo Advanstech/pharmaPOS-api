@@ -8,10 +8,26 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AiModule = void 0;
 const common_1 = require("@nestjs/common");
+const bull_1 = require("@nestjs/bull");
+const product_image_service_1 = require("./product-image.service");
+const image_pipeline_processor_1 = require("./image-pipeline.processor");
+const products_module_1 = require("../products/products.module");
 let AiModule = class AiModule {
 };
 exports.AiModule = AiModule;
 exports.AiModule = AiModule = __decorate([
-    (0, common_1.Module)({})
+    (0, common_1.Module)({
+        imports: [
+            bull_1.BullModule.registerQueue({
+                name: 'image-pipeline',
+            }),
+            products_module_1.ProductsModule,
+        ],
+        providers: [
+            product_image_service_1.ProductImageService,
+            image_pipeline_processor_1.ImagePipelineProcessor,
+        ],
+        exports: [product_image_service_1.ProductImageService],
+    })
 ], AiModule);
 //# sourceMappingURL=ai.module.js.map
