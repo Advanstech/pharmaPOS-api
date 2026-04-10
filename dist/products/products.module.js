@@ -22,7 +22,7 @@ exports.ProductsModule = ProductsModule = __decorate([
     (0, common_1.Module)({
         imports: [typeorm_1.TypeOrmModule.forFeature([product_entity_1.Product])],
         providers: [products_service_1.ProductsService, products_resolver_1.ProductsResolver, price_service_1.PriceService, price_resolver_1.PriceResolver, s3_upload_service_1.S3UploadService],
-        exports: [products_service_1.ProductsService, price_service_1.PriceService],
+        exports: [products_service_1.ProductsService, price_service_1.PriceService, s3_upload_service_1.S3UploadService],
     })
 ], ProductsModule);
 //# sourceMappingURL=products.module.js.map

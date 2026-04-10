@@ -10,6 +10,6 @@ import { S3UploadService } from './s3-upload.service';
 @Module({
   imports: [TypeOrmModule.forFeature([Product])],
   providers: [ProductsService, ProductsResolver, PriceService, PriceResolver, S3UploadService],
-  exports: [ProductsService, PriceService],
+  exports: [ProductsService, PriceService, S3UploadService],
 })
 export class ProductsModule {}
