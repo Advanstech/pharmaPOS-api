@@ -54,6 +54,13 @@ input ApproveExpenseInput {
   status: String!
 }
 
+input ApproveStaffExpenseInput {
+  approve: Boolean!
+  expenseId: ID!
+  notes: String
+  reimbursementMethod: ReimbursementMethod
+}
+
 """A single audit finding — the atomic unit of every report"""
 type AuditFinding {
   """
@@ -470,6 +477,16 @@ input CreateSaleInput {
   tenders: [TenderInput!]!
 }
 
+input CreateStaffExpenseInput {
+  amountPesewas: Int!
+  category: ExpenseCategory!
+  description: String!
+  expenseDate: String!
+  merchantName: String
+  paymentMethod: ExpensePaymentMethod!
+  receiptImage: Upload
+}
+
 """Create a new stock count session (cycle counting)"""
 input CreateStockCountInput {
   """Optional notes for this count session"""
@@ -696,6 +713,33 @@ type ExchangeRate {
   usdToGhsRate: Float!
 }
 
+type ExpenseAnalyticsOutput {
+  byCategory: [ExpenseCategoryBreakdown!]!
+  byStaff: [ExpenseStaffBreakdown!]!
+  pendingApprovalCount: Int!
+  pendingReimbursementFormatted: String!
+  pendingReimbursementPesewas: Int!
+  totalExpensesFormatted: String!
+  totalExpensesPesewas: Int!
+}
+
+enum ExpenseCategory {
+  FUEL
+  MEALS
+  OTHER
+  SUPPLIES
+  TRANSPORT
+  UTILITIES
+}
+
+type ExpenseCategoryBreakdown {
+  amountFormatted: String!
+  amountPesewas: Int!
+  category: ExpenseCategory!
+  count: Int!
+  percentOfTotal: Float!
+}
+
 """An expense record — staff expenses requiring approval"""
 type ExpenseOutput {
   """Formatted amount. Example: GH₵150.00"""
@@ -716,6 +760,27 @@ type ExpenseOutput {
   id: ID!
   receiptS3Key: String
   status: String!
+}
+
+enum ExpensePaymentMethod {
+  CASH
+  MOMO
+  PERSONAL_CARD
+}
+
+type ExpenseStaffBreakdown {
+  amountFormatted: String!
+  amountPesewas: Int!
+  count: Int!
+  staffId: ID!
+  staffName: String!
+}
+
+enum ExpenseStatus {
+  APPROVED
+  PENDING
+  REIMBURSED
+  REJECTED
 }
 
 """A single alert or action item for the owner"""
@@ -1293,6 +1358,7 @@ input MatchSupplierInvoiceInput {
 type Mutation {
   adjustStock(input: AdjustStockInput!): InventoryItem!
   approveExpense(input: ApproveExpenseInput!): ExpenseOutput!
+  approveStaffExpense(input: ApproveStaffExpenseInput!): StaffExpenseOutput!
   bulkUpdateProductPrices(input: BulkUpdatePriceInput!): [PriceUpdateResult!]!
   cancelStockCount(sessionId: ID!): Boolean!
   completeStockCount(input: CompleteStockCountInput!): StockCountSessionOutput!
@@ -1303,6 +1369,7 @@ type Mutation {
   createPrescription(input: CreatePrescriptionInput!): PrescriptionOutput!
   createProduct(input: CreateProductInput!): ProductType!
   createSale(input: CreateSaleInput!): SaleOutput!
+  createStaffExpense(input: CreateStaffExpenseInput!): StaffExpenseOutput!
   createStockCount(input: CreateStockCountInput!): StockCountSessionOutput!
   createSupplier(input: CreateSupplierInput!): Supplier!
 
@@ -1321,6 +1388,7 @@ type Mutation {
   recordSupplierPayment(input: RecordSupplierPaymentInput!): SupplierInvoiceOutput!
   refreshToken(token: String!): AuthPayload!
   register(input: RegisterInput!): AuthPayload!
+  reimburseStaffExpense(input: ReimburseExpenseInput!): StaffExpenseOutput!
   resetStaffPassword(input: ResetStaffPasswordInput!): Boolean!
   setPrimaryProductImage(imageId: String!, productId: String!): Boolean!
   setUsdExchangeRate(input: SetExchangeRateInput!): ExchangeRate!
@@ -1872,6 +1940,7 @@ type Query {
   Ghana FDA dispensing compliance audit — POM enforcement, Rx validity, GMDC validation, controlled drug sign-offs, PDF retention. RBAC: owner, se_admin, manager, head_pharmacist.
   """
   dispensingComplianceAudit(input: AuditPeriodInput!): DispensingComplianceAudit!
+  expenseAnalytics(endDate: String!, startDate: String!): ExpenseAnalyticsOutput!
 
   """
   Financial integrity audit — revenue reconciliation, void/refund analysis, cash dominance, duplicate invoices, expense fraud signals, GL integrity. RBAC: owner, se_admin only.
@@ -1946,6 +2015,8 @@ type Query {
   Behavioural profiles for all active staff, ranked by risk score. Detects void abuse, discount abuse, after-hours activity, speed anomalies, POM bypass attempts, and refund patterns. Ghana DPA 2012: user IDs only — no names in findings. RBAC: owner, se_admin only.
   """
   staffBehaviourProfiles(input: AuditPeriodInput!): [StaffBehaviourProfile!]!
+  staffExpense(id: ID!): StaffExpenseOutput!
+  staffExpenses(endDate: String, startDate: String, status: ExpenseStatus): [StaffExpenseOutput!]!
   staffMember(userId: ID!): StaffMemberOutput!
   staffSessionHistory(
     branchId: ID
@@ -2034,6 +2105,18 @@ input RegisterInput {
   Role assigned to this user. Valid values: `owner` | `head_pharmacist` | `pharmacist` | `cashier` | `manager` | `se_admin`
   """
   role: String!
+}
+
+input ReimburseExpenseInput {
+  expenseId: ID!
+  reference: String
+  reimbursementMethod: ReimbursementMethod!
+}
+
+enum ReimbursementMethod {
+  BANK_TRANSFER
+  CASH
+  MOMO
 }
 
 """
@@ -2316,6 +2399,29 @@ type StaffBehaviourProfile {
   totalSalesCount: Int!
   userId: ID!
   voidCount: Int!
+}
+
+type StaffExpenseOutput {
+  amountFormatted: String!
+  amountPesewas: Int!
+  approvalNotes: String
+  approvedAt: DateTime
+  approvedByName: String
+  category: ExpenseCategory!
+  createdAt: DateTime!
+  createdByName: String!
+  description: String!
+  expenseDate: String!
+  id: ID!
+  merchantName: String
+  ocrExtractedAmount: Int
+  paymentMethod: ExpensePaymentMethod!
+  receiptUrl: String
+  reimbursedAt: DateTime
+  reimbursedByName: String
+  reimbursementMethod: ReimbursementMethod
+  reimbursementReference: String
+  status: ExpenseStatus!
 }
 
 input StaffInvestigationInput {
