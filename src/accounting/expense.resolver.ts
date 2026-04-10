@@ -87,8 +87,8 @@ export class ExpenseResolver {
   @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician', 'cashier')
   async getStaffExpenses(
     @Args('status', { type: () => ExpenseStatus, nullable: true }) status: ExpenseStatus | undefined,
-    @Args('startDate', { nullable: true }) startDate: string | undefined,
-    @Args('endDate', { nullable: true }) endDate: string | undefined,
+    @Args('startDate', { type: () => String, nullable: true }) startDate: string | undefined,
+    @Args('endDate', { type: () => String, nullable: true }) endDate: string | undefined,
     @CurrentUser() actor: JwtUser,
   ): Promise<StaffExpenseOutput[]> {
     return this.expenseService.getExpenses(actor.branchId, status, startDate, endDate);
