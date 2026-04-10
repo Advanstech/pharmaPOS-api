@@ -41,34 +41,34 @@ registerEnumType(ReimbursementMethod, { name: 'ReimbursementMethod' });
 @InputType()
 export class CreateStaffExpenseInput {
   @Field(() => ExpenseCategory)
-  category: ExpenseCategory;
+  category!: ExpenseCategory;
 
   @Field(() => Int)
-  amountPesewas: number;
+  amountPesewas!: number;
 
   @Field()
-  description: string;
+  description!: string;
 
   @Field({ nullable: true })
   merchantName?: string;
 
   @Field()
-  expenseDate: string; // YYYY-MM-DD
+  expenseDate!: string; // YYYY-MM-DD
 
   @Field(() => GraphQLUpload, { nullable: true })
   receiptImage?: Promise<FileUpload>;
 
   @Field(() => ExpensePaymentMethod)
-  paymentMethod: ExpensePaymentMethod;
+  paymentMethod!: ExpensePaymentMethod;
 }
 
 @InputType()
 export class ApproveStaffExpenseInput {
   @Field(() => ID)
-  expenseId: string;
+  expenseId!: string;
 
   @Field()
-  approve: boolean; // true = APPROVE, false = REJECT
+  approve!: boolean; // true = APPROVE, false = REJECT
 
   @Field({ nullable: true })
   notes?: string;
@@ -80,10 +80,10 @@ export class ApproveStaffExpenseInput {
 @InputType()
 export class ReimburseExpenseInput {
   @Field(() => ID)
-  expenseId: string;
+  expenseId!: string;
 
   @Field(() => ReimbursementMethod)
-  reimbursementMethod: ReimbursementMethod;
+  reimbursementMethod!: ReimbursementMethod;
 
   @Field({ nullable: true })
   reference?: string;
@@ -94,25 +94,25 @@ export class ReimburseExpenseInput {
 @ObjectType()
 export class StaffExpenseOutput {
   @Field(() => ID)
-  id: string;
+  id!: string;
 
   @Field(() => ExpenseCategory)
-  category: string;
+  category!: string;
 
   @Field(() => Int)
-  amountPesewas: number;
+  amountPesewas!: number;
 
   @Field()
-  amountFormatted: string;
+  amountFormatted!: string;
 
   @Field()
-  description: string;
+  description!: string;
 
   @Field({ nullable: true })
   merchantName?: string;
 
   @Field()
-  expenseDate: string;
+  expenseDate!: string;
 
   @Field({ nullable: true })
   receiptUrl?: string;
@@ -121,10 +121,10 @@ export class StaffExpenseOutput {
   ocrExtractedAmount?: number;
 
   @Field(() => ExpensePaymentMethod)
-  paymentMethod: string;
+  paymentMethod!: string;
 
   @Field(() => ExpenseStatus)
-  status: string;
+  status!: string;
 
   @Field({ nullable: true })
   approvedByName?: string;
@@ -148,68 +148,68 @@ export class StaffExpenseOutput {
   reimbursementReference?: string;
 
   @Field()
-  createdByName: string;
+  createdByName!: string;
 
   @Field()
-  createdAt: Date;
+  createdAt!: Date;
 }
 
 @ObjectType()
 export class ExpenseCategoryBreakdown {
   @Field(() => ExpenseCategory)
-  category: string;
+  category!: string;
 
   @Field(() => Int)
-  amountPesewas: number;
+  amountPesewas!: number;
 
   @Field()
-  amountFormatted: string;
+  amountFormatted!: string;
 
   @Field(() => Int)
-  count: number;
+  count!: number;
 
   @Field()
-  percentOfTotal: number;
+  percentOfTotal!: number;
 }
 
 @ObjectType()
 export class ExpenseStaffBreakdown {
   @Field(() => ID)
-  staffId: string;
+  staffId!: string;
 
   @Field()
-  staffName: string;
+  staffName!: string;
 
   @Field(() => Int)
-  amountPesewas: number;
+  amountPesewas!: number;
 
   @Field()
-  amountFormatted: string;
+  amountFormatted!: string;
 
   @Field(() => Int)
-  count: number;
+  count!: number;
 }
 
 @ObjectType()
 export class ExpenseAnalyticsOutput {
   @Field(() => Int)
-  totalExpensesPesewas: number;
+  totalExpensesPesewas!: number;
 
   @Field()
-  totalExpensesFormatted: string;
+  totalExpensesFormatted!: string;
 
   @Field(() => [ExpenseCategoryBreakdown])
-  byCategory: ExpenseCategoryBreakdown[];
+  byCategory!: ExpenseCategoryBreakdown[];
 
   @Field(() => [ExpenseStaffBreakdown])
-  byStaff: ExpenseStaffBreakdown[];
+  byStaff!: ExpenseStaffBreakdown[];
 
   @Field(() => Int)
-  pendingApprovalCount: number;
+  pendingApprovalCount!: number;
 
   @Field(() => Int)
-  pendingReimbursementPesewas: number;
+  pendingReimbursementPesewas!: number;
 
   @Field()
-  pendingReimbursementFormatted: string;
+  pendingReimbursementFormatted!: string;
 }

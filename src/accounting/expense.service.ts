@@ -317,8 +317,8 @@ export class ExpenseService {
       expenseDate: expense.expense_date,
       receiptUrl: expense.receipt_s3_key
         ? `https://${process.env.AWS_S3_BUCKET}.s3.amazonaws.com/${expense.receipt_s3_key}`
-        : null,
-      ocrExtractedAmount: expense.ocr_extracted_amount ? parseInt(expense.ocr_extracted_amount) : null,
+        : undefined,
+      ocrExtractedAmount: expense.ocr_extracted_amount ? parseInt(expense.ocr_extracted_amount) : undefined,
       paymentMethod: expense.payment_method,
       status: expense.status,
       approvedByName: expense.approved_by_name,
