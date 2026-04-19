@@ -1581,6 +1581,7 @@ type Mutation {
   updateStaffProfile(input: UpdateStaffProfileInput!): StaffMemberOutput!
   updateStockCounts(input: UpdateStockCountInput!): [StockCountItemOutput!]!
   updateSupplier(id: String!, input: UpdateSupplierInput!): Supplier!
+  updateTaxConfig(input: UpdateTaxConfigInput!): TaxConfigOutput!
   uploadProductImage(fileBase64: String!, filename: String!, mimetype: String!, productId: String!): ProductImageType!
   uploadSupplierInvoice(input: UploadSupplierInvoiceInput!): UploadInvoiceResponse!
   upsertOcrColumnMappingPreset(input: UpsertOcrColumnMappingPresetInput!): OcrColumnMappingPresetOutput!
@@ -2268,6 +2269,7 @@ type Query {
   Ghana GRA tax compliance audit — VAT gap, exemption abuse, PAYE compliance, withholding tax on supplier payments. RBAC: owner, se_admin only.
   """
   taxComplianceAudit(input: AuditPeriodInput!): TaxComplianceAudit!
+  taxConfig: TaxConfigOutput!
   topProducts(limit: Float, periodEnd: String!, periodStart: String!): [TopProduct!]!
   trialBalance(asOfDate: String): [TrialBalanceRowOutput!]!
   validateGmdcLicence(licenceNo: String!): GmdcValidationResult!
@@ -3303,6 +3305,24 @@ type TaxComplianceAudit {
   vatRemittedPesewas: Int!
 }
 
+type TaxConfigOutput {
+  applyVatOnControlled: Boolean!
+  applyVatOnOtc: Boolean!
+  applyVatOnPom: Boolean!
+  branchId: String!
+  covidLevyRate: Float!
+  covidLevyRatePct: String!
+  getfundRate: Float!
+  getfundRatePct: String!
+  nhilRate: Float!
+  nhilRatePct: String!
+  totalRate: Float!
+  totalRatePct: String!
+  updatedAt: DateTime!
+  vatRate: Float!
+  vatRatePct: String!
+}
+
 """A payment tender — one sale can have multiple tenders (split payment)"""
 input TenderInput {
   """
@@ -3528,6 +3548,16 @@ input UpdateSupplierInput {
   phone: String
   tin: String
   website: String
+}
+
+input UpdateTaxConfigInput {
+  applyVatOnControlled: Boolean
+  applyVatOnOtc: Boolean
+  applyVatOnPom: Boolean
+  covidLevyRate: Float
+  getfundRate: Float
+  nhilRate: Float
+  vatRate: Float
 }
 
 """The `Upload` scalar type represents a file upload."""
