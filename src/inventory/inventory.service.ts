@@ -1,7 +1,8 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, Inject, Optional } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { JwtUser } from '../auth/decorators/current-user.decorator';
 import { RealtimeStockService } from './realtime-stock.service';
+import { GLPostingService } from '../accounting/gl-posting.service';
 import {
   AdjustStockInput,
   ReceiveStockInput,
@@ -14,6 +15,7 @@ interface InventoryRow {
   product_id: string;
   product_name: string;
   classification: string;
+  unit_price: number | null;
   quantity_on_hand: number;
   reorder_level: number;
   nearest_expiry: Date | null;
@@ -39,6 +41,7 @@ export class InventoryService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly realtimeStock: RealtimeStockService,
+    @Optional() @Inject(GLPostingService) private readonly glPosting?: GLPostingService,
   ) {}
 
   // ── List inventory ────────────────────────────────────────────────────────
@@ -49,6 +52,7 @@ export class InventoryService {
         p.id AS product_id,
         p.name AS product_name,
         p.classification,
+        p.unit_price,
         COALESCE(inv.quantity_on_hand, 0) AS quantity_on_hand,
         COALESCE(inv.reorder_level, 10) AS reorder_level,
         MIN(sm.expiry_date) AS nearest_expiry,
@@ -60,7 +64,7 @@ export class InventoryService {
         AND sm.expiry_date IS NOT NULL AND sm.expiry_date > NOW()
       LEFT JOIN suppliers s ON s.id = p.supplier_id
       WHERE p.is_active = true
-      GROUP BY p.id, p.name, p.classification, inv.quantity_on_hand, inv.reorder_level, p.supplier_id, s.name
+      GROUP BY p.id, p.name, p.classification, p.unit_price, inv.quantity_on_hand, inv.reorder_level, p.supplier_id, s.name
       ORDER BY p.name ASC
     `, [branchId]) as InventoryRow[];
 
@@ -74,6 +78,8 @@ export class InventoryService {
       nearestExpiry: r.nearest_expiry ?? undefined,
       supplierId: r.supplier_id ?? undefined,
       supplierName: r.supplier_name ?? undefined,
+      unitPricePesewas: r.unit_price ?? undefined,
+      unitPriceFormatted: r.unit_price ? 'GH\u20B5' + (r.unit_price / 100).toFixed(2) : undefined,
     }));
   }
 
@@ -84,12 +90,13 @@ export class InventoryService {
       SELECT
         p.id AS product_id,
         p.name AS product_name,
-        COALESCE(inv.quantity_on_hand, 0) AS quantity_on_hand,
-        COALESCE(inv.reorder_level, 10) AS reorder_level
-      FROM products p
-      LEFT JOIN inventory inv ON inv.product_id = p.id AND inv.branch_id = $1
-      WHERE p.is_active = true
-        AND COALESCE(inv.quantity_on_hand, 0) <= COALESCE(inv.reorder_level, 10)
+        inv.quantity_on_hand AS quantity_on_hand,
+        inv.reorder_level AS reorder_level
+      FROM inventory inv
+      JOIN products p ON p.id = inv.product_id
+      WHERE inv.branch_id = $1
+        AND p.is_active = true
+        AND inv.quantity_on_hand <= inv.reorder_level
       ORDER BY quantity_on_hand ASC
     `, [branchId]) as Array<{ product_id: string; product_name: string; quantity_on_hand: number; reorder_level: number }>;
 
@@ -167,9 +174,40 @@ export class InventoryService {
 
     this.logger.log(`Stock adjusted: product=${input.productId} delta=${input.quantityDelta} by=${actor.sub}`);
 
+    // ── GL Posting for negative adjustments (write-offs, shrinkage) ─────────
+    if (this.glPosting && input.quantityDelta < 0) {
+      setImmediate(async () => {
+        try {
+          const [costRow] = await this.dataSource.query(
+            `SELECT COALESCE(
+              (SELECT unit_cost_pesewas FROM product_cost_history
+               WHERE product_id = $1 ORDER BY observed_at DESC LIMIT 1),
+              (SELECT unit_price FROM products WHERE id = $1)
+            ) AS cost`,
+            [input.productId],
+          ) as Array<{ cost: number }>;
+          const unitCost = costRow?.cost || 0;
+          if (unitCost > 0) {
+            await this.glPosting!.postStockAdjustment({
+              branchId: actor.branchId,
+              productName: product.name,
+              quantity: input.quantityDelta,
+              costPesewas: unitCost,
+              reason: input.reason || 'Stock adjustment',
+              referenceId: input.productId,
+            });
+          }
+        } catch (err) {
+          this.logger.warn('GL posting failed for stock adjustment: ' + err);
+        }
+      });
+    }
+
     const items = await this.listInventory(actor.branchId);
     const item = items.find((i) => i.productId === input.productId);
     if (!item) throw new NotFoundException('Inventory item not found after update');
+    
+    // Publish stock change — StockAlertsService will resolve alerts if status is 'ok'
     this.realtimeStock.publishStockChanged({
       branchId: actor.branchId,
       productId: item.productId,
@@ -248,9 +286,39 @@ export class InventoryService {
 
     this.logger.log(`Stock received: product=${input.productId} qty=${input.quantity} by=${actor.sub}`);
 
+    // ── GL Posting: Debit Inventory, Credit Accounts Payable ────────────────
+    if (this.glPosting) {
+      setImmediate(async () => {
+        try {
+          const [costRow] = await this.dataSource.query(
+            `SELECT COALESCE(
+              (SELECT unit_cost_pesewas FROM product_cost_history
+               WHERE product_id = $1 ORDER BY observed_at DESC LIMIT 1),
+              (SELECT unit_price FROM products WHERE id = $1)
+            ) AS cost`,
+            [input.productId],
+          ) as Array<{ cost: number }>;
+          const unitCost = costRow?.cost || 0;
+          if (unitCost > 0) {
+            await this.glPosting!.postStockReceived({
+              branchId: actor.branchId,
+              productId: input.productId,
+              productName: product.name,
+              quantity: input.quantity,
+              costPesewas: unitCost,
+            });
+          }
+        } catch (err) {
+          this.logger.warn('GL posting failed for stock received: ' + err);
+        }
+      });
+    }
+
     const items = await this.listInventory(actor.branchId);
     const item = items.find((i) => i.productId === input.productId);
     if (!item) throw new NotFoundException('Inventory item not found after update');
+    
+    // Publish stock change — StockAlertsService will resolve alerts if status is 'ok'
     this.realtimeStock.publishStockChanged({
       branchId: actor.branchId,
       productId: item.productId,

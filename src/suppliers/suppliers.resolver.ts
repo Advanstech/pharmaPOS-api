@@ -7,7 +7,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { SuppliersService } from './suppliers.service';
 import { Supplier } from './entities/supplier.entity';
 import { CreateSupplierInput, UpdateSupplierInput } from './dto/supplier.input';
-import { SupplierRestockWatch } from './dto/supplier-watch.types';
+import { SupplierRestockWatch, SupplierWithProducts } from './dto/supplier-watch.types';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('suppliers')
@@ -25,17 +25,27 @@ export class SuppliersResolver {
   }
 
   @Query(() => Supplier, { name: 'supplier' })
-  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician')
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician', 'cashier', 'chemical_cashier')
   @ApiOperation({ summary: 'Get supplier by ID' })
   async getSupplier(@Args('id') id: string): Promise<Supplier> {
     return this.suppliersService.getSupplierById(id);
   }
 
   @Query(() => [SupplierRestockWatch], { name: 'supplierRestockWatch' })
-  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician')
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician', 'cashier', 'chemical_cashier')
   @ApiOperation({ summary: 'Branch supplier restock watch with low/critical/out stock signals' })
   async supplierRestockWatch(@CurrentUser() actor: JwtUser): Promise<SupplierRestockWatch[]> {
     return this.suppliersService.getSupplierRestockWatch(actor.branchId);
+  }
+
+  @Query(() => SupplierWithProducts, { name: 'supplierWithProducts' })
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician', 'cashier', 'chemical_cashier')
+  @ApiOperation({ summary: 'Get supplier with ALL their products (not just stock alerts)' })
+  async getSupplierWithProducts(
+    @Args('id') id: string,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<SupplierWithProducts> {
+    return this.suppliersService.getSupplierWithProducts(id, actor.branchId);
   }
 
   @Mutation(() => Supplier)
@@ -56,9 +66,30 @@ export class SuppliersResolver {
   }
 
   @Mutation(() => Boolean)
-  @Roles('owner')
-  @ApiOperation({ summary: 'Soft delete supplier (owner only)' })
+  @Roles('owner', 'se_admin', 'manager')
+  @ApiOperation({ summary: 'Soft delete supplier (owner/manager)' })
   async deleteSupplier(@Args('id') id: string): Promise<boolean> {
     return this.suppliersService.deleteSupplier(id);
+  }
+
+  @Mutation(() => Boolean)
+  @Roles('owner', 'se_admin', 'manager')
+  @ApiOperation({ summary: 'Suspend supplier — hides from active lists but keeps history' })
+  async suspendSupplier(@Args('id') id: string): Promise<boolean> {
+    return this.suppliersService.suspendSupplier(id);
+  }
+
+  @Mutation(() => Boolean)
+  @Roles('owner', 'se_admin', 'manager')
+  @ApiOperation({ summary: 'Reactivate a suspended supplier' })
+  async reactivateSupplier(@Args('id') id: string): Promise<boolean> {
+    return this.suppliersService.reactivateSupplier(id);
+  }
+
+  @Mutation(() => Boolean)
+  @Roles('owner', 'se_admin', 'manager')
+  @ApiOperation({ summary: 'Deactivate supplier AND all their products' })
+  async deleteSupplierWithProducts(@Args('id') id: string): Promise<boolean> {
+    return this.suppliersService.deleteSupplierWithProducts(id);
   }
 }

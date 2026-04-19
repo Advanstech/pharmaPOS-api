@@ -2,6 +2,7 @@ import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { AccountingService } from './accounting.service';
 import { FinancialIntelligenceService } from './financial-intelligence.service';
+import { GLPostingService } from './gl-posting.service';
 import {
   CreateExpenseInput,
   ApproveExpenseInput,
@@ -28,6 +29,13 @@ import {
   InvestmentIntelligenceReport,
   FinancialPeriodInput,
 } from './dto/financial-intelligence.types';
+import {
+  TrialBalanceRowOutput,
+  BalanceSheetOutput,
+  GLDetailRowOutput,
+  ChartOfAccountsEntry,
+  FinancialSummaryOutput,
+} from './dto/gl.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -39,6 +47,7 @@ export class AccountingResolver {
   constructor(
     private readonly accountingService: AccountingService,
     private readonly fiService: FinancialIntelligenceService,
+    private readonly glService: GLPostingService,
   ) {}
 
   // ── Expenses ──────────────────────────────────────────────────────────────
@@ -240,5 +249,179 @@ export class AccountingResolver {
     const briefing = await this.fiService.getCfoBriefing(actor.branchId);
     void monthStart; void monthEnd; // used inside getCfoBriefing
     return briefing.investmentIntelligence;
+  }
+
+  // ── Trial Balance ─────────────────────────────────────────────────────────
+
+  @Query(() => [TrialBalanceRowOutput], { name: 'trialBalance' })
+  @Roles('owner', 'se_admin', 'manager')
+  async trialBalance(
+    @Args('asOfDate', { type: () => String, nullable: true }) asOfDate: string | undefined,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<TrialBalanceRowOutput[]> {
+    return this.glService.getTrialBalance(actor.branchId, asOfDate);
+  }
+
+  // ── Balance Sheet ─────────────────────────────────────────────────────────
+
+  @Query(() => BalanceSheetOutput, { name: 'balanceSheet' })
+  @Roles('owner', 'se_admin', 'manager')
+  async balanceSheet(
+    @Args('asOfDate', { type: () => String, nullable: true }) asOfDate: string | undefined,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<BalanceSheetOutput> {
+    return this.glService.getBalanceSheet(actor.branchId, asOfDate) as any;
+  }
+
+  // ── GL Detail ─────────────────────────────────────────────────────────────
+
+  @Query(() => [GLDetailRowOutput], { name: 'glDetail' })
+  @Roles('owner', 'se_admin', 'manager')
+  async glDetail(
+    @Args('accountCode', { type: () => String, nullable: true }) accountCode: string | undefined,
+    @Args('startDate', { type: () => String, nullable: true }) startDate: string | undefined,
+    @Args('endDate', { type: () => String, nullable: true }) endDate: string | undefined,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<GLDetailRowOutput[]> {
+    return this.glService.getGLDetail(actor.branchId, accountCode, startDate, endDate) as any;
+  }
+
+  // ── Chart of Accounts ─────────────────────────────────────────────────────
+
+  @Query(() => [ChartOfAccountsEntry], { name: 'chartOfAccounts' })
+  @Roles('owner', 'se_admin', 'manager')
+  async chartOfAccounts(@CurrentUser() actor: JwtUser): Promise<ChartOfAccountsEntry[]> {
+    const trial = await this.glService.getTrialBalance(actor.branchId);
+
+    // Define the full chart of accounts with categories
+    const COA: Array<{ code: string; name: string; type: string; category: string }> = [
+      { code: '1000', name: 'Cash & Bank', type: 'ASSET', category: 'Current Assets' },
+      { code: '1100', name: 'Accounts Receivable', type: 'ASSET', category: 'Current Assets' },
+      { code: '1200', name: 'Inventory', type: 'ASSET', category: 'Current Assets' },
+      { code: '1300', name: 'Prepaid Expenses', type: 'ASSET', category: 'Current Assets' },
+      { code: '2100', name: 'Accounts Payable', type: 'LIABILITY', category: 'Current Liabilities' },
+      { code: '2200', name: 'VAT Payable', type: 'LIABILITY', category: 'Current Liabilities' },
+      { code: '2300', name: 'NHIL Payable', type: 'LIABILITY', category: 'Current Liabilities' },
+      { code: '2400', name: 'Accrued Expenses', type: 'LIABILITY', category: 'Current Liabilities' },
+      { code: '3000', name: "Owner's Capital", type: 'EQUITY', category: 'Equity' },
+      { code: '3100', name: 'Retained Earnings', type: 'EQUITY', category: 'Equity' },
+      { code: '4000', name: 'Sales Revenue', type: 'REVENUE', category: 'Revenue' },
+      { code: '4100', name: 'OTC / Chemical Revenue', type: 'REVENUE', category: 'Revenue' },
+      { code: '4200', name: 'Other Income', type: 'REVENUE', category: 'Revenue' },
+      { code: '5000', name: 'Cost of Goods Sold', type: 'EXPENSE', category: 'Cost of Sales' },
+      { code: '5010', name: 'Inventory Shrinkage', type: 'EXPENSE', category: 'Cost of Sales' },
+      { code: '5020', name: 'Expired Stock Write-off', type: 'EXPENSE', category: 'Cost of Sales' },
+      { code: '5050', name: 'Taxes & Levies', type: 'EXPENSE', category: 'Operating Expenses' },
+      { code: '5100', name: 'Utilities', type: 'EXPENSE', category: 'Operating Expenses' },
+      { code: '5200', name: 'Rent', type: 'EXPENSE', category: 'Operating Expenses' },
+      { code: '5300', name: 'Salaries & Wages', type: 'EXPENSE', category: 'Operating Expenses' },
+      { code: '5400', name: 'Fuel & Transport', type: 'EXPENSE', category: 'Operating Expenses' },
+      { code: '5500', name: 'Maintenance & Repairs', type: 'EXPENSE', category: 'Operating Expenses' },
+      { code: '5600', name: 'Marketing & Advertising', type: 'EXPENSE', category: 'Operating Expenses' },
+      { code: '5700', name: 'Licenses & Permits', type: 'EXPENSE', category: 'Operating Expenses' },
+      { code: '5800', name: 'Bank Charges & MoMo Fees', type: 'EXPENSE', category: 'Operating Expenses' },
+      { code: '5900', name: 'Miscellaneous', type: 'EXPENSE', category: 'Operating Expenses' },
+    ];
+
+    const balanceMap = new Map(trial.map(r => [r.accountCode, r.balance]));
+
+    return COA.map(a => ({
+      accountCode: a.code,
+      accountName: a.name,
+      accountType: a.type,
+      category: a.category,
+      balancePesewas: Math.abs(balanceMap.get(a.code) || 0),
+      balanceFormatted: 'GH\u20B5' + (Math.abs(balanceMap.get(a.code) || 0) / 100).toFixed(2),
+    }));
+  }
+
+  // ── Financial Summary (for dashboard) ─────────────────────────────────────
+
+  @Query(() => FinancialSummaryOutput, { name: 'financialSummary' })
+  @Roles('owner', 'se_admin', 'manager')
+  async financialSummary(
+    @Args('periodStart') periodStart: string,
+    @Args('periodEnd') periodEnd: string,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<FinancialSummaryOutput> {
+    const branchId = actor.branchId;
+
+    // Get P&L from existing service
+    const pl = await this.accountingService.getProfitLoss(branchId, periodStart, periodEnd);
+
+    // Get cash balance from GL
+    const [cashRow] = await this.glService['dataSource'].query(
+      `SELECT COALESCE(SUM(debit) - SUM(credit), 0)::int AS balance
+       FROM general_ledger WHERE branch_id = $1 AND account_code = '1000'`,
+      [branchId],
+    ) as Array<{ balance: number }>;
+
+    // Get accounts payable from GL
+    const [apRow] = await this.glService['dataSource'].query(
+      `SELECT COALESCE(SUM(credit) - SUM(debit), 0)::int AS balance
+       FROM general_ledger WHERE branch_id = $1 AND account_code = '2100'`,
+      [branchId],
+    ) as Array<{ balance: number }>;
+
+    // Get VAT payable from GL
+    const [vatRow] = await this.glService['dataSource'].query(
+      `SELECT COALESCE(SUM(credit) - SUM(debit), 0)::int AS balance
+       FROM general_ledger WHERE branch_id = $1 AND account_code = '2200'`,
+      [branchId],
+    ) as Array<{ balance: number }>;
+
+    // Get inventory value from GL
+    const [invRow] = await this.glService['dataSource'].query(
+      `SELECT COALESCE(SUM(debit) - SUM(credit), 0)::int AS balance
+       FROM general_ledger WHERE branch_id = $1 AND account_code = '1200'`,
+      [branchId],
+    ) as Array<{ balance: number }>;
+
+    // Transaction counts
+    const [txRow] = await this.glService['dataSource'].query(
+      `SELECT COUNT(*)::int AS cnt FROM sales
+       WHERE branch_id = $1 AND status = 'COMPLETED'
+       AND created_at >= $2::date AND created_at < ($3::date + INTERVAL '1 day')`,
+      [branchId, periodStart, periodEnd],
+    ) as Array<{ cnt: number }>;
+
+    // Expense counts
+    const [expRow] = await this.glService['dataSource'].query(
+      `SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'PENDING')::int AS pending
+       FROM staff_expenses WHERE branch_id = $1`,
+      [branchId],
+    ) as Array<{ total: number; pending: number }>;
+
+    const fmt = (p: number) => 'GH\u20B5' + (p / 100).toFixed(2);
+
+    return {
+      periodStart,
+      periodEnd,
+      revenuePesewas: pl.revenuePesewas,
+      revenueFormatted: pl.revenueFormatted,
+      cogsPesewas: pl.cogsPesewas,
+      cogsFormatted: pl.cogsFormatted,
+      grossProfitPesewas: pl.grossProfitPesewas,
+      grossProfitFormatted: pl.grossProfitFormatted,
+      grossMarginPct: pl.grossProfitMarginPct,
+      operatingExpensesPesewas: pl.operatingExpensesPesewas,
+      operatingExpensesFormatted: pl.operatingExpensesFormatted,
+      netProfitPesewas: pl.netProfitPesewas,
+      netProfitFormatted: pl.netProfitFormatted,
+      netMarginPct: pl.netProfitMarginPct,
+      cashBalancePesewas: cashRow?.balance || 0,
+      cashBalanceFormatted: fmt(cashRow?.balance || 0),
+      accountsPayablePesewas: apRow?.balance || 0,
+      accountsPayableFormatted: fmt(apRow?.balance || 0),
+      vatPayablePesewas: vatRow?.balance || 0,
+      vatPayableFormatted: fmt(vatRow?.balance || 0),
+      inventoryValuePesewas: invRow?.balance || 0,
+      inventoryValueFormatted: fmt(invRow?.balance || 0),
+      totalTransactions: txRow?.cnt || 0,
+      totalExpenses: expRow?.total || 0,
+      pendingExpenses: expRow?.pending || 0,
+    };
   }
 }

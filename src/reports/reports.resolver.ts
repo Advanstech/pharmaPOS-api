@@ -1,7 +1,10 @@
 import { Resolver, Query, Args } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { ReportsService } from './reports.service';
-import { RevenueReport, TopProduct, DashboardKpis } from './dto/reports.types';
+import {
+  RevenueReport, TopProduct, DashboardKpis,
+  DailyRevenuePoint, HourlySalesPoint, CategoryBreakdown, StaffPerformance,
+} from './dto/reports.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -12,7 +15,6 @@ import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator'
 export class ReportsResolver {
   constructor(private readonly reportsService: ReportsService) {}
 
-  // RBAC: owner, se_admin, manager only
   @Query(() => RevenueReport, { name: 'revenueReport' })
   @Roles('owner', 'se_admin', 'manager')
   revenueReport(
@@ -34,10 +36,49 @@ export class ReportsResolver {
     return this.reportsService.getTopProducts(actor.branchId, periodStart, periodEnd, limit);
   }
 
-  // Dashboard KPIs — used by /dashboard overview page
   @Query(() => DashboardKpis, { name: 'dashboardKpis' })
   @Roles('owner', 'se_admin', 'manager')
   dashboardKpis(@CurrentUser() actor: JwtUser): Promise<DashboardKpis> {
     return this.reportsService.getDashboardKpis(actor.branchId);
+  }
+
+  @Query(() => [DailyRevenuePoint], { name: 'dailyRevenueTrend' })
+  @Roles('owner', 'se_admin', 'manager')
+  dailyRevenueTrend(
+    @CurrentUser() actor: JwtUser,
+    @Args('periodStart') periodStart: string,
+    @Args('periodEnd') periodEnd: string,
+  ): Promise<DailyRevenuePoint[]> {
+    return this.reportsService.getDailyRevenueTrend(actor.branchId, periodStart, periodEnd);
+  }
+
+  @Query(() => [HourlySalesPoint], { name: 'hourlySales' })
+  @Roles('owner', 'se_admin', 'manager')
+  hourlySales(
+    @CurrentUser() actor: JwtUser,
+    @Args('periodStart') periodStart: string,
+    @Args('periodEnd') periodEnd: string,
+  ): Promise<HourlySalesPoint[]> {
+    return this.reportsService.getHourlySales(actor.branchId, periodStart, periodEnd);
+  }
+
+  @Query(() => [CategoryBreakdown], { name: 'categoryBreakdown' })
+  @Roles('owner', 'se_admin', 'manager')
+  categoryBreakdown(
+    @CurrentUser() actor: JwtUser,
+    @Args('periodStart') periodStart: string,
+    @Args('periodEnd') periodEnd: string,
+  ): Promise<CategoryBreakdown[]> {
+    return this.reportsService.getCategoryBreakdown(actor.branchId, periodStart, periodEnd);
+  }
+
+  @Query(() => [StaffPerformance], { name: 'staffPerformance' })
+  @Roles('owner', 'se_admin', 'manager')
+  staffPerformance(
+    @CurrentUser() actor: JwtUser,
+    @Args('periodStart') periodStart: string,
+    @Args('periodEnd') periodEnd: string,
+  ): Promise<StaffPerformance[]> {
+    return this.reportsService.getStaffPerformance(actor.branchId, periodStart, periodEnd);
   }
 }

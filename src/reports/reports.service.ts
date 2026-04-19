@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { RevenueReport, TopProduct, DashboardKpis } from './dto/reports.types';
+import { RevenueReport, TopProduct, DashboardKpis, DailyRevenuePoint, HourlySalesPoint, CategoryBreakdown, PaymentMethodBreakdown, StaffPerformance } from './dto/reports.types';
 import { SalesEffectiveAtService } from '../sales/sales-effective-at.service';
 
 interface RevRow {
@@ -174,6 +174,113 @@ export class ReportsService {
       activeStaffCount: staffRow[0]?.cnt ?? 0,
       revenueDeltaPct: Math.round(delta * 10) / 10,
     };
+  }
+
+  // ── Daily Revenue Trend ──────────────────────────────────────────────────
+
+  async getDailyRevenueTrend(branchId: string, periodStart: string, periodEnd: string): Promise<DailyRevenuePoint[]> {
+    const at = this.effectiveSaleAt.sql('s');
+    const saleAccraDay = `(${at} AT TIME ZONE 'Africa/Accra')::date`;
+    const rows = await this.dataSource.query(`
+      SELECT
+        ${saleAccraDay} AS date,
+        COALESCE(SUM(CASE WHEN s.status = 'COMPLETED' THEN s.total_amount ELSE 0 END), 0)::int AS revenue,
+        COUNT(CASE WHEN s.status = 'COMPLETED' THEN 1 END)::int AS sales_count,
+        COALESCE(SUM(CASE WHEN s.status = 'REFUNDED' THEN s.total_amount ELSE 0 END), 0)::int AS refunds
+      FROM sales s
+      WHERE s.branch_id = $1
+        AND ${saleAccraDay} >= $2::date AND ${saleAccraDay} <= $3::date
+      GROUP BY ${saleAccraDay}
+      ORDER BY date
+    `, [branchId, periodStart, periodEnd]);
+
+    return rows.map((r: any) => ({
+      date: typeof r.date === 'string' ? r.date : new Date(r.date).toISOString().split('T')[0],
+      revenuePesewas: parseInt(r.revenue),
+      revenueFormatted: this.fmt(parseInt(r.revenue)),
+      salesCount: parseInt(r.sales_count),
+      refundsPesewas: parseInt(r.refunds),
+    }));
+  }
+
+  // ── Hourly Sales Heatmap ──────────────────────────────────────────────────
+
+  async getHourlySales(branchId: string, periodStart: string, periodEnd: string): Promise<HourlySalesPoint[]> {
+    const at = this.effectiveSaleAt.sql('s');
+    const saleAccraDay = `(${at} AT TIME ZONE 'Africa/Accra')::date`;
+    const rows = await this.dataSource.query(`
+      SELECT
+        EXTRACT(HOUR FROM ${at} AT TIME ZONE 'Africa/Accra')::int AS hour,
+        COUNT(*)::int AS sales_count,
+        COALESCE(SUM(s.total_amount), 0)::int AS revenue
+      FROM sales s
+      WHERE s.branch_id = $1 AND s.status = 'COMPLETED'
+        AND ${saleAccraDay} >= $2::date AND ${saleAccraDay} <= $3::date
+      GROUP BY hour ORDER BY hour
+    `, [branchId, periodStart, periodEnd]);
+
+    // Fill all 24 hours
+    const hourMap = new Map<number, any>(rows.map((r: any) => [parseInt(r.hour), r]));
+    return Array.from({ length: 24 }, (_, h) => {
+      const r = hourMap.get(h) as any;
+      return { hour: h, salesCount: r ? parseInt(r.sales_count) : 0, revenuePesewas: r ? parseInt(r.revenue) : 0 };
+    });
+  }
+
+  // ── Category Breakdown ────────────────────────────────────────────────────
+
+  async getCategoryBreakdown(branchId: string, periodStart: string, periodEnd: string): Promise<CategoryBreakdown[]> {
+    const at = this.effectiveSaleAt.sql('s');
+    const saleAccraDay = `(${at} AT TIME ZONE 'Africa/Accra')::date`;
+    const rows = await this.dataSource.query(`
+      SELECT
+        COALESCE(p.classification, 'OTHER') AS classification,
+        SUM(si.quantity * si.unit_price)::int AS revenue,
+        COUNT(DISTINCT s.id)::int AS sales_count,
+        SUM(si.quantity)::int AS units_sold
+      FROM sale_items si
+      JOIN sales s ON s.id = si.sale_id
+      JOIN products p ON p.id = si.product_id
+      WHERE s.branch_id = $1 AND s.status = 'COMPLETED'
+        AND ${saleAccraDay} >= $2::date AND ${saleAccraDay} <= $3::date
+      GROUP BY p.classification ORDER BY revenue DESC
+    `, [branchId, periodStart, periodEnd]);
+
+    return rows.map((r: any) => ({
+      classification: r.classification,
+      revenuePesewas: parseInt(r.revenue),
+      revenueFormatted: this.fmt(parseInt(r.revenue)),
+      salesCount: parseInt(r.sales_count),
+      unitsSold: parseInt(r.units_sold),
+    }));
+  }
+
+  // ── Staff Performance ─────────────────────────────────────────────────────
+
+  async getStaffPerformance(branchId: string, periodStart: string, periodEnd: string): Promise<StaffPerformance[]> {
+    const at = this.effectiveSaleAt.sql('s');
+    const saleAccraDay = `(${at} AT TIME ZONE 'Africa/Accra')::date`;
+    const rows = await this.dataSource.query(`
+      SELECT
+        s.cashier_id AS staff_id, u.name AS staff_name,
+        COUNT(*)::int AS sales_count,
+        COALESCE(SUM(s.total_amount), 0)::int AS revenue
+      FROM sales s JOIN users u ON u.id = s.cashier_id
+      WHERE s.branch_id = $1 AND s.status = 'COMPLETED'
+        AND ${saleAccraDay} >= $2::date AND ${saleAccraDay} <= $3::date
+      GROUP BY s.cashier_id, u.name ORDER BY revenue DESC
+    `, [branchId, periodStart, periodEnd]);
+
+    return rows.map((r: any) => {
+      const rev = parseInt(r.revenue);
+      const cnt = parseInt(r.sales_count);
+      return {
+        staffId: r.staff_id, staffName: r.staff_name,
+        salesCount: cnt, revenuePesewas: rev,
+        revenueFormatted: this.fmt(rev),
+        averageSaleGhs: cnt > 0 ? rev / 100 / cnt : 0,
+      };
+    });
   }
 
   private fmt(pesewas: number): string {

@@ -304,6 +304,9 @@ export class StaffMemberOutput {
   @Field({ description: 'True when this staff member currently has an open session (on duty)' })
   is_on_duty!: boolean;
 
+  @Field({ nullable: true, description: 'Last activity timestamp from staff_sessions' })
+  last_seen_at?: Date;
+
   @Field({ description: 'ISO 8601 timestamp when the account was created' })
   created_at!: Date;
 }

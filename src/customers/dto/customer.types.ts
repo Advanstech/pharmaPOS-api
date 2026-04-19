@@ -216,3 +216,25 @@ export class CustomerOutput {
   @Field()
   createdAt!: Date;
 }
+
+
+@ObjectType({ description: 'A sale linked to a customer' })
+export class CustomerSaleOutput {
+  @Field(() => ID) id!: string;
+  @Field(() => Int) totalAmountPesewas!: number;
+  @Field() totalFormatted!: string;
+  @Field(() => Int) vatAmountPesewas!: number;
+  @Field() status!: string;
+  @Field() cashierName!: string;
+  @Field(() => Int) itemCount!: number;
+  @Field() createdAt!: Date;
+  @Field(() => [CustomerSaleItemOutput], { nullable: true }) items?: CustomerSaleItemOutput[];
+}
+
+@ObjectType({ description: 'An item in a customer sale' })
+export class CustomerSaleItemOutput {
+  @Field() productName!: string;
+  @Field(() => Int) quantity!: number;
+  @Field(() => Int) unitPricePesewas!: number;
+  @Field() classification!: string;
+}

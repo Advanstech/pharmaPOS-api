@@ -26,14 +26,12 @@ export class ExpenseService {
     receiptS3Key?: string,
   ): Promise<StaffExpenseOutput> {
     const [expense] = await this.dataSource.query(
-      `
-      INSERT INTO staff_expenses (
+      `INSERT INTO staff_expenses (
         id, branch_id, category, amount_pesewas, description, merchant_name,
         expense_date, receipt_s3_key, payment_method, status, created_by
       )
       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6::date, $7, $8, 'PENDING', $9)
-      RETURNING id
-    `,
+      RETURNING id`,
       [
         branchId,
         input.category,
@@ -57,8 +55,7 @@ export class ExpenseService {
    */
   async getExpenseById(expenseId: string): Promise<StaffExpenseOutput> {
     const [expense] = await this.dataSource.query(
-      `
-      SELECT 
+      `SELECT
         e.*,
         creator.name as created_by_name,
         approver.name as approved_by_name,
@@ -67,8 +64,7 @@ export class ExpenseService {
       JOIN users creator ON creator.id = e.created_by
       LEFT JOIN users approver ON approver.id = e.approved_by
       LEFT JOIN users reimburser ON reimburser.id = e.reimbursed_by
-      WHERE e.id = $1
-    `,
+      WHERE e.id = $1`,
       [expenseId],
     );
 
@@ -88,41 +84,39 @@ export class ExpenseService {
     startDate?: string,
     endDate?: string,
   ): Promise<StaffExpenseOutput[]> {
-    let query = `
-      SELECT 
-        e.*,
-        creator.name as created_by_name,
-        approver.name as approved_by_name,
-        reimburser.name as reimbursed_by_name
-      FROM staff_expenses e
-      JOIN users creator ON creator.id = e.created_by
-      LEFT JOIN users approver ON approver.id = e.approved_by
-      LEFT JOIN users reimburser ON reimburser.id = e.reimbursed_by
-      WHERE e.branch_id = $1
-    `;
-
+    const conditions = ['e.branch_id = $1'];
     const params: any[] = [branchId];
-    let paramIndex = 2;
+    let idx = 2;
 
     if (status) {
-      query += ` AND e.status = $${paramIndex}`;
+      conditions.push('e.status = $' + idx);
       params.push(status);
-      paramIndex++;
+      idx++;
     }
 
     if (startDate) {
-      query += ` AND e.expense_date >= $${paramIndex}::date`;
+      conditions.push('e.expense_date >= $' + idx + '::date');
       params.push(startDate);
-      paramIndex++;
+      idx++;
     }
 
     if (endDate) {
-      query += ` AND e.expense_date <= $${paramIndex}::date`;
+      conditions.push('e.expense_date <= $' + idx + '::date');
       params.push(endDate);
-      paramIndex++;
+      idx++;
     }
 
-    query += ` ORDER BY e.expense_date DESC, e.created_at DESC`;
+    const query = `SELECT
+      e.*,
+      creator.name as created_by_name,
+      approver.name as approved_by_name,
+      reimburser.name as reimbursed_by_name
+    FROM staff_expenses e
+    JOIN users creator ON creator.id = e.created_by
+    LEFT JOIN users approver ON approver.id = e.approved_by
+    LEFT JOIN users reimburser ON reimburser.id = e.reimbursed_by
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY e.expense_date DESC, e.created_at DESC`;
 
     const expenses = await this.dataSource.query(query, params);
 
@@ -145,21 +139,63 @@ export class ExpenseService {
     const newStatus = input.approve ? 'APPROVED' : 'REJECTED';
 
     await this.dataSource.query(
-      `
-      UPDATE staff_expenses
-      SET 
+      `UPDATE staff_expenses
+      SET
         status = $2,
         approved_by = $3,
         approved_at = NOW(),
         approval_notes = $4,
         reimbursement_method = $5,
         updated_at = NOW()
-      WHERE id = $1 AND status = 'PENDING'
-    `,
+      WHERE id = $1 AND status = 'PENDING'`,
       [input.expenseId, newStatus, approverId, input.notes || null, input.reimbursementMethod || null],
     );
 
     this.logger.log(`Expense ${input.expenseId} ${newStatus} by ${approverId}`);
+
+    // Post to general ledger when approved
+    if (newStatus === 'APPROVED') {
+      try {
+        const rows = await this.dataSource.query(
+          `SELECT branch_id, category, amount_pesewas, description FROM staff_expenses WHERE id = $1`,
+          [input.expenseId],
+        );
+        const expense = rows[0];
+
+        if (expense) {
+          // Map category to GL account code
+          const categoryAccounts: Record<string, { code: string; name: string }> = {
+            FUEL: { code: '5400', name: 'Fuel Expense' },
+            UTILITIES: { code: '5100', name: 'Utilities Expense' },
+            SUPPLIES: { code: '5900', name: 'Office Supplies' },
+            TRANSPORT: { code: '5400', name: 'Transport Expense' },
+            MEALS: { code: '5900', name: 'Meals & Entertainment' },
+            RENT: { code: '5200', name: 'Rent Expense' },
+            SALARIES: { code: '5300', name: 'Salaries Expense' },
+            MARKETING: { code: '5600', name: 'Marketing Expense' },
+            TRAINING: { code: '5700', name: 'Training Expense' },
+            MAINTENANCE: { code: '5500', name: 'Maintenance Expense' },
+            INSURANCE: { code: '5800', name: 'Insurance Expense' },
+            TAXES: { code: '5050', name: 'Taxes & Levies' },
+            OTHER: { code: '5900', name: 'Miscellaneous Expense' },
+          };
+          const acct = categoryAccounts[expense.category] ?? categoryAccounts.OTHER;
+
+          // Double-entry: Debit expense account, Credit cash
+          await this.dataSource.query(
+            `INSERT INTO general_ledger (id, branch_id, account_code, account_name, debit, credit, description, reference_type, reference_id, posted_at)
+            VALUES (gen_random_uuid(), $1, $2, $3, $4, 0, $5, 'EXPENSE', $6, NOW()),
+                   (gen_random_uuid(), $1, '1000', 'Cash', 0, $4, $5, 'EXPENSE', $6, NOW())`,
+            [expense.branch_id, acct.code, acct.name, expense.amount_pesewas, expense.description, input.expenseId],
+          );
+
+          this.logger.log(`GL posted for expense ${input.expenseId}: ${acct.code} debit ${expense.amount_pesewas}`);
+        }
+      } catch (glError) {
+        this.logger.warn(`GL posting failed for expense ${input.expenseId}: ${glError}`);
+        // Don't fail the approval if GL posting fails
+      }
+    }
 
     return this.getExpenseById(input.expenseId);
   }
@@ -178,17 +214,15 @@ export class ExpenseService {
     }
 
     await this.dataSource.query(
-      `
-      UPDATE staff_expenses
-      SET 
+      `UPDATE staff_expenses
+      SET
         status = 'REIMBURSED',
         reimbursement_method = $2,
         reimbursed_by = $3,
         reimbursed_at = NOW(),
         reimbursement_reference = $4,
         updated_at = NOW()
-      WHERE id = $1 AND status = 'APPROVED'
-    `,
+      WHERE id = $1 AND status = 'APPROVED'`,
       [input.expenseId, input.reimbursementMethod, reimburserId, input.reference || null],
     );
 
@@ -207,23 +241,20 @@ export class ExpenseService {
   ): Promise<ExpenseAnalyticsOutput> {
     // Total expenses
     const [totals] = await this.dataSource.query(
-      `
-      SELECT 
+      `SELECT
         COALESCE(SUM(amount_pesewas), 0) as total_pesewas,
         COUNT(*) as total_count
       FROM staff_expenses
       WHERE branch_id = $1
         AND expense_date >= $2::date
         AND expense_date <= $3::date
-        AND status != 'REJECTED'
-    `,
+        AND status != 'REJECTED'`,
       [branchId, startDate, endDate],
     );
 
     // By category
     const byCategory = await this.dataSource.query(
-      `
-      SELECT 
+      `SELECT
         category,
         SUM(amount_pesewas) as amount_pesewas,
         COUNT(*) as count
@@ -233,15 +264,13 @@ export class ExpenseService {
         AND expense_date <= $3::date
         AND status != 'REJECTED'
       GROUP BY category
-      ORDER BY amount_pesewas DESC
-    `,
+      ORDER BY amount_pesewas DESC`,
       [branchId, startDate, endDate],
     );
 
     // By staff
     const byStaff = await this.dataSource.query(
-      `
-      SELECT 
+      `SELECT
         e.created_by as staff_id,
         u.name as staff_name,
         SUM(e.amount_pesewas) as amount_pesewas,
@@ -253,28 +282,19 @@ export class ExpenseService {
         AND e.expense_date <= $3::date
         AND e.status != 'REJECTED'
       GROUP BY e.created_by, u.name
-      ORDER BY amount_pesewas DESC
-    `,
+      ORDER BY amount_pesewas DESC`,
       [branchId, startDate, endDate],
     );
 
     // Pending approval count
     const [pending] = await this.dataSource.query(
-      `
-      SELECT COUNT(*) as count
-      FROM staff_expenses
-      WHERE branch_id = $1 AND status = 'PENDING'
-    `,
+      `SELECT COUNT(*) as count FROM staff_expenses WHERE branch_id = $1 AND status = 'PENDING'`,
       [branchId],
     );
 
     // Pending reimbursement
     const [pendingReimbursement] = await this.dataSource.query(
-      `
-      SELECT COALESCE(SUM(amount_pesewas), 0) as amount
-      FROM staff_expenses
-      WHERE branch_id = $1 AND status = 'APPROVED'
-    `,
+      `SELECT COALESCE(SUM(amount_pesewas), 0) as amount FROM staff_expenses WHERE branch_id = $1 AND status = 'APPROVED'`,
       [branchId],
     );
 
@@ -316,7 +336,7 @@ export class ExpenseService {
       merchantName: expense.merchant_name,
       expenseDate: expense.expense_date,
       receiptUrl: expense.receipt_s3_key
-        ? `https://${process.env.AWS_S3_BUCKET}.s3.amazonaws.com/${expense.receipt_s3_key}`
+        ? 'https://' + (process.env.AWS_S3_BUCKET || 'receipts') + '.s3.amazonaws.com/' + expense.receipt_s3_key
         : undefined,
       ocrExtractedAmount: expense.ocr_extracted_amount ? parseInt(expense.ocr_extracted_amount) : undefined,
       paymentMethod: expense.payment_method,
@@ -337,6 +357,6 @@ export class ExpenseService {
    * Format currency (pesewas to GHS)
    */
   private formatCurrency(pesewas: number): string {
-    return `GH₵${(pesewas / 100).toFixed(2)}`;
+    return 'GH\u20B5' + (pesewas / 100).toFixed(2);
   }
 }

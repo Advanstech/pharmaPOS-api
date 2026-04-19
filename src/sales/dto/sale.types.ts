@@ -249,3 +249,21 @@ export class DailySummary {
   @Field(() => Float, { description: 'Average sale value in GHS (not pesewas). Example: `42.50`' })
   averageSaleGhs!: number;
 }
+
+
+// ── Refund Request Types ──────────────────────────────────────────────────────
+
+@ObjectType({ description: 'A refund request from a cashier/pharmacist awaiting manager approval' })
+export class RefundRequestOutput {
+  @Field(() => ID) id!: string;
+  @Field(() => ID) saleId!: string;
+  @Field() saleTotalFormatted!: string;
+  @Field() reason!: string;
+  @Field() status!: string;
+  @Field() requestedByName!: string;
+  @Field({ nullable: true }) reviewedByName?: string;
+  @Field({ nullable: true }) reviewNotes?: string;
+  @Field({ nullable: true }) reviewedAt?: Date;
+  @Field() createdAt!: Date;
+  @Field(() => Int) saleItemCount!: number;
+}

@@ -64,3 +64,34 @@ export class SupplierRestockWatch {
   @Field(() => [SupplierProductStockSignal])
   affectedProducts!: SupplierProductStockSignal[];
 }
+
+@ObjectType({ description: 'Product detail within a supplier context' })
+export class SupplierProductDetail {
+  @Field(() => ID) id!: string;
+  @Field() name!: string;
+  @Field({ nullable: true }) genericName?: string;
+  @Field({ nullable: true }) barcode?: string;
+  @Field(() => Int) unitPrice!: number;
+  @Field() classification!: string;
+  @Field() branchType!: string;
+  @Field() isActive!: boolean;
+  @Field(() => Int) quantityOnHand!: number;
+  @Field(() => Int) reorderLevel!: number;
+  @Field() stockStatus!: string;
+  @Field(() => Int) sold7d!: number;
+  @Field(() => Int) sold30d!: number;
+}
+
+@ObjectType({ description: 'Supplier with full product catalog' })
+export class SupplierWithProducts {
+  @Field(() => ID) id!: string;
+  @Field() name!: string;
+  @Field({ nullable: true }) contactName?: string;
+  @Field({ nullable: true }) phone?: string;
+  @Field({ nullable: true }) email?: string;
+  @Field({ nullable: true }) address?: string;
+  @Field(() => Int, { nullable: true }) aiScore?: number;
+  @Field() isActive!: boolean;
+  @Field(() => Int) totalProducts!: number;
+  @Field(() => [SupplierProductDetail]) products!: SupplierProductDetail[];
+}

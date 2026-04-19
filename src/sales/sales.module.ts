@@ -5,9 +5,10 @@ import { AuthModule } from '../auth/auth.module';
 import { PharmacyModule } from '../pharmacy/pharmacy.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AccountingModule } from '../accounting/accounting.module';
 
 @Module({
-  imports: [AuthModule, PharmacyModule, InventoryModule, NotificationsModule],
+  imports: [AuthModule, PharmacyModule, InventoryModule, NotificationsModule, AccountingModule],
   providers: [SalesService, SalesResolver],
   exports: [SalesService],
 })

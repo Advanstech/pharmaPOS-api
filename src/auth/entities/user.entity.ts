@@ -16,6 +16,12 @@ export class User {
   @Column()
   branch_id!: string;
 
+  @Field({ nullable: true, description: 'Branch display name (populated on login)' })
+  branch_name?: string;
+
+  @Field({ nullable: true, description: 'Branch type: pharmaceutical or chemical' })
+  branch_type?: string;
+
   @Field({ description: 'Full display name' })
   @Column()
   name!: string;

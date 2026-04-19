@@ -20,6 +20,7 @@ import { SalesEffectiveAtService } from './sales-effective-at.service';
 import { PharmacyService } from '../pharmacy/pharmacy.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EmailTemplates } from '../notifications/email-templates';
+import { GLPostingService } from '../accounting/gl-posting.service';
 
 interface ProductRow {
   id: string;
@@ -74,6 +75,7 @@ export class SalesService {
     private readonly effectiveSaleAt: SalesEffectiveAtService,
     private readonly pharmacy: PharmacyService,
     private readonly notifications: NotificationsService,
+    private readonly glPosting: GLPostingService,
   ) {}
 
   // ── Create sale ───────────────────────────────────────────────────────────
@@ -292,6 +294,39 @@ export class SalesService {
 
     this.logger.log(`Sale created: id=${saleId} total=${totalPesewas} by cashier=${actor.sub}`);
 
+    // ── GL Posting: Revenue + COGS ──────────────────────────────────────────
+    // Fire-and-forget — don't block the POS response
+    setImmediate(async () => {
+      try {
+        // Calculate COGS from latest supplier cost per product
+        let cogsPesewas = 0;
+        for (const item of input.items) {
+          const [costRow] = await this.dataSource.query(
+            `SELECT COALESCE(
+              (SELECT unit_cost_pesewas FROM product_cost_history
+               WHERE product_id = $1 ORDER BY observed_at DESC LIMIT 1),
+              (SELECT unit_price FROM products WHERE id = $1)
+            ) AS cost`,
+            [item.productId],
+          ) as Array<{ cost: number }>;
+          if (costRow) {
+            cogsPesewas += (costRow.cost || 0) * item.quantity;
+          }
+        }
+
+        await this.glPosting.postSaleCompleted({
+          branchId: actor.branchId,
+          saleId,
+          subtotalPesewas: subtotalPesewas,
+          vatPesewas: vatPesewas,
+          totalPesewas: totalPesewas,
+          cogsPesewas,
+        });
+      } catch (err) {
+        this.logger.warn('GL posting failed for sale ' + saleId + ': ' + err);
+      }
+    });
+
     // Send email receipt if customer has email
     if (input.customerId) {
       try {
@@ -504,6 +539,264 @@ export class SalesService {
     }
 
     return Promise.all(sales.map((s) => this.getSale(s.id, actor)));
+  }
+
+  // ── Refund sale ────────────────────────────────────────────────────────────
+
+  /**
+   * Refund a completed sale within 24 hours.
+   * RBAC: owner, se_admin, manager only (authorization required).
+   * Reverses inventory, creates stock movements, logs audit trail.
+   */
+  async refundSale(
+    saleId: string,
+    reason: string,
+    actor: JwtUser,
+  ): Promise<SaleOutput> {
+    // Only managers/owners can authorize refunds
+    const authorizedRoles = ['owner', 'se_admin', 'manager'];
+    if (!authorizedRoles.includes(actor.role)) {
+      throw new ForbiddenException('Only managers and owners can authorize refunds');
+    }
+
+    // Get the sale
+    const [sale] = await this.dataSource.query(
+      `SELECT id, branch_id, total_amount, vat_amount, status, created_at FROM sales WHERE id = $1`,
+      [saleId],
+    ) as Array<{ id: string; branch_id: string; total_amount: number; vat_amount: number; status: string; created_at: Date }>;
+
+    if (!sale) throw new NotFoundException(`Sale ${saleId} not found`);
+    if (sale.status !== 'COMPLETED') throw new BadRequestException(`Sale is already ${sale.status} — cannot refund`);
+
+    // Check 24-hour window
+    const hoursSinceSale = (Date.now() - new Date(sale.created_at).getTime()) / (1000 * 60 * 60);
+    if (hoursSinceSale > 24) {
+      throw new BadRequestException(
+        `Sale was ${Math.round(hoursSinceSale)} hours ago. Refunds are only allowed within 24 hours.`,
+      );
+    }
+
+    if (!reason || reason.trim().length < 5) {
+      throw new BadRequestException('A reason for the refund is required (minimum 5 characters)');
+    }
+
+    // Get sale items for inventory reversal
+    const items = await this.dataSource.query(
+      `SELECT si.product_id, si.quantity, p.name AS product_name
+       FROM sale_items si JOIN products p ON p.id = si.product_id
+       WHERE si.sale_id = $1`,
+      [saleId],
+    ) as Array<{ product_id: string; quantity: number; product_name: string }>;
+
+    // Transaction: update sale status + reverse inventory
+    await this.dataSource.transaction(async (em) => {
+      // 1. Mark sale as REFUNDED
+      await em.query(
+        `UPDATE sales SET status = 'REFUNDED', updated_at = NOW() WHERE id = $1`,
+        [saleId],
+      );
+
+      // 2. Reverse inventory for each item
+      for (const item of items) {
+        await em.query(
+          `UPDATE inventory SET quantity_on_hand = quantity_on_hand + $1, updated_at = NOW()
+           WHERE product_id = $2 AND branch_id = $3`,
+          [item.quantity, item.product_id, sale.branch_id],
+        );
+
+        // 3. Create stock movement record
+        await em.query(
+          `INSERT INTO stock_movements (id, product_id, branch_id, quantity, movement_type, reference_id, performed_by)
+           VALUES (gen_random_uuid(), $1, $2, $3, 'REFUND', $4, $5)`,
+          [item.product_id, sale.branch_id, item.quantity, saleId, actor.sub],
+        );
+      }
+
+      // 4. Audit log
+      await em.query(
+        `INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+         VALUES (gen_random_uuid(), $1, $2, 'SALE_REFUNDED', 'sale', $3, $4)`,
+        [
+          sale.branch_id,
+          actor.sub,
+          saleId,
+          JSON.stringify({
+            reason: reason.trim(),
+            totalRefunded: sale.total_amount,
+            vatRefunded: sale.vat_amount,
+            itemCount: items.length,
+            items: items.map(i => ({ productId: i.product_id, productName: i.product_name, quantity: i.quantity })),
+            hoursSinceSale: Math.round(hoursSinceSale * 10) / 10,
+            authorizedBy: actor.sub,
+          }),
+        ],
+      );
+    });
+
+    this.logger.log(`Sale refunded: sale=${saleId} by=${actor.sub} reason="${reason.trim()}"`);
+
+    // ── GL Reversal: Reverse revenue + COGS ─────────────────────────────────
+    setImmediate(async () => {
+      try {
+        let cogsPesewas = 0;
+        for (const item of items) {
+          const [costRow] = await this.dataSource.query(
+            `SELECT COALESCE(
+              (SELECT unit_cost_pesewas FROM product_cost_history
+               WHERE product_id = $1 ORDER BY observed_at DESC LIMIT 1),
+              (SELECT unit_price FROM products WHERE id = $1)
+            ) AS cost`,
+            [item.product_id],
+          ) as Array<{ cost: number }>;
+          if (costRow) {
+            cogsPesewas += (costRow.cost || 0) * item.quantity;
+          }
+        }
+
+        const subtotal = sale.total_amount - sale.vat_amount;
+        await this.glPosting.postSaleRefunded({
+          branchId: sale.branch_id,
+          saleId,
+          subtotalPesewas: subtotal,
+          vatPesewas: sale.vat_amount,
+          totalPesewas: sale.total_amount,
+          cogsPesewas,
+        });
+      } catch (err) {
+        this.logger.warn('GL reversal failed for refund ' + saleId + ': ' + err);
+      }
+    });
+
+    // Publish stock changes for real-time UI updates
+    for (const item of items) {
+      const [inv] = await this.dataSource.query(
+        `SELECT quantity_on_hand, reorder_level FROM inventory WHERE product_id = $1 AND branch_id = $2`,
+        [item.product_id, sale.branch_id],
+      ) as Array<{ quantity_on_hand: number; reorder_level: number }>;
+      if (inv) {
+        this.realtimeStock.publishStockChanged({
+          branchId: sale.branch_id,
+          productId: item.product_id,
+          quantityOnHand: inv.quantity_on_hand,
+          reorderLevel: inv.reorder_level,
+        });
+      }
+    }
+
+    return this.getSale(saleId, actor);
+  }
+
+  // ── Request Refund (cashier/pharmacist) ─────────────────────────────────
+
+  async requestRefund(saleId: string, reason: string, actor: JwtUser): Promise<any> {
+    const [sale] = await this.dataSource.query(
+      `SELECT id, branch_id, total_amount, status, created_at FROM sales WHERE id = $1`,
+      [saleId],
+    ) as Array<{ id: string; branch_id: string; total_amount: number; status: string; created_at: Date }>;
+
+    if (!sale) throw new NotFoundException(`Sale ${saleId} not found`);
+    if (sale.status !== 'COMPLETED') throw new BadRequestException(`Sale is ${sale.status} — cannot request refund`);
+
+    const hoursSince = (Date.now() - new Date(sale.created_at).getTime()) / (1000 * 60 * 60);
+    if (hoursSince > 24) throw new BadRequestException(`Sale was ${Math.round(hoursSince)} hours ago. Refunds only within 24 hours.`);
+    if (!reason || reason.trim().length < 5) throw new BadRequestException('Reason required (min 5 chars)');
+
+    // Check no existing pending request
+    const [existing] = await this.dataSource.query(
+      `SELECT id FROM refund_requests WHERE sale_id = $1 AND status = 'PENDING'`, [saleId],
+    ) as Array<{ id: string }>;
+    if (existing) throw new BadRequestException('A refund request is already pending for this sale');
+
+    const [req] = await this.dataSource.query(
+      `INSERT INTO refund_requests (id, sale_id, branch_id, requested_by, reason)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4) RETURNING id, created_at`,
+      [saleId, sale.branch_id, actor.sub, reason.trim()],
+    ) as Array<{ id: string; created_at: Date }>;
+
+    // Audit log
+    await this.dataSource.query(
+      `INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+       VALUES (gen_random_uuid(), $1, $2, 'REFUND_REQUESTED', 'sale', $3, $4)`,
+      [sale.branch_id, actor.sub, saleId, JSON.stringify({ reason: reason.trim(), requestId: req.id })],
+    );
+
+    return { id: req.id, saleId, status: 'PENDING', message: 'Refund request submitted. Awaiting manager approval.' };
+  }
+
+  // ── List Pending Refund Requests (manager/owner) ──────────────────────────
+
+  async listRefundRequests(actor: JwtUser): Promise<any[]> {
+    const rows = await this.dataSource.query(`
+      SELECT rr.*, u.name AS requested_by_name, s.total_amount,
+        (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = rr.sale_id)::int AS item_count,
+        ru.name AS reviewed_by_name
+      FROM refund_requests rr
+      JOIN users u ON u.id = rr.requested_by
+      JOIN sales s ON s.id = rr.sale_id
+      LEFT JOIN users ru ON ru.id = rr.reviewed_by
+      WHERE rr.branch_id = $1
+      ORDER BY CASE rr.status WHEN 'PENDING' THEN 0 ELSE 1 END, rr.created_at DESC
+      LIMIT 50
+    `, [actor.branchId]);
+
+    return rows.map((r: any) => ({
+      id: r.id,
+      saleId: r.sale_id,
+      saleTotalFormatted: `GH₵ ${(r.total_amount / 100).toFixed(2)}`,
+      reason: r.reason,
+      status: r.status,
+      requestedByName: r.requested_by_name,
+      reviewedByName: r.reviewed_by_name || null,
+      reviewNotes: r.review_notes || null,
+      reviewedAt: r.reviewed_at || null,
+      createdAt: r.created_at,
+      saleItemCount: r.item_count,
+    }));
+  }
+
+  // ── Approve Refund Request (manager/owner) ────────────────────────────────
+
+  async approveRefundRequest(requestId: string, notes: string, actor: JwtUser): Promise<any> {
+    const [req] = await this.dataSource.query(
+      `SELECT rr.*, s.id AS sale_id FROM refund_requests rr JOIN sales s ON s.id = rr.sale_id WHERE rr.id = $1`,
+      [requestId],
+    ) as Array<{ id: string; sale_id: string; status: string; reason: string }>;
+
+    if (!req) throw new NotFoundException('Refund request not found');
+    if (req.status !== 'PENDING') throw new BadRequestException(`Request is already ${req.status}`);
+
+    // Mark request as approved
+    await this.dataSource.query(
+      `UPDATE refund_requests SET status = 'APPROVED', reviewed_by = $2, review_notes = $3, reviewed_at = NOW() WHERE id = $1`,
+      [requestId, actor.sub, notes?.trim() || null],
+    );
+
+    // Execute the actual refund
+    return this.refundSale(req.sale_id, `Approved refund: ${req.reason}`, actor);
+  }
+
+  // ── Reject Refund Request ─────────────────────────────────────────────────
+
+  async rejectRefundRequest(requestId: string, notes: string, actor: JwtUser): Promise<boolean> {
+    const [req] = await this.dataSource.query(
+      `SELECT id, status, branch_id FROM refund_requests WHERE id = $1`, [requestId],
+    ) as Array<{ id: string; status: string; branch_id: string }>;
+
+    if (!req) throw new NotFoundException('Refund request not found');
+    if (req.status !== 'PENDING') throw new BadRequestException(`Request is already ${req.status}`);
+
+    await this.dataSource.query(
+      `UPDATE refund_requests SET status = 'REJECTED', reviewed_by = $2, review_notes = $3, reviewed_at = NOW() WHERE id = $1`,
+      [requestId, actor.sub, notes?.trim() || 'Rejected'],
+    );
+
+    await this.dataSource.query(
+      `INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+       VALUES (gen_random_uuid(), $1, $2, 'REFUND_REJECTED', 'refund_request', $3, $4)`,
+      [req.branch_id, actor.sub, requestId, JSON.stringify({ notes: notes?.trim() })],
+    );
+
+    return true;
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────

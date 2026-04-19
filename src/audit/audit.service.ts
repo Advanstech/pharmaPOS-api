@@ -803,8 +803,8 @@ export class AuditService {
     // Assuming withholding tax is tracked via general_ledger or we just flag payments > 200000
     const wht = await this.dataSource.query<{ above_threshold: string; without_wht: string }[]>(
       `SELECT
-         COUNT(CASE WHEN sp.amount > 200000 THEN 1 END) as above_threshold,
-         COUNT(CASE WHEN sp.amount > 200000 THEN 1 END) as without_wht -- placeholder until WHT is explicitly tracked
+         COUNT(CASE WHEN sp.amount_pesewas > 200000 THEN 1 END) as above_threshold,
+         COUNT(CASE WHEN sp.amount_pesewas > 200000 THEN 1 END) as without_wht
        FROM supplier_payments sp
        JOIN supplier_invoices si ON si.id = sp.invoice_id
        WHERE si.branch_id = $1 AND sp.paid_at BETWEEN $2 AND $3`,
@@ -1366,6 +1366,55 @@ export class AuditService {
         : 'No immediate actions required. Schedule next audit in 30 days.';
 
     return { auditorOpinion, opinionNarrative, immediateActionPlan };
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // STAFF ACTIVITY LOG
+  // ───────────────────────────────────────────────────────────────────────────
+
+  async getStaffActivityLog(userId: string, limit = 50): Promise<any[]> {
+    const rows = await this.dataSource.query(
+      `SELECT id, type, ip_address, metadata, created_at
+       FROM audit_logs
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [userId, limit],
+    );
+
+    return rows.map((r: any) => {
+      const meta = r.metadata || {};
+      // Build a human-readable operation label
+      let operation = meta.operation || '';
+      if (!operation) {
+        // Derive from audit type + metadata
+        switch (r.type) {
+          case 'STAFF_ACTIVITY': operation = meta.operation || 'Page view'; break;
+          case 'STOCK_RECEIVED': operation = `Received ${meta.quantity || ''} ${meta.productName || 'stock'}`; break;
+          case 'STOCK_ADJUSTED': operation = `Adjusted ${meta.delta > 0 ? '+' : ''}${meta.delta || ''} ${meta.reason || ''}`; break;
+          case 'SALE_COMPLETED': operation = 'Completed sale'; break;
+          case 'SALE_REFUNDED': operation = `Refunded sale — ${meta.reason || ''}`; break;
+          case 'GRN_CREATED_FROM_OCR': operation = `Invoice OCR — ${meta.item_count || 0} items`; break;
+          case 'STAFF_INVITED': operation = 'Invited new staff'; break;
+          case 'STAFF_DEACTIVATED': operation = 'Deactivated staff'; break;
+          case 'PASSWORD_RESET': operation = 'Reset password'; break;
+          case 'LOW_STOCK_ALERT_NOTIFICATION': operation = `Alert: ${meta.productName || 'Low stock'}`; break;
+          case 'PRICE_CHANGED': operation = `Price: ${meta.oldPrice || ''} → ${meta.newPrice || ''}`; break;
+          default: operation = r.type.replace(/_/g, ' ').toLowerCase();
+        }
+      }
+
+      return {
+        id: r.id,
+        type: r.type,
+        operation: operation.trim(),
+        operationType: meta.operationType || r.type,
+        ipAddress: r.ip_address || meta.ip_address,
+        durationMs: meta.durationMs || null,
+        error: meta.error || null,
+        createdAt: r.created_at,
+      };
+    });
   }
 
   // ───────────────────────────────────────────────────────────────────────────

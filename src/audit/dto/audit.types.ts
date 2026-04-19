@@ -380,3 +380,20 @@ export class InternalAuditReport {
   @Field({ description: 'Prioritised action plan — what the owner must do this week' })
   immediateActionPlan!: string;
 }
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STAFF ACTIVITY LOG
+// ─────────────────────────────────────────────────────────────────────────────
+
+@ObjectType({ description: 'A single staff activity entry from audit logs' })
+export class StaffActivityEntry {
+  @Field(() => ID) id!: string;
+  @Field() type!: string;
+  @Field({ nullable: true }) operation?: string;
+  @Field({ nullable: true }) operationType?: string;
+  @Field({ nullable: true }) ipAddress?: string;
+  @Field(() => Int, { nullable: true }) durationMs?: number;
+  @Field({ nullable: true }) error?: string;
+  @Field() createdAt!: Date;
+}

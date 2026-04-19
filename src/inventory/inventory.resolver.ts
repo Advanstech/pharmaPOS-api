@@ -22,6 +22,12 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import { RealtimeStockService, StockChangedEventPayload } from './realtime-stock.service';
 import { StockCountService } from './stock-count.service';
+import { StockTransferService } from './stock-transfer.service';
+import {
+  CreateStockTransferInput,
+  StockTransferOutput,
+  TransferStatus,
+} from './dto/stock-transfer.types';
 
 @Resolver()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -30,10 +36,11 @@ export class InventoryResolver {
     private readonly inventoryService: InventoryService,
     private readonly realtimeStock: RealtimeStockService,
     private readonly stockCountService: StockCountService,
+    private readonly stockTransferService: StockTransferService,
   ) {}
 
   @Query(() => [InventoryItem], { name: 'inventory' })
-  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician')
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician', 'cashier', 'chemical_cashier')
   inventory(@CurrentUser() actor: JwtUser): Promise<InventoryItem[]> {
     return this.inventoryService.listInventory(actor.branchId);
   }
@@ -45,7 +52,7 @@ export class InventoryResolver {
   }
 
   @Query(() => [StockMovementOutput], { name: 'stockMovements' })
-  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician')
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician', 'cashier', 'chemical_cashier')
   stockMovements(
     @Args('productId', { type: () => ID }) productId: string,
     @CurrentUser() actor: JwtUser,
@@ -184,5 +191,62 @@ export class InventoryResolver {
     @Args('branchId', { type: () => ID, nullable: true }) _branchId?: string,
   ): AsyncIterableIterator<{ stockChanged: StockChangedEventPayload }> {
     return this.realtimeStock.asyncIterator();
+  }
+
+  // ── Stock Transfers ─────────────────────────────────────────────────────
+
+  @Mutation(() => StockTransferOutput, { name: 'createStockTransfer' })
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist')
+  createStockTransfer(
+    @Args('input') input: CreateStockTransferInput,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<StockTransferOutput> {
+    return this.stockTransferService.createTransfer(input, actor);
+  }
+
+  @Mutation(() => StockTransferOutput, { name: 'approveStockTransfer' })
+  @Roles('owner', 'se_admin', 'manager')
+  approveStockTransfer(
+    @Args('transferId', { type: () => ID }) transferId: string,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<StockTransferOutput> {
+    return this.stockTransferService.approveTransfer(transferId, actor);
+  }
+
+  @Mutation(() => StockTransferOutput, { name: 'receiveStockTransfer' })
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician')
+  receiveStockTransfer(
+    @Args('transferId', { type: () => ID }) transferId: string,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<StockTransferOutput> {
+    return this.stockTransferService.receiveTransfer(transferId, actor);
+  }
+
+  @Mutation(() => StockTransferOutput, { name: 'cancelStockTransfer' })
+  @Roles('owner', 'se_admin', 'manager')
+  cancelStockTransfer(
+    @Args('transferId', { type: () => ID }) transferId: string,
+    @Args('reason') reason: string,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<StockTransferOutput> {
+    return this.stockTransferService.cancelTransfer(transferId, reason, actor);
+  }
+
+  @Query(() => [StockTransferOutput], { name: 'stockTransfers' })
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician')
+  listStockTransfers(
+    @CurrentUser() actor: JwtUser,
+    @Args('status', { type: () => TransferStatus, nullable: true }) status?: TransferStatus,
+  ): Promise<StockTransferOutput[]> {
+    return this.stockTransferService.listTransfers(actor.branchId, status);
+  }
+
+  @Query(() => StockTransferOutput, { name: 'stockTransfer' })
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician')
+  getStockTransfer(
+    @Args('id', { type: () => ID }) id: string,
+    @CurrentUser() _actor: JwtUser,
+  ): Promise<StockTransferOutput> {
+    return this.stockTransferService.getTransfer(id);
   }
 }

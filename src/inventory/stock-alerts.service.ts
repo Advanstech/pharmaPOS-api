@@ -47,7 +47,25 @@ export class StockAlertsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async processStockEvent(event: StockChangedEventPayload): Promise<void> {
-    if (event.stockStatus === 'ok') return;
+    // If stock is back to OK, resolve all open alerts for this product
+    if (event.stockStatus === 'ok') {
+      await this.dataSource.query(`
+        UPDATE audit_logs
+        SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{resolved}', 'true'::jsonb)
+        WHERE branch_id = $1
+          AND type = 'LOW_STOCK_ALERT_NOTIFICATION'
+          AND metadata->>'productId' = $2
+          AND (metadata->>'resolved' IS NULL OR metadata->>'resolved' = 'false')
+      `, [event.branchId, event.productId]);
+
+      // Clear cooldown cache so future low-stock events fire again
+      for (const status of ['low', 'critical', 'out'] as AlertStatus[]) {
+        await this.cache.del(`stock-alert:${event.branchId}:${event.productId}:${status}`);
+      }
+      this.logger.log(`Resolved stock alerts for product=${event.productId} branch=${event.branchId}`);
+      return;
+    }
+
     const status = event.stockStatus as AlertStatus;
 
     const cooldownKey = `stock-alert:${event.branchId}:${event.productId}:${status}`;

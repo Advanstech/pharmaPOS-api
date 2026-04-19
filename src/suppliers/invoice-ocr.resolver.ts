@@ -1,7 +1,7 @@
 import { Resolver, Mutation, Query, Args, ID } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+import { UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bullmq';
+import { Queue } from 'bull';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -22,6 +22,43 @@ import {
   PaymentStatus,
 } from './dto/invoice-ocr.types';
 
+const ALLOWED_INVOICE_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/x-pdf',
+  'image/png',
+  'image/x-png',
+  'image/jpeg',
+  'image/jpg',
+  'image/pjpeg',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'image/tiff',
+  'image/bmp',
+]);
+
+const ALLOWED_INVOICE_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.heic', '.heif', '.tif', '.tiff', '.bmp'];
+
+function isAllowedInvoiceFile(mimetype: string | undefined, filename: string | undefined): boolean {
+  const normalizedMime = (mimetype || '').toLowerCase();
+  const lowerFilename = (filename || '').toLowerCase();
+  const extensionAllowed = ALLOWED_INVOICE_EXTENSIONS.some((ext) => lowerFilename.endsWith(ext));
+  return ALLOWED_INVOICE_MIME_TYPES.has(normalizedMime) || extensionAllowed;
+}
+
+function inferMimeTypeFromFilename(filename: string | undefined): string {
+  const lower = (filename || '').toLowerCase();
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.heic')) return 'image/heic';
+  if (lower.endsWith('.heif')) return 'image/heif';
+  if (lower.endsWith('.tif') || lower.endsWith('.tiff')) return 'image/tiff';
+  if (lower.endsWith('.bmp')) return 'image/bmp';
+  return 'application/octet-stream';
+}
+
 @Resolver()
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class InvoiceOcrResolver {
@@ -36,18 +73,24 @@ export class InvoiceOcrResolver {
 
   @Mutation(() => UploadInvoiceResponse, { name: 'uploadSupplierInvoice' })
   @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician')
+  @UsePipes(new ValidationPipe({ whitelist: false, forbidNonWhitelisted: false }))
   async uploadSupplierInvoice(
     @Args('input') input: UploadSupplierInvoiceInput,
     @CurrentUser() actor: JwtUser,
   ): Promise<UploadInvoiceResponse> {
     // Upload file to S3
-    const file = await input.invoiceFile;
+    const file = await (input.invoiceFile ?? (input as unknown as { file?: Promise<any> }).file);
+    if (!file) {
+      throw new Error('No invoice file provided. Attach a PDF or image and try again.');
+    }
     const { createReadStream, filename, mimetype } = file;
+    const normalizedMime = (mimetype || inferMimeTypeFromFilename(filename)).toLowerCase();
 
     // Validate file type
-    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
-    if (!allowedTypes.includes(mimetype)) {
-      throw new Error(`Invalid file type: ${mimetype}. Allowed: PDF, PNG, JPG`);
+    if (!isAllowedInvoiceFile(normalizedMime, filename)) {
+      throw new Error(
+        `Invalid file type: ${normalizedMime}. Allowed: PDF and image files (JPG, JPEG, PNG, WEBP, HEIC, TIFF, BMP)`,
+      );
     }
 
     // Generate S3 key
@@ -55,12 +98,22 @@ export class InvoiceOcrResolver {
     const s3Key = `invoices/${actor.branchId}/${timestamp}-${filename}`;
 
     // Upload to S3
-    const stream = createReadStream();
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) {
-      chunks.push(chunk);
+    let buffer: Buffer;
+    if (typeof createReadStream === 'function') {
+      const stream = createReadStream();
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      buffer = Buffer.concat(chunks);
+    } else {
+      const fileWithPath = file as unknown as { _path?: string };
+      if (!fileWithPath._path) {
+        throw new Error('Invalid file upload payload: stream not available');
+      }
+      const { readFile } = await import('node:fs/promises');
+      buffer = await readFile(fileWithPath._path);
     }
-    const buffer = Buffer.concat(chunks);
     const fileSizeBytes = buffer.length;
 
     // Upload using S3 client directly
@@ -79,7 +132,7 @@ export class InvoiceOcrResolver {
         Bucket: bucket,
         Key: s3Key,
         Body: buffer,
-        ContentType: mimetype,
+        ContentType: normalizedMime,
       }),
     );
 
@@ -90,7 +143,7 @@ export class InvoiceOcrResolver {
       actor.branchId,
       input.supplierId || null,
       s3Key,
-      mimetype,
+      normalizedMime,
       fileSizeBytes,
       actor.sub,
     );
@@ -99,7 +152,7 @@ export class InvoiceOcrResolver {
     await this.ocrQueue.add('extract-invoice', {
       jobId,
       fileUrl,
-      fileType: mimetype,
+      fileType: normalizedMime,
       supplierId: input.supplierId || null,
       branchId: actor.branchId,
       createdBy: actor.sub,
@@ -132,7 +185,11 @@ export class InvoiceOcrResolver {
       status: job.status,
       progress: job.progress,
       ocrProvider: job.ocr_provider,
-      extractedData: job.extracted_data,
+      extractedData: job.extracted_data
+        ? (typeof job.extracted_data === 'string'
+            ? JSON.parse(job.extracted_data)
+            : job.extracted_data)
+        : null,
       confidenceScore: job.confidence_score,
       requiresReview: job.requires_review,
       errorMessage: job.error_message,
@@ -140,6 +197,7 @@ export class InvoiceOcrResolver {
       fileType: job.file_type,
       fileSizeBytes: job.file_size_bytes,
       supplierName: job.supplier_name,
+      supplierId: job.supplier_id,
       createdByName: job.created_by_name,
       createdAt: job.created_at,
       processingCompletedAt: job.processing_completed_at,

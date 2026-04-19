@@ -485,7 +485,9 @@ export class StaffService {
         EXISTS (
           SELECT 1 FROM staff_sessions ss
           WHERE ss.user_id = u.id AND ss.ended_at IS NULL
-        ) AS is_on_duty
+          AND ss.last_seen_at > NOW() - INTERVAL '30 minutes'
+        ) AS is_on_duty,
+        (SELECT MAX(ss.last_seen_at) FROM staff_sessions ss WHERE ss.user_id = u.id) AS last_seen_at
       FROM users u
       LEFT JOIN staff_profiles sp ON sp.user_id = u.id
       WHERE u.branch_id = $1
@@ -512,6 +514,7 @@ export class StaffService {
       salary_period: r.salary_period as string | undefined,
       bank_name: r.bank_name as string | undefined,
       is_on_duty: r.is_on_duty as boolean,
+      last_seen_at: r.last_seen_at as Date | undefined,
       created_at: r.created_at as Date,
     }));
   }
@@ -529,7 +532,9 @@ export class StaffService {
         EXISTS (
           SELECT 1 FROM staff_sessions ss
           WHERE ss.user_id = u.id AND ss.ended_at IS NULL
-        ) AS is_on_duty
+          AND ss.last_seen_at > NOW() - INTERVAL '30 minutes'
+        ) AS is_on_duty,
+        (SELECT MAX(ss.last_seen_at) FROM staff_sessions ss WHERE ss.user_id = u.id) AS last_seen_at
       FROM users u
       LEFT JOIN staff_profiles sp ON sp.user_id = u.id
       WHERE u.id = $1
@@ -557,6 +562,7 @@ export class StaffService {
       salary_period: r.salary_period as string | undefined,
       bank_name: r.bank_name as string | undefined,
       is_on_duty: r.is_on_duty as boolean,
+      last_seen_at: r.last_seen_at as Date | undefined,
       created_at: r.created_at as Date,
     };
   }

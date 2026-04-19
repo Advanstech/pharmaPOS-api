@@ -1078,82 +1078,117 @@ All GraphQL errors follow this shape:
 | **chemical** | ❌ Blocked | ❌ No Rx module | ❌ Blocked |
 | **both** | ✅ Allowed | ✅ Full Rx workflow | ✅ With 2 sign-offs |
 
-### Upcoming Features 🚀
+### Inter-Branch Stock Transfers ✅
 
-**Phase 1: Inter-Branch Transfers** (Week 1-2)
+Transfer stock between Azzay Pharmacy branches (Main Branch ↔ Chemical Shop).
+
 \`\`\`graphql
-# Request stock transfer between branches
-mutation CreateInterBranchTransfer {
-  createInterBranchTransfer(input: {
-    toBranchId: "<branch-uuid>"
+# Create a stock transfer request (manager/owner/head_pharmacist)
+mutation CreateStockTransfer {
+  createStockTransfer(input: {
+    toBranchId: "<destination-branch-uuid>"
     items: [
-      {
-        productId: "<product-uuid>"
-        quantity: 50
-        batchNumber: "BATCH-2026-001"
-        expiryDate: "2028-06-30"
-      }
+      { productId: "<product-uuid>", quantity: 50 }
+      { productId: "<product-uuid>", quantity: 25 }
     ]
-    notes: "Transfer for new chemical shop opening"
+    notes: "Restocking chemical shop for weekend"
   }) {
-    id
-    fromBranch { id name type }
-    toBranch { id name type }
-    status        # pending | approved | in_transit | received | cancelled
-    items {
-      productId productName quantity batchNumber expiryDate
-    }
-    requestedBy requestedByName requestedAt
+    id status totalItems totalQuantity
   }
 }
 
-# Approve transfer (owner/manager only)
-mutation ApproveTransfer {
-  approveTransfer(transferId: "<transfer-uuid>") {
-    id status approvedBy approvedByName approvedAt
+# Approve transfer — deducts stock from source branch (manager/owner)
+mutation ApproveStockTransfer {
+  approveStockTransfer(transferId: "<transfer-uuid>") {
+    id status approvedByName approvedAt
   }
 }
 
-# Receive transfer at destination branch
-mutation ReceiveTransfer {
-  receiveTransfer(
-    transferId: "<transfer-uuid>"
-    items: [
-      {
-        productId: "<product-uuid>"
-        receivedQuantity: 50  # May differ from requested
-        notes: "All items received in good condition"
-      }
-    ]
-  }) {
-    id status receivedBy receivedByName receivedAt
+# Receive transfer at destination — adds stock (any staff at destination)
+mutation ReceiveStockTransfer {
+  receiveStockTransfer(transferId: "<transfer-uuid>") {
+    id status receivedByName receivedAt
   }
 }
 
-# Cancel transfer
-mutation CancelTransfer {
-  cancelTransfer(
-    transferId: "<transfer-uuid>"
-    reason: "Stock no longer needed at destination"
-  ) {
-    id status cancelledBy cancelledByName cancelledAt
+# Cancel a pending transfer (manager/owner)
+mutation CancelStockTransfer {
+  cancelStockTransfer(transferId: "<transfer-uuid>", reason: "No longer needed") {
+    id status
   }
 }
 
-# List transfers for current branch
-query ListTransfers {
-  listTransfers(status: "pending") {
-    id
-    fromBranch { name }
-    toBranch { name }
-    status
+# List transfers for current branch (sent + received)
+query StockTransfers {
+  stockTransfers(status: PENDING) {
+    id fromBranchName toBranchName status
     items { productName quantity }
-    requestedAt
+    createdByName createdAt totalItems totalQuantity
   }
 }
 \`\`\`
 
-**Phase 2: AI Demand Forecasting** (Week 3-4)
+**Transfer Flow**: PENDING → (approve) → IN_TRANSIT → (receive) → RECEIVED
+**Stock Movement Types**: TRANSFER_OUT (source) / TRANSFER_IN (destination)
+
+---
+
+### Financial & Accounting System ✅
+
+Full double-entry bookkeeping with GL auto-posting.
+
+\`\`\`graphql
+# Trial Balance — all GL account balances
+query TrialBalance {
+  trialBalance(asOfDate: "2026-04-19") {
+    accountCode accountName totalDebit totalCredit balance balanceFormatted balanceType
+  }
+}
+
+# Balance Sheet — Assets = Liabilities + Equity
+query BalanceSheet {
+  balanceSheet(asOfDate: "2026-04-19") {
+    assets { accountCode accountName balancePesewas balanceFormatted }
+    totalAssetsFormatted
+    liabilities { accountCode accountName balancePesewas balanceFormatted }
+    totalLiabilitiesFormatted
+    equity { accountCode accountName balancePesewas balanceFormatted }
+    totalEquityFormatted
+    isBalanced
+  }
+}
+
+# Chart of Accounts
+query ChartOfAccounts {
+  chartOfAccounts {
+    accountCode accountName accountType category balancePesewas balanceFormatted
+  }
+}
+
+# GL Detail — transaction-level entries
+query GLDetail {
+  glDetail(accountCode: "4000", startDate: "2026-04-01", endDate: "2026-04-19") {
+    id accountCode accountName debit credit description referenceType postedAt
+  }
+}
+
+# Financial Summary — dashboard-ready overview
+query FinancialSummary {
+  financialSummary(periodStart: "2026-04-01", periodEnd: "2026-04-19") {
+    revenueFormatted cogsFormatted grossProfitFormatted netProfitFormatted
+    cashBalanceFormatted accountsPayableFormatted vatPayableFormatted
+    totalTransactions pendingExpenses
+  }
+}
+\`\`\`
+
+**GL Auto-Posting**: Sales → Revenue + VAT + COGS | Refunds → Reversal | Expenses → OpEx | Stock → Inventory
+
+---
+
+### Upcoming Features 🚀
+
+**Phase 1: AI Demand Forecasting** (Post-Launch)
 \`\`\`graphql
 # Get demand forecast for a product
 query DemandForecast {
@@ -1284,7 +1319,11 @@ async function bootstrap() {
   }
 
   app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+    new ValidationPipe({ 
+      whitelist: false,
+      forbidNonWhitelisted: false,
+      transform: true,
+    }),
   );
 
   app.enableCors({

@@ -22,58 +22,18 @@ export class ExpenseResolver {
   // ── Create Expense ────────────────────────────────────────────────────────
 
   @Mutation(() => StaffExpenseOutput, { name: 'createStaffExpense' })
-  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician', 'cashier')
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician', 'cashier', 'chemical_cashier')
   async createStaffExpense(
     @Args('input') input: CreateStaffExpenseInput,
     @CurrentUser() actor: JwtUser,
   ): Promise<StaffExpenseOutput> {
-    let receiptS3Key: string | undefined;
-
-    // Handle receipt upload if provided
-    if (input.receiptImage) {
-      const file = await input.receiptImage;
-      const { createReadStream, filename } = file;
-
-      // Generate S3 key
-      const timestamp = Date.now();
-      receiptS3Key = `expenses/${actor.branchId}/${timestamp}-${filename}`;
-
-      // Upload to S3 (simplified - in production use proper S3 service)
-      const stream = createReadStream();
-      const chunks: Buffer[] = [];
-      for await (const chunk of stream) {
-        chunks.push(chunk);
-      }
-      const buffer = Buffer.concat(chunks);
-
-      // Upload using S3 client
-      const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
-      const s3Client = new S3Client({
-        region: process.env.AWS_REGION || 'us-east-1',
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-        },
-      });
-
-      const bucket = process.env.AWS_S3_BUCKET || 'pharmapos-images';
-      await s3Client.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: receiptS3Key,
-          Body: buffer,
-          ContentType: file.mimetype,
-        }),
-      );
-    }
-
-    return this.expenseService.createExpense(input, actor.branchId, actor.sub, receiptS3Key);
+    return this.expenseService.createExpense(input, actor.branchId, actor.sub, input.receiptS3Key);
   }
 
   // ── Get Expense ───────────────────────────────────────────────────────────
 
   @Query(() => StaffExpenseOutput, { name: 'staffExpense' })
-  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician', 'cashier')
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician', 'cashier', 'chemical_cashier')
   async getStaffExpense(
     @Args('id', { type: () => ID }) id: string,
     @CurrentUser() _actor: JwtUser,
@@ -84,7 +44,7 @@ export class ExpenseResolver {
   // ── Get Expenses ──────────────────────────────────────────────────────────
 
   @Query(() => [StaffExpenseOutput], { name: 'staffExpenses' })
-  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician', 'cashier')
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician', 'cashier', 'chemical_cashier')
   async getStaffExpenses(
     @Args('status', { type: () => ExpenseStatus, nullable: true }) status: ExpenseStatus | undefined,
     @Args('startDate', { type: () => String, nullable: true }) startDate: string | undefined,

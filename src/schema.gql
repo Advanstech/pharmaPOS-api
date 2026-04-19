@@ -131,12 +131,58 @@ type AuthPayload {
   user: User!
 }
 
+type BalanceSheetLineOutput {
+  accountCode: String!
+  accountName: String!
+  balanceFormatted: String!
+  balancePesewas: Int!
+}
+
+type BalanceSheetOutput {
+  asOfDate: String!
+  assets: [BalanceSheetLineOutput!]!
+  equity: [BalanceSheetLineOutput!]!
+  isBalanced: Boolean!
+  liabilities: [BalanceSheetLineOutput!]!
+  totalAssetsFormatted: String!
+  totalAssetsPesewas: Int!
+  totalEquityFormatted: String!
+  totalEquityPesewas: Int!
+  totalLiabilitiesFormatted: String!
+  totalLiabilitiesPesewas: Int!
+}
+
+input BankDetailsInput {
+  accountName: String
+  accountNumber: String
+  bankName: String
+  branch: String
+  sortCode: String
+  swiftCode: String
+}
+
+"""A branch of the organization"""
+type BranchOutput {
+  address: String
+  id: ID!
+  isActive: Boolean!
+  name: String!
+  phone: String
+  type: String!
+}
+
 """
 Update prices for multiple products in a single atomic transaction. All updates succeed or all fail. Requires role: owner or manager.
 """
 input BulkUpdatePriceInput {
   """Array of price updates. Maximum 100 products per bulk update."""
   updates: [UpdatePriceInput!]!
+}
+
+input CardDetailsInput {
+  instructions: String
+  merchantId: String
+  paymentLink: String
 }
 
 """
@@ -173,6 +219,15 @@ type CashFlowForecast {
 
   """Human-readable explanation of the recommendation"""
   recommendationReason: String!
+}
+
+"""Sales breakdown by product classification"""
+type CategoryBreakdown {
+  classification: String!
+  revenueFormatted: String!
+  revenuePesewas: Int!
+  salesCount: Int!
+  unitsSold: Int!
 }
 
 """
@@ -217,6 +272,15 @@ type CfoBriefing {
   totalPayablesPesewas: Int!
   vatCompliance: VatComplianceReport!
   workingCapital: WorkingCapitalReport!
+}
+
+type ChartOfAccountsEntry {
+  accountCode: String!
+  accountName: String!
+  accountType: String!
+  balanceFormatted: String!
+  balancePesewas: Int!
+  category: String!
 }
 
 """Complete a stock count session"""
@@ -484,7 +548,9 @@ input CreateStaffExpenseInput {
   expenseDate: String!
   merchantName: String
   paymentMethod: ExpensePaymentMethod!
-  receiptImage: Upload
+
+  """Receipt S3 key (uploaded separately)"""
+  receiptS3Key: String
 }
 
 """Create a new stock count session (cycle counting)"""
@@ -496,22 +562,24 @@ input CreateStockCountInput {
   productIds: [ID!]
 }
 
-"""Create a new supplier. Requires role: owner or manager."""
+input CreateStockTransferInput {
+  items: [TransferItemInput!]!
+  notes: String
+
+  """Destination branch ID"""
+  toBranchId: ID!
+}
+
+"""Create a new supplier"""
 input CreateSupplierInput {
-  """Physical or postal address"""
   address: String
-
-  """Primary contact person name"""
   contactName: String
-
-  """Contact email address"""
   email: String
-
-  """Supplier trading name"""
   name: String!
-
-  """Contact phone number (Ghana format preferred)"""
+  paymentInstructions: PaymentInstructionsInput
   phone: String
+  tin: String
+  website: String
 }
 
 """
@@ -558,11 +626,41 @@ type CustomerOutput {
   sex: CustomerSex
 }
 
+"""An item in a customer sale"""
+type CustomerSaleItemOutput {
+  classification: String!
+  productName: String!
+  quantity: Int!
+  unitPricePesewas: Int!
+}
+
+"""A sale linked to a customer"""
+type CustomerSaleOutput {
+  cashierName: String!
+  createdAt: DateTime!
+  id: ID!
+  itemCount: Int!
+  items: [CustomerSaleItemOutput!]
+  status: String!
+  totalAmountPesewas: Int!
+  totalFormatted: String!
+  vatAmountPesewas: Int!
+}
+
 enum CustomerSex {
   FEMALE
   MALE
   OTHER
   PREFER_NOT_TO_SAY
+}
+
+"""Daily revenue data point for trend charts"""
+type DailyRevenuePoint {
+  date: String!
+  refundsPesewas: Int!
+  revenueFormatted: String!
+  revenuePesewas: Int!
+  salesCount: Int!
 }
 
 """Aggregated sales summary for a single day"""
@@ -855,6 +953,46 @@ type FinancialRatio {
   value: String!
 }
 
+type FinancialSummaryOutput {
+  accountsPayableFormatted: String!
+  accountsPayablePesewas: Int!
+  cashBalanceFormatted: String!
+  cashBalancePesewas: Int!
+  cogsFormatted: String!
+  cogsPesewas: Int!
+  grossMarginPct: Float!
+  grossProfitFormatted: String!
+  grossProfitPesewas: Int!
+  inventoryValueFormatted: String!
+  inventoryValuePesewas: Int!
+  netMarginPct: Float!
+  netProfitFormatted: String!
+  netProfitPesewas: Int!
+  operatingExpensesFormatted: String!
+  operatingExpensesPesewas: Int!
+  pendingExpenses: Int!
+  periodEnd: String!
+  periodStart: String!
+  revenueFormatted: String!
+  revenuePesewas: Int!
+  totalExpenses: Int!
+  totalTransactions: Int!
+  vatPayableFormatted: String!
+  vatPayablePesewas: Int!
+}
+
+type GLDetailRowOutput {
+  accountCode: String!
+  accountName: String!
+  credit: Int!
+  debit: Int!
+  description: String!
+  id: ID!
+  postedAt: DateTime!
+  referenceId: String!
+  referenceType: String!
+}
+
 """A single product line on a GRN"""
 input GRNItemInput {
   """Batch/lot number from supplier"""
@@ -933,6 +1071,13 @@ type GmdcValidationResult {
   true if the licence is valid and active. false throws GMDC_INVALID_LICENCE. If the GMDC API is unreachable, returns true with a warning log — never blocks due to outage.
   """
   valid: Boolean!
+}
+
+"""Hourly sales distribution for heatmap"""
+type HourlySalesPoint {
+  hour: Int!
+  revenuePesewas: Int!
+  salesCount: Int!
 }
 
 """
@@ -1108,6 +1253,12 @@ type InventoryItem {
 
   """Supplier trading name"""
   supplierName: String
+
+  """Formatted selling price. Example: GH₵12.50"""
+  unitPriceFormatted: String
+
+  """Selling price in GHS pesewas"""
+  unitPricePesewas: Int
 }
 
 """
@@ -1285,6 +1436,9 @@ type InvoiceOcrJob {
   """Processing status"""
   status: OcrStatus!
 
+  """Matched supplier UUID when available"""
+  supplierId: ID
+
   """Supplier name"""
   supplierName: String
 }
@@ -1355,12 +1509,23 @@ input MatchSupplierInvoiceInput {
   notes: String
 }
 
+input MomoDetailsInput {
+  accountName: String
+  network: String
+  number: String
+}
+
 type Mutation {
   adjustStock(input: AdjustStockInput!): InventoryItem!
   approveExpense(input: ApproveExpenseInput!): ExpenseOutput!
+
+  """Manager approves a refund request — executes the refund."""
+  approveRefundRequest(notes: String, requestId: ID!): SaleOutput!
   approveStaffExpense(input: ApproveStaffExpenseInput!): StaffExpenseOutput!
+  approveStockTransfer(transferId: ID!): StockTransferOutput!
   bulkUpdateProductPrices(input: BulkUpdatePriceInput!): [PriceUpdateResult!]!
   cancelStockCount(sessionId: ID!): Boolean!
+  cancelStockTransfer(reason: String!, transferId: ID!): StockTransferOutput!
   completeStockCount(input: CompleteStockCountInput!): StockCountSessionOutput!
   confirmOcrInvoice(input: ConfirmOcrInvoiceInput!): ConfirmInvoiceResponse!
   createCustomer(input: CreateCustomerInput!): CustomerOutput!
@@ -1371,6 +1536,7 @@ type Mutation {
   createSale(input: CreateSaleInput!): SaleOutput!
   createStaffExpense(input: CreateStaffExpenseInput!): StaffExpenseOutput!
   createStockCount(input: CreateStockCountInput!): StockCountSessionOutput!
+  createStockTransfer(input: CreateStockTransferInput!): StockTransferOutput!
   createSupplier(input: CreateSupplierInput!): Supplier!
 
   """Deactivate a product (soft delete). Owner only."""
@@ -1379,19 +1545,34 @@ type Mutation {
   deleteOcrColumnMappingPreset(presetId: ID!): Boolean!
   deleteProductImage(imageId: String!): Boolean!
   deleteSupplier(id: String!): Boolean!
+  deleteSupplierWithProducts(id: String!): Boolean!
   ingestSupplierInvoiceOcr(input: IngestSupplierInvoiceOcrInput!): InvoiceOcrIngestionResult!
   inviteStaff(input: InviteStaffInput!): InviteStaffResult!
   login(input: LoginInput!): AuthPayload!
   logout: Boolean!
   matchSupplierInvoice(input: MatchSupplierInvoiceInput!): SupplierInvoiceOutput!
+  reactivateSupplier(id: String!): Boolean!
   receiveStock(input: ReceiveStockInput!): InventoryItem!
-  recordSupplierPayment(input: RecordSupplierPaymentInput!): SupplierInvoiceOutput!
+  receiveStockTransfer(transferId: ID!): StockTransferOutput!
+  recordSupplierPayment(input: RecordSupplierPaymentInput!): EnhancedSupplierInvoice!
   refreshToken(token: String!): AuthPayload!
+
+  """
+  Refund a completed sale within 24 hours. Reverses inventory. Requires manager/owner authorization.
+  """
+  refundSale(reason: String!, saleId: ID!): SaleOutput!
   register(input: RegisterInput!): AuthPayload!
   reimburseStaffExpense(input: ReimburseExpenseInput!): StaffExpenseOutput!
+
+  """Manager rejects a refund request."""
+  rejectRefundRequest(notes: String!, requestId: ID!): Boolean!
+
+  """Cashier/pharmacist requests a refund. Manager must approve."""
+  requestRefund(reason: String!, saleId: ID!): RefundRequestOutput!
   resetStaffPassword(input: ResetStaffPasswordInput!): Boolean!
   setPrimaryProductImage(imageId: String!, productId: String!): Boolean!
   setUsdExchangeRate(input: SetExchangeRateInput!): ExchangeRate!
+  suspendSupplier(id: String!): Boolean!
   updateCustomer(input: UpdateCustomerInput!): CustomerOutput!
 
   """Update product fields. Price changes tracked in cost history."""
@@ -1439,16 +1620,19 @@ type OcrColumnMappingPresetOutput {
 """OCR extracted invoice data"""
 type OcrExtractedData {
   """Overall OCR confidence (0-100)"""
-  confidence: Int!
+  confidence: Int
+
+  """Due date (YYYY-MM-DD) if present on invoice"""
+  dueDate: String
 
   """Invoice date"""
-  invoiceDate: String!
+  invoiceDate: String
 
   """Invoice number"""
-  invoiceNumber: String!
+  invoiceNumber: String
 
   """Invoice items"""
-  items: [OcrInvoiceItem!]!
+  items: [OcrInvoiceItem!]
 
   """Raw OCR text"""
   rawText: String
@@ -1460,13 +1644,13 @@ type OcrExtractedData {
   supplierAddress: String
 
   """Supplier name"""
-  supplierName: String!
+  supplierName: String
 
   """Supplier phone"""
   supplierPhone: String
 
   """Total amount in pesewas"""
-  totalAmount: Int!
+  totalAmount: Int
 
   """VAT in pesewas"""
   vat: Int
@@ -1474,11 +1658,17 @@ type OcrExtractedData {
 
 """OCR extracted invoice item"""
 type OcrInvoiceItem {
+  """Batch number if present on invoice line"""
+  batchNumber: String
+
   """OCR confidence for this item (0-100)"""
-  confidence: Int!
+  confidence: Int
 
   """Product description from invoice"""
-  description: String!
+  description: String
+
+  """Expiry date (YYYY-MM-DD) if present on invoice line"""
+  expiryDate: String
 
   """Image confidence score"""
   imageConfidence: Int
@@ -1490,16 +1680,16 @@ type OcrInvoiceItem {
   matches: [ProductMatch!]
 
   """Quantity"""
-  quantity: Int!
+  quantity: Int
 
   """Suggested product image URL"""
   suggestedImageUrl: String
 
   """Total price in pesewas"""
-  totalPrice: Int!
+  totalPrice: Int
 
   """Unit price in pesewas"""
-  unitPrice: Int!
+  unitPrice: Int
 }
 
 """Invoice OCR processing status"""
@@ -1508,6 +1698,17 @@ enum OcrStatus {
   FAILED
   PENDING
   PROCESSING
+}
+
+input PaymentInstructionsInput {
+  acceptedMethods: [SupplierPaymentMethod!]
+  bankDetails: BankDetailsInput
+  cardDetails: CardDetailsInput
+  momoDetails: MomoDetailsInput
+  notes: String
+  paymentTerms: String
+  preferredMethod: String
+  tin: String
 }
 
 """Invoice payment status"""
@@ -1778,16 +1979,16 @@ type ProductInventoryType {
 """Product match result"""
 type ProductMatch {
   """Match reason"""
-  matchReason: String!
+  matchReason: String
 
   """Match score (0-100)"""
-  matchScore: Int!
+  matchScore: Int
 
   """Product UUID"""
-  productId: ID!
+  productId: ID
 
   """Product name"""
-  productName: String!
+  productName: String
 }
 
 """Profitability analysis for a single product"""
@@ -1929,10 +2130,20 @@ type ProfitLossStatement {
 
 type Query {
   accountingWorkbook(periodEnd: String!, periodStart: String!): AccountingWorkbookExport!
+  balanceSheet(asOfDate: String): BalanceSheetOutput!
+
+  """List all active branches in the organization"""
+  branches: [BranchOutput!]!
   cashFlowForecast: CashFlowForecast!
+  categoryBreakdown(periodEnd: String!, periodStart: String!): [CategoryBreakdown!]!
   cfoBriefing: CfoBriefing!
+  chartOfAccounts: [ChartOfAccountsEntry!]!
   currentExchangeRate: ExchangeRate
   customer(id: ID!): CustomerOutput!
+
+  """Sales history for a customer"""
+  customerSales(customerId: ID!, limit: Int): [CustomerSaleOutput!]!
+  dailyRevenueTrend(periodEnd: String!, periodStart: String!): [DailyRevenuePoint!]!
   dailySummary(date: String): DailySummary!
   dashboardKpis: DashboardKpis!
 
@@ -1946,10 +2157,13 @@ type Query {
   Financial integrity audit — revenue reconciliation, void/refund analysis, cash dominance, duplicate invoices, expense fraud signals, GL integrity. RBAC: owner, se_admin only.
   """
   financialIntegrityAudit(input: AuditPeriodInput!): FinancialIntegrityAudit!
+  financialSummary(periodEnd: String!, periodStart: String!): FinancialSummaryOutput!
 
   """Get all images for a product"""
   getProductImages(productId: String!): [ProductImageType!]!
+  glDetail(accountCode: String, endDate: String, startDate: String): [GLDetailRowOutput!]!
   grn(id: ID!): GRNOutput!
+  hourlySales(periodEnd: String!, periodStart: String!): [HourlySalesPoint!]!
 
   """
   Full internal audit report — Ghana FDA compliance, GRA tax, financial integrity, inventory integrity, licence compliance, staff behaviour profiling, and risk matrix. RBAC: owner and se_admin only.
@@ -1989,6 +2203,9 @@ type Query {
   productPriceHistory(limit: Int! = 20, productId: String!): [PriceHistory!]!
   profitLoss(periodEnd: String!, periodStart: String!): ProfitLossStatement!
   recentSales(limit: Float): [SaleOutput!]!
+
+  """List refund requests for the branch. Pending first."""
+  refundRequests: [RefundRequestOutput!]!
   revenueIntelligence: RevenueIntelligence!
   revenueReport(periodEnd: String!, periodStart: String!): RevenueReport!
   sale(id: ID!): SaleOutput!
@@ -2006,6 +2223,9 @@ type Query {
     query: String!
   ): [ProductType!]!
 
+  """Recent activity log for a staff member — pages visited, actions taken."""
+  staffActivityLog(limit: Int, userId: ID!): [StaffActivityEntry!]!
+
   """
   Deep-dive behavioural profile for a single staff member. Ghana DPA 2012: user IDs only — no names in findings. RBAC: owner, se_admin only.
   """
@@ -2018,6 +2238,7 @@ type Query {
   staffExpense(id: ID!): StaffExpenseOutput!
   staffExpenses(endDate: String, startDate: String, status: ExpenseStatus): [StaffExpenseOutput!]!
   staffMember(userId: ID!): StaffMemberOutput!
+  staffPerformance(periodEnd: String!, periodStart: String!): [StaffPerformance!]!
   staffSessionHistory(
     branchId: ID
 
@@ -2032,12 +2253,15 @@ type Query {
   stockCountItems(sessionId: ID!): [StockCountItemOutput!]!
   stockCountSession(id: ID!): StockCountSessionOutput!
   stockMovements(limit: Int, productId: ID!): [StockMovementOutput!]!
+  stockTransfer(id: ID!): StockTransferOutput!
+  stockTransfers(status: TransferStatus): [StockTransferOutput!]!
   subscriptionOverview: SubscriptionOverview!
   supplier(id: String!): Supplier!
   supplierCreditSummary(supplierId: ID!): SupplierCreditSummary!
   supplierInvoice(id: ID!): EnhancedSupplierInvoice!
   supplierInvoices(supplierId: ID): [SupplierInvoiceOutput!]!
   supplierRestockWatch: [SupplierRestockWatch!]!
+  supplierWithProducts(id: String!): SupplierWithProducts!
   suppliers: [Supplier!]!
 
   """
@@ -2045,6 +2269,7 @@ type Query {
   """
   taxComplianceAudit(input: AuditPeriodInput!): TaxComplianceAudit!
   topProducts(limit: Float, periodEnd: String!, periodStart: String!): [TopProduct!]!
+  trialBalance(asOfDate: String): [TrialBalanceRowOutput!]!
   validateGmdcLicence(licenceNo: String!): GmdcValidationResult!
   vatCompliance(month: Float, year: Float): VatComplianceReport!
   workingCapital: WorkingCapitalReport!
@@ -2072,19 +2297,37 @@ input ReceiveStockInput {
   quantity: Int!
 }
 
-"""Record a payment to a supplier against an invoice"""
+"""Record supplier payment"""
 input RecordSupplierPaymentInput {
-  """Amount paid in GHS pesewas"""
+  """Payment amount in pesewas"""
   amountPesewas: Int!
 
-  """UUID of the supplier invoice being paid"""
+  """Invoice ID"""
   invoiceId: ID!
 
-  """Payment method. Example: CASH, MTN_MOMO, BANK_TRANSFER"""
+  """Payment notes"""
+  notes: String
+
+  """Payment method"""
   paymentMethod: String!
 
-  """Payment reference (MoMo transaction ID, bank reference, cheque number)"""
+  """Payment reference (MoMo ref, bank ref, cheque no)"""
   reference: String
+}
+
+"""A refund request from a cashier/pharmacist awaiting manager approval"""
+type RefundRequestOutput {
+  createdAt: DateTime!
+  id: ID!
+  reason: String!
+  requestedByName: String!
+  reviewNotes: String
+  reviewedAt: DateTime
+  reviewedByName: String
+  saleId: ID!
+  saleItemCount: Int!
+  saleTotalFormatted: String!
+  status: String!
 }
 
 """Register a new user account within a branch"""
@@ -2351,6 +2594,18 @@ input SetExchangeRateInput {
   usdToGhsRate: Float!
 }
 
+"""A single staff activity entry from audit logs"""
+type StaffActivityEntry {
+  createdAt: DateTime!
+  durationMs: Int
+  error: String
+  id: ID!
+  ipAddress: String
+  operation: String
+  operationType: String
+  type: String!
+}
+
 """Behavioural anomaly detected for a staff member"""
 type StaffBehaviourAnomaly {
   """
@@ -2466,6 +2721,9 @@ type StaffMemberOutput {
   """True when this staff member currently has an open session (on duty)"""
   is_on_duty: Boolean!
 
+  """Last activity timestamp from staff_sessions"""
+  last_seen_at: DateTime
+
   """Professional licence expiry date"""
   licence_expiry_date: DateTime
 
@@ -2496,6 +2754,16 @@ type StaffMemberOutput {
 
   """Employment start date"""
   start_date: DateTime
+}
+
+"""Staff performance ranking"""
+type StaffPerformance {
+  averageSaleGhs: Float!
+  revenueFormatted: String!
+  revenuePesewas: Int!
+  salesCount: Int!
+  staffId: ID!
+  staffName: String!
 }
 
 """
@@ -2650,6 +2918,32 @@ type StockMovementOutput {
   quantity: Int!
 }
 
+type StockTransferItemOutput {
+  productId: ID!
+  productName: String!
+  quantity: Int!
+  receivedQuantity: Int
+}
+
+type StockTransferOutput {
+  approvedAt: DateTime
+  approvedByName: String
+  createdAt: DateTime!
+  createdByName: String!
+  fromBranchId: ID!
+  fromBranchName: String!
+  id: ID!
+  items: [StockTransferItemOutput!]!
+  notes: String
+  receivedAt: DateTime
+  receivedByName: String
+  status: TransferStatus!
+  toBranchId: ID!
+  toBranchName: String!
+  totalItems: Int!
+  totalQuantity: Int!
+}
+
 type Subscription {
   stockChanged(branchId: ID): StockChangedEvent!
 }
@@ -2699,8 +2993,34 @@ type Supplier {
 
   """Supplier trading name"""
   name: String!
+
+  """Payment instructions and banking details"""
+  paymentInstructions: SupplierPaymentInstructions
   phone: String
+
+  """Tax Identification Number"""
+  tin: String
   updatedAt: DateTime!
+
+  """Supplier website URL"""
+  website: String
+}
+
+"""Supplier bank account details for direct transfer"""
+type SupplierBankDetails {
+  accountName: String
+  accountNumber: String
+  bankName: String
+  branch: String
+  sortCode: String
+  swiftCode: String
+}
+
+"""Supplier card payment details"""
+type SupplierCardDetails {
+  instructions: String
+  merchantId: String
+  paymentLink: String
 }
 
 """Supplier credit balance and aging summary"""
@@ -2784,6 +3104,13 @@ type SupplierInvoiceOutput {
   totalAmountPesewas: Int!
 }
 
+"""Supplier mobile money details"""
+type SupplierMomoDetails {
+  accountName: String
+  network: String
+  number: String
+}
+
 """Supplier payment record"""
 type SupplierPayment {
   """Payment amount formatted"""
@@ -2807,6 +3134,56 @@ type SupplierPayment {
 
   """Payment reference"""
   reference: String
+}
+
+"""Full payment instructions for a supplier"""
+type SupplierPaymentInstructions {
+  """Accepted payment methods"""
+  acceptedMethods: [SupplierPaymentMethod!]
+  bankDetails: SupplierBankDetails
+  cardDetails: SupplierCardDetails
+  momoDetails: SupplierMomoDetails
+
+  """Payment notes or special instructions"""
+  notes: String
+
+  """Payment terms e.g. NET_30, NET_60, IMMEDIATE"""
+  paymentTerms: String
+
+  """Preferred payment method"""
+  preferredMethod: String
+
+  """TIN number for tax purposes"""
+  tin: String
+}
+
+"""Accepted payment methods for a supplier"""
+enum SupplierPaymentMethod {
+  AIRTELTIGO_MONEY
+  BANK_TRANSFER
+  CASH
+  CHEQUE
+  MASTERCARD
+  MTN_MOMO
+  VISA
+  VODAFONE_CASH
+}
+
+"""Product detail within a supplier context"""
+type SupplierProductDetail {
+  barcode: String
+  branchType: String!
+  classification: String!
+  genericName: String
+  id: ID!
+  isActive: Boolean!
+  name: String!
+  quantityOnHand: Int!
+  reorderLevel: Int!
+  sold7d: Int!
+  sold30d: Int!
+  stockStatus: String!
+  unitPrice: Int!
 }
 
 """
@@ -2884,6 +3261,20 @@ type SupplierScorecard {
   totalPurchasedPesewas: Int!
 }
 
+"""Supplier with full product catalog"""
+type SupplierWithProducts {
+  address: String
+  aiScore: Int
+  contactName: String
+  email: String
+  id: ID!
+  isActive: Boolean!
+  name: String!
+  phone: String
+  products: [SupplierProductDetail!]!
+  totalProducts: Int!
+}
+
 """Ghana GRA tax compliance audit — VAT, PAYE, withholding tax"""
 type TaxComplianceAudit {
   exemptSalesWithoutRxCount: Int!
@@ -2946,6 +3337,29 @@ type TopProduct {
 
   """Total units sold in the period"""
   unitsSold: Int!
+}
+
+input TransferItemInput {
+  productId: ID!
+  quantity: Int!
+}
+
+enum TransferStatus {
+  APPROVED
+  CANCELLED
+  IN_TRANSIT
+  PENDING
+  RECEIVED
+}
+
+type TrialBalanceRowOutput {
+  accountCode: String!
+  accountName: String!
+  balance: Int!
+  balanceFormatted: String!
+  balanceType: String!
+  totalCredit: Int!
+  totalDebit: Int!
 }
 
 """Update optional profile fields for an existing customer."""
@@ -3102,19 +3516,18 @@ input UpdateStockCountInput {
   sessionId: ID!
 }
 
-"""
-Update an existing supplier. All fields optional. Requires role: owner or manager.
-"""
+"""Update an existing supplier"""
 input UpdateSupplierInput {
   address: String
-
-  """AI reliability score 0–100"""
   aiScore: Int
   contactName: String
   email: String
   isActive: Boolean
   name: String
+  paymentInstructions: PaymentInstructionsInput
   phone: String
+  tin: String
+  website: String
 }
 
 """The `Upload` scalar type represents a file upload."""
@@ -3170,6 +3583,12 @@ An authenticated user account. Scoped to a single branch. `password_hash` is nev
 type User {
   """UUID of the branch this user belongs to"""
   branch_id: String!
+
+  """Branch display name (populated on login)"""
+  branch_name: String
+
+  """Branch type: pharmaceutical or chemical"""
+  branch_type: String
 
   """
   ISO 8601 timestamp when the account was created (Africa/Accra timezone)

@@ -137,6 +137,12 @@ export class InventoryItem {
 
   @Field({ nullable: true, description: 'Supplier trading name' })
   supplierName?: string;
+
+  @Field(() => Int, { nullable: true, description: 'Selling price in GHS pesewas' })
+  unitPricePesewas?: number;
+
+  @Field({ nullable: true, description: 'Formatted selling price. Example: GH₵12.50' })
+  unitPriceFormatted?: string;
 }
 
 @ObjectType({ description: 'A single stock movement event (sale, receive, adjustment, return)' })

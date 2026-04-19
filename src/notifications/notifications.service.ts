@@ -209,6 +209,7 @@ export class NotificationsService {
       WHERE branch_id = $1
         AND user_id = $2
         AND type = 'LOW_STOCK_ALERT_NOTIFICATION'
+        AND (metadata->>'resolved' IS NULL OR metadata->>'resolved' = 'false')
       ORDER BY created_at DESC
       LIMIT $3
     `, [branchId, userId, limit]) as Array<{
@@ -217,24 +218,92 @@ export class NotificationsService {
       created_at: Date;
     }>;
 
-    return rows.map((row) => {
+    const productIds = Array.from(new Set(
+      rows
+        .map((row) => String((row.metadata ?? {}).productId ?? ''))
+        .filter((id) => id.length > 0),
+    ));
+
+    const inventoryRows = productIds.length > 0
+      ? await this.dataSource.query(`
+        SELECT
+          inv.product_id,
+          inv.quantity_on_hand,
+          inv.reorder_level,
+          p.name AS product_name
+        FROM inventory inv
+        JOIN products p ON p.id = inv.product_id
+        WHERE inv.branch_id = $1
+          AND inv.product_id = ANY($2)
+          AND p.is_active = true
+      `, [branchId, productIds]) as Array<{
+        product_id: string;
+        quantity_on_hand: number;
+        reorder_level: number;
+        product_name: string;
+      }>
+      : [];
+
+    const inventoryByProduct = new Map(inventoryRows.map((row) => [row.product_id, row]));
+    const staleAlertIdsToResolve: string[] = [];
+
+    const alerts = rows.flatMap((row) => {
       const m = (row.metadata ?? {}) as Record<string, unknown>;
-      return {
+      const productId = String(m.productId ?? '');
+      const live = inventoryByProduct.get(productId);
+      const quantityOnHand = live ? Number(live.quantity_on_hand) : Number(m.quantityOnHand ?? 0);
+      const reorderLevel = live ? Number(live.reorder_level) : Number(m.reorderLevel ?? 0);
+      const liveStatus = this.calcStockStatus(quantityOnHand, reorderLevel);
+
+      if (!live || liveStatus === 'ok') {
+        staleAlertIdsToResolve.push(row.id);
+        return [];
+      }
+
+      return [{
         id: row.id,
-        productId: String(m.productId ?? ''),
-        productName: String(m.productName ?? 'Unknown product'),
-        stockStatus: String(m.stockStatus ?? 'low'),
-        quantityOnHand: Number(m.quantityOnHand ?? 0),
-        reorderLevel: Number(m.reorderLevel ?? 0),
-        suggestedReorderQty: Number(m.suggestedReorderQty ?? 0),
+        productId,
+        productName: live.product_name || String(m.productName ?? 'Unknown product'),
+        stockStatus: liveStatus,
+        quantityOnHand,
+        reorderLevel,
+        suggestedReorderQty: this.suggestReorderQty(reorderLevel, quantityOnHand, liveStatus),
         supplierId: m.supplierId ? String(m.supplierId) : undefined,
         supplierName: m.supplierName ? String(m.supplierName) : undefined,
         supplierPhone: m.supplierPhone ? String(m.supplierPhone) : undefined,
         channels: Array.isArray(m.channels) ? m.channels.map(String) : ['in_app'],
         message: String(m.message ?? ''),
         createdAt: row.created_at,
-      };
+      }];
     });
+
+    if (staleAlertIdsToResolve.length > 0) {
+      await this.dataSource.query(`
+        UPDATE audit_logs
+        SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{resolved}', 'true'::jsonb)
+        WHERE id = ANY($1)
+      `, [staleAlertIdsToResolve]);
+    }
+
+    return alerts;
+  }
+
+  private calcStockStatus(quantityOnHand: number, reorderLevel: number): 'out' | 'critical' | 'low' | 'ok' {
+    if (quantityOnHand <= 0) return 'out';
+    if (quantityOnHand <= Math.max(1, Math.floor(reorderLevel * 0.2))) return 'critical';
+    if (quantityOnHand <= reorderLevel) return 'low';
+    return 'ok';
+  }
+
+  private suggestReorderQty(
+    reorderLevel: number,
+    quantityOnHand: number,
+    status: 'out' | 'critical' | 'low' | 'ok',
+  ): number {
+    if (status === 'ok') return 0;
+    const buffer = status === 'out' ? 3 : status === 'critical' ? 2.5 : 2;
+    const target = Math.max(Math.ceil(reorderLevel * buffer), reorderLevel + 5);
+    return Math.max(0, target - quantityOnHand);
   }
 
   // ─── Private Email Providers ─────────────────────────────────────────────

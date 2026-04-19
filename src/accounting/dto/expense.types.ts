@@ -1,5 +1,5 @@
 import { Field, ObjectType, InputType, registerEnumType, ID, Int } from '@nestjs/graphql';
-import { GraphQLUpload, FileUpload } from 'graphql-upload-ts';
+import { IsString, IsEnum, IsInt, IsOptional, Min, IsDateString, IsBoolean } from 'class-validator';
 
 // ── Enums ────────────────────────────────────────────────────────────────────
 
@@ -41,39 +41,55 @@ registerEnumType(ReimbursementMethod, { name: 'ReimbursementMethod' });
 @InputType()
 export class CreateStaffExpenseInput {
   @Field(() => ExpenseCategory)
+  @IsEnum(ExpenseCategory)
   category!: ExpenseCategory;
 
   @Field(() => Int)
+  @IsInt()
+  @Min(1)
   amountPesewas!: number;
 
   @Field()
+  @IsString()
   description!: string;
 
   @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
   merchantName?: string;
 
   @Field()
-  expenseDate!: string; // YYYY-MM-DD
+  @IsString()
+  expenseDate!: string;
 
-  @Field(() => GraphQLUpload, { nullable: true })
-  receiptImage?: Promise<FileUpload>;
+  @Field({ nullable: true, description: 'Receipt S3 key (uploaded separately)' })
+  @IsOptional()
+  @IsString()
+  receiptS3Key?: string;
 
   @Field(() => ExpensePaymentMethod)
+  @IsEnum(ExpensePaymentMethod)
   paymentMethod!: ExpensePaymentMethod;
 }
 
 @InputType()
 export class ApproveStaffExpenseInput {
   @Field(() => ID)
+  @IsString()
   expenseId!: string;
 
   @Field()
-  approve!: boolean; // true = APPROVE, false = REJECT
+  @IsBoolean()
+  approve!: boolean;
 
   @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
   notes?: string;
 
   @Field(() => ReimbursementMethod, { nullable: true })
+  @IsOptional()
+  @IsEnum(ReimbursementMethod)
   reimbursementMethod?: ReimbursementMethod;
 }
 

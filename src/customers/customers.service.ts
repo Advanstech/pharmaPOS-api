@@ -447,4 +447,46 @@ export class CustomersService {
     }>;
     return rows.map((r) => this.mapRow(r));
   }
+
+  async getCustomerSales(customerId: string, limit = 20): Promise<any[]> {
+    const sales = await this.dataSource.query(`
+      SELECT
+        s.id, s.total_amount, s.vat_amount, s.status, s.created_at,
+        u.name AS cashier_name,
+        (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id)::int AS item_count
+      FROM sales s
+      JOIN users u ON u.id = s.cashier_id
+      WHERE s.customer_id = $1 AND s.status = 'COMPLETED'
+      ORDER BY s.created_at DESC
+      LIMIT $2
+    `, [customerId, limit]);
+
+    const result = [];
+    for (const s of sales) {
+      const items = await this.dataSource.query(`
+        SELECT p.name AS product_name, si.quantity, si.unit_price AS unit_price_pesewas, p.classification
+        FROM sale_items si
+        JOIN products p ON p.id = si.product_id
+        WHERE si.sale_id = $1
+      `, [s.id]);
+
+      result.push({
+        id: s.id,
+        totalAmountPesewas: s.total_amount,
+        totalFormatted: `GH₵ ${(s.total_amount / 100).toFixed(2)}`,
+        vatAmountPesewas: s.vat_amount,
+        status: s.status,
+        cashierName: s.cashier_name,
+        itemCount: s.item_count,
+        createdAt: s.created_at,
+        items: items.map((i: any) => ({
+          productName: i.product_name,
+          quantity: i.quantity,
+          unitPricePesewas: i.unit_price_pesewas,
+          classification: i.classification,
+        })),
+      });
+    }
+    return result;
+  }
 }

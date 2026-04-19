@@ -50,11 +50,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Fetch branch type for JWT payload
+    // Fetch branch info for JWT payload
     const branch = await this.dataSource.query(
-      `SELECT id, type FROM branches WHERE id = $1`,
+      `SELECT id, name, type FROM branches WHERE id = $1`,
       [user.branch_id],
-    ) as BranchRow[];
+    ) as Array<{ id: string; name: string; type: 'pharmaceutical' | 'chemical' }>;
 
     if (!branch[0]) {
       throw new NotFoundException('Branch not found');
@@ -64,7 +64,7 @@ export class AuthService {
     const sessionId = await this.createSession(user.id);
     await this.recordStaffSessionStart(user.id, user.branch_id, sessionId, meta);
 
-    return this.buildAuthPayload(user, branch[0].type, sessionId);
+    return this.buildAuthPayload(user, branch[0].type, sessionId, branch[0].name);
   }
 
   // ── Register ─────────────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ export class AuthService {
   private async createSession(userId: string): Promise<string> {
     const result = await this.dataSource.query(`
       INSERT INTO sessions (id, user_id, refresh_token_hash, expires_at)
-      VALUES (gen_random_uuid(), $1, 'pending', NOW() + INTERVAL '30 days')
+      VALUES (gen_random_uuid(), $1, 'pending', NOW() + INTERVAL '24 hours')
       RETURNING id
     `, [userId]) as Array<{ id: string }>;
 
@@ -290,6 +290,7 @@ export class AuthService {
     user: User,
     branchType: 'pharmaceutical' | 'chemical',
     sessionId: string,
+    branchName?: string,
   ): AuthPayload {
     const jwtPayload = {
       sub: user.id,
@@ -308,15 +309,19 @@ export class AuthService {
       { sub: user.id, sessionId, type: 'refresh' },
       {
         secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET'),
-        expiresIn: '30d',
+        expiresIn: '24h',
       },
     );
 
     const payload = new AuthPayload();
     payload.access_token = accessToken;
     payload.refresh_token = refreshToken;
-    payload.expires_in = 900; // 15 minutes in seconds
-    payload.user = { ...user, role: normalizeRoleForApi(user.role) } as User;
+    payload.expires_in = 900;
+    // Attach branch info to user for frontend
+    const userWithBranch = { ...user, role: normalizeRoleForApi(user.role) } as any;
+    userWithBranch.branch_name = branchName || null;
+    userWithBranch.branch_type = branchType;
+    payload.user = userWithBranch as User;
     return payload;
   }
 }

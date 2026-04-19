@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthService } from './auth.service';
 import { AuthResolver } from './auth.resolver';
+import { BranchesResolver } from './branches.resolver';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
@@ -24,7 +25,7 @@ import { SubscriptionGuard } from './guards/subscription.guard';
       }),
     }),
   ],
-  providers: [AuthService, AuthResolver, JwtStrategy, JwtAuthGuard, RolesGuard, SubscriptionGuard],
+  providers: [AuthService, AuthResolver, BranchesResolver, JwtStrategy, JwtAuthGuard, RolesGuard, SubscriptionGuard],
   exports: [AuthService, JwtAuthGuard, RolesGuard, SubscriptionGuard, JwtModule, PassportModule, TypeOrmModule],
 })
 export class AuthModule {}

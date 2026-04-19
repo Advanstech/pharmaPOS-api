@@ -107,3 +107,49 @@ export class DashboardKpis {
   })
   revenueDeltaPct!: number;
 }
+
+
+// ── Enhanced Report Types ─────────────────────────────────────────────────────
+
+@ObjectType({ description: 'Daily revenue data point for trend charts' })
+export class DailyRevenuePoint {
+  @Field() date!: string;
+  @Field(() => Int) revenuePesewas!: number;
+  @Field() revenueFormatted!: string;
+  @Field(() => Int) salesCount!: number;
+  @Field(() => Int) refundsPesewas!: number;
+}
+
+@ObjectType({ description: 'Hourly sales distribution for heatmap' })
+export class HourlySalesPoint {
+  @Field(() => Int) hour!: number;
+  @Field(() => Int) salesCount!: number;
+  @Field(() => Int) revenuePesewas!: number;
+}
+
+@ObjectType({ description: 'Sales breakdown by product classification' })
+export class CategoryBreakdown {
+  @Field() classification!: string;
+  @Field(() => Int) revenuePesewas!: number;
+  @Field() revenueFormatted!: string;
+  @Field(() => Int) salesCount!: number;
+  @Field(() => Int) unitsSold!: number;
+}
+
+@ObjectType({ description: 'Payment method breakdown' })
+export class PaymentMethodBreakdown {
+  @Field() method!: string;
+  @Field(() => Int) count!: number;
+  @Field(() => Int) totalPesewas!: number;
+  @Field() totalFormatted!: string;
+}
+
+@ObjectType({ description: 'Staff performance ranking' })
+export class StaffPerformance {
+  @Field(() => ID) staffId!: string;
+  @Field() staffName!: string;
+  @Field(() => Int) salesCount!: number;
+  @Field(() => Int) revenuePesewas!: number;
+  @Field() revenueFormatted!: string;
+  @Field(() => Float) averageSaleGhs!: number;
+}

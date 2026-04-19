@@ -353,9 +353,9 @@ export class AccountingService {
     await this.dataSource.transaction(async (em) => {
       // Insert payment record
       await em.query(`
-        INSERT INTO supplier_payments (id, invoice_id, amount, payment_method, reference, approved_by, paid_at)
-        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, NOW())
-      `, [input.invoiceId, input.amountPesewas, input.paymentMethod, input.reference ?? null, actor.sub]);
+        INSERT INTO supplier_payments (id, invoice_id, branch_id, amount_pesewas, payment_method, reference, paid_by, paid_at)
+        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, NOW())
+      `, [input.invoiceId, actor.branchId, input.amountPesewas, input.paymentMethod, input.reference ?? null, actor.sub]);
 
       // Update invoice
       await em.query(`
@@ -729,13 +729,18 @@ export class AccountingService {
     const revenue30Days = revenueRow?.revenue ?? 0;
     const avgDailyRevenue = revenue30Days / 30;
 
-    // Avg daily expenses (last 30 days)
+    // Avg daily expenses (last 30 days) — combine both expense tables
     const [expenseRow] = await this.dataSource.query(`
       SELECT COALESCE(SUM(amount_pesewas), 0)::int AS expenses
-      FROM expenses
-      WHERE branch_id = $1
-        AND status = 'APPROVED'
-        AND expense_date >= NOW() - INTERVAL '30 days'
+      FROM (
+        SELECT amount_pesewas FROM expenses
+        WHERE branch_id = $1 AND status = 'APPROVED'
+          AND expense_date >= NOW() - INTERVAL '30 days'
+        UNION ALL
+        SELECT amount_pesewas FROM staff_expenses
+        WHERE branch_id = $1 AND status IN ('APPROVED', 'REIMBURSED')
+          AND expense_date >= NOW() - INTERVAL '30 days'
+      ) combined
     `, [branchId]) as Array<{ expenses: number }>;
 
     const expenses30Days = expenseRow?.expenses ?? 0;
@@ -837,14 +842,18 @@ export class AccountingService {
 
     const cogs = cogsRow?.cogs ?? 0;
 
-    // Operating expenses
+    // Operating expenses — combine both old and new expense tables
     const [expensesRow] = await this.dataSource.query(`
       SELECT COALESCE(SUM(amount_pesewas), 0)::int AS expenses
-      FROM expenses
-      WHERE branch_id = $1
-        AND status = 'APPROVED'
-        AND expense_date >= $2::date
-        AND expense_date <= $3::date
+      FROM (
+        SELECT amount_pesewas FROM expenses
+        WHERE branch_id = $1 AND status = 'APPROVED'
+          AND expense_date >= $2::date AND expense_date <= $3::date
+        UNION ALL
+        SELECT amount_pesewas FROM staff_expenses
+        WHERE branch_id = $1 AND status IN ('APPROVED', 'REIMBURSED')
+          AND expense_date >= $2::date AND expense_date <= $3::date
+      ) combined
     `, [branchId, periodStart, periodEnd]) as Array<{ expenses: number }>;
 
     const opex = expensesRow?.expenses ?? 0;

@@ -5,6 +5,7 @@ import {
   CreateCustomerInput,
   UpdateCustomerInput,
   CustomerOutput,
+  CustomerSaleOutput,
 } from './dto/customer.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -82,5 +83,15 @@ export class CustomersResolver {
     @CurrentUser() actor: JwtUser,
   ): Promise<CustomerOutput> {
     return this.customersService.updateCustomer(input, actor);
+  }
+
+  @Query(() => [CustomerSaleOutput], { name: 'customerSales', description: 'Sales history for a customer' })
+  @Roles(...CUSTOMER_LIST_ROLES)
+  customerSales(
+    @Args('customerId', { type: () => ID }) customerId: string,
+    @Args('limit', { type: () => Int, nullable: true }) limit?: number,
+    @CurrentUser() actor?: JwtUser,
+  ): Promise<CustomerSaleOutput[]> {
+    return this.customersService.getCustomerSales(customerId, limit);
   }
 }

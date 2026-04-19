@@ -1,4 +1,4 @@
-import { Resolver, Query, Args, ID } from '@nestjs/graphql';
+import { Resolver, Query, Args, ID, Int } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -16,6 +16,7 @@ import {
   StaffBehaviourProfile,
   StaffInvestigationInput,
   TaxComplianceAudit,
+  StaffActivityEntry,
 } from './dto/audit.types';
 
 interface AuthUser {
@@ -145,5 +146,18 @@ export class AuditResolver {
     @Args('branchId', { type: () => ID }) branchId: string,
   ): Promise<StaffBehaviourProfile> {
     return this.auditService.getStaffBehaviourProfile(branchId, input);
+  }
+
+  @Query(() => [StaffActivityEntry], {
+    name: 'staffActivityLog',
+    description: 'Recent activity log for a staff member — pages visited, actions taken.',
+  })
+  @Roles('owner', 'se_admin', 'manager')
+  async staffActivityLog(
+    @Args('userId', { type: () => ID }) userId: string,
+    @Args('limit', { type: () => Int, nullable: true }) limit?: number,
+  ): Promise<StaffActivityEntry[]> {
+    const rows = await this.auditService.getStaffActivityLog(userId, limit || 50);
+    return rows;
   }
 }

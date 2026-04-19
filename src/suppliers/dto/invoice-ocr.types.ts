@@ -1,5 +1,5 @@
 import { InputType, ObjectType, Field, ID, Int, registerEnumType } from '@nestjs/graphql';
-import { IsUUID, IsString, IsInt, Min, IsOptional, IsArray, IsDateString } from 'class-validator';
+import { IsUUID, IsString, IsInt, Min, IsOptional, IsArray, IsDateString, IsDefined } from 'class-validator';
 import { GraphQLUpload, FileUpload } from 'graphql-upload-ts';
 
 // ── Enums ─────────────────────────────────────────────────────────────────
@@ -52,6 +52,7 @@ export class UploadSupplierInvoiceInput {
   supplierId?: string;
 
   @Field(() => GraphQLUpload, { description: 'Invoice file (PDF or Image)' })
+  @IsDefined()
   invoiceFile!: Promise<FileUpload>;
 
   @Field({ nullable: true, description: 'Delivery date (defaults to today)' })
@@ -154,20 +155,26 @@ export class RecordSupplierPaymentInput {
 
 @ObjectType({ description: 'OCR extracted invoice item' })
 export class OcrInvoiceItem {
-  @Field({ description: 'Product description from invoice' })
-  description!: string;
+  @Field({ nullable: true, description: 'Product description from invoice' })
+  description?: string;
 
-  @Field(() => Int, { description: 'Quantity' })
-  quantity!: number;
+  @Field(() => Int, { nullable: true, description: 'Quantity' })
+  quantity?: number;
 
-  @Field(() => Int, { description: 'Unit price in pesewas' })
-  unitPrice!: number;
+  @Field(() => Int, { nullable: true, description: 'Unit price in pesewas' })
+  unitPrice?: number;
 
-  @Field(() => Int, { description: 'Total price in pesewas' })
-  totalPrice!: number;
+  @Field(() => Int, { nullable: true, description: 'Total price in pesewas' })
+  totalPrice?: number;
 
-  @Field(() => Int, { description: 'OCR confidence for this item (0-100)' })
-  confidence!: number;
+  @Field({ nullable: true, description: 'Batch number if present on invoice line' })
+  batchNumber?: string;
+
+  @Field({ nullable: true, description: 'Expiry date (YYYY-MM-DD) if present on invoice line' })
+  expiryDate?: string;
+
+  @Field(() => Int, { nullable: true, description: 'OCR confidence for this item (0-100)' })
+  confidence?: number;
 
   @Field(() => [ProductMatch], { nullable: true, description: 'Matched products from database' })
   matches?: ProductMatch[];
@@ -184,29 +191,32 @@ export class OcrInvoiceItem {
 
 @ObjectType({ description: 'Product match result' })
 export class ProductMatch {
-  @Field(() => ID, { description: 'Product UUID' })
-  productId!: string;
+  @Field(() => ID, { nullable: true, description: 'Product UUID' })
+  productId?: string;
 
-  @Field({ description: 'Product name' })
-  productName!: string;
+  @Field({ nullable: true, description: 'Product name' })
+  productName?: string;
 
-  @Field(() => Int, { description: 'Match score (0-100)' })
-  matchScore!: number;
+  @Field(() => Int, { nullable: true, description: 'Match score (0-100)' })
+  matchScore?: number;
 
-  @Field({ description: 'Match reason' })
-  matchReason!: string;
+  @Field({ nullable: true, description: 'Match reason' })
+  matchReason?: string;
 }
 
 @ObjectType({ description: 'OCR extracted invoice data' })
 export class OcrExtractedData {
-  @Field({ description: 'Invoice number' })
-  invoiceNumber!: string;
+  @Field({ nullable: true, description: 'Invoice number' })
+  invoiceNumber?: string;
 
-  @Field({ description: 'Invoice date' })
-  invoiceDate!: string;
+  @Field({ nullable: true, description: 'Invoice date' })
+  invoiceDate?: string;
 
-  @Field({ description: 'Supplier name' })
-  supplierName!: string;
+  @Field({ nullable: true, description: 'Due date (YYYY-MM-DD) if present on invoice' })
+  dueDate?: string;
+
+  @Field({ nullable: true, description: 'Supplier name' })
+  supplierName?: string;
 
   @Field({ nullable: true, description: 'Supplier address' })
   supplierAddress?: string;
@@ -214,8 +224,8 @@ export class OcrExtractedData {
   @Field({ nullable: true, description: 'Supplier phone' })
   supplierPhone?: string;
 
-  @Field(() => [OcrInvoiceItem], { description: 'Invoice items' })
-  items!: OcrInvoiceItem[];
+  @Field(() => [OcrInvoiceItem], { nullable: true, description: 'Invoice items' })
+  items?: OcrInvoiceItem[];
 
   @Field(() => Int, { nullable: true, description: 'Subtotal in pesewas' })
   subtotal?: number;
@@ -223,11 +233,11 @@ export class OcrExtractedData {
   @Field(() => Int, { nullable: true, description: 'VAT in pesewas' })
   vat?: number;
 
-  @Field(() => Int, { description: 'Total amount in pesewas' })
-  totalAmount!: number;
+  @Field(() => Int, { nullable: true, description: 'Total amount in pesewas' })
+  totalAmount?: number;
 
-  @Field(() => Int, { description: 'Overall OCR confidence (0-100)' })
-  confidence!: number;
+  @Field(() => Int, { nullable: true, description: 'Overall OCR confidence (0-100)' })
+  confidence?: number;
 
   @Field({ nullable: true, description: 'Raw OCR text' })
   rawText?: string;
@@ -270,6 +280,9 @@ export class InvoiceOcrJob {
 
   @Field({ nullable: true, description: 'Supplier name' })
   supplierName?: string;
+
+  @Field(() => ID, { nullable: true, description: 'Matched supplier UUID when available' })
+  supplierId?: string;
 
   @Field({ description: 'Created by user name' })
   createdByName!: string;

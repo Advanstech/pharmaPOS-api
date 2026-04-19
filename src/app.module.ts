@@ -4,6 +4,7 @@ import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CacheModule } from '@nestjs/cache-manager';
+import { BullModule } from '@nestjs/bull';
 import { join } from 'path';
 import { SupabaseModule } from './database/supabase.module';
 import { ProductsModule } from './products/products.module';
@@ -26,7 +27,35 @@ import { isOriginAllowed } from './config/cors-origins';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    CacheModule.register({ isGlobal: true, ttl: 3600000 }), // 1h default TTL
+    CacheModule.register({ isGlobal: true, ttl: 3600000 }),
+
+    // Bull queue — Redis connection (used by invoice-ocr and image-pipeline queues)
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const redisUrl = config.get<string>('REDIS_URL');
+        if (redisUrl) {
+          // Parse the Redis URL manually to support TLS (rediss://)
+          const url = new URL(redisUrl);
+          const isTls = url.protocol === 'rediss:';
+          return {
+            redis: {
+              host: url.hostname,
+              port: parseInt(url.port || '6379', 10),
+              password: url.password || undefined,
+              username: url.username || undefined,
+              tls: isTls ? { rejectUnauthorized: false } : undefined,
+            },
+          };
+        }
+        return {
+          redis: {
+            host: config.get('REDIS_HOST', 'localhost'),
+            port: config.get<number>('REDIS_PORT', 6379),
+          },
+        };
+      },
+    }),
 
     // Code-first GraphQL — never schema-first (ADR-01)
     GraphQLModule.forRootAsync<ApolloDriverConfig>({
@@ -79,9 +108,9 @@ import { isOriginAllowed } from './config/cors-origins';
         ssl: { rejectUnauthorized: false },
         // Connection pool — Supabase free tier: max 15 direct connections
         extra: {
-          max: config.get('NODE_ENV') === 'production' ? 10 : 5,
-          idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: 5000,
+          max: config.get('NODE_ENV') === 'production' ? 10 : 8,
+          idleTimeoutMillis: 60000,
+          connectionTimeoutMillis: 10000,
         },
       }),
     }),
