@@ -83,6 +83,7 @@ export class ExpenseService {
     status?: string,
     startDate?: string,
     endDate?: string,
+    createdByFilter?: string,
   ): Promise<StaffExpenseOutput[]> {
     const conditions = ['e.branch_id = $1'];
     const params: any[] = [branchId];
@@ -103,6 +104,13 @@ export class ExpenseService {
     if (endDate) {
       conditions.push('e.expense_date <= $' + idx + '::date');
       params.push(endDate);
+      idx++;
+    }
+
+    // Non-managers only see their own expenses
+    if (createdByFilter) {
+      conditions.push('e.created_by = $' + idx);
+      params.push(createdByFilter);
       idx++;
     }
 

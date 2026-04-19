@@ -51,7 +51,10 @@ export class ExpenseResolver {
     @Args('endDate', { type: () => String, nullable: true }) endDate: string | undefined,
     @CurrentUser() actor: JwtUser,
   ): Promise<StaffExpenseOutput[]> {
-    return this.expenseService.getExpenses(actor.branchId, status, startDate, endDate);
+    // Managers and owners see all branch expenses; everyone else sees only their own
+    const managerRoles = ['owner', 'se_admin', 'manager'];
+    const createdByFilter = managerRoles.includes(actor.role) ? undefined : actor.sub;
+    return this.expenseService.getExpenses(actor.branchId, status, startDate, endDate, createdByFilter);
   }
 
   // ── Approve Expense ───────────────────────────────────────────────────────
