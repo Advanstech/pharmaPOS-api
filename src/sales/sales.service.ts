@@ -8,6 +8,7 @@ import {
 import { DataSource } from 'typeorm';
 import { GraphQLError } from 'graphql';
 import { VAT_CONFIG } from '../config/constants';
+import { TaxConfigService } from '../config/tax-config.service';
 import { JwtUser } from '../auth/decorators/current-user.decorator';
 import { RealtimeStockService } from '../inventory/realtime-stock.service';
 import {
@@ -76,6 +77,7 @@ export class SalesService {
     private readonly pharmacy: PharmacyService,
     private readonly notifications: NotificationsService,
     private readonly glPosting: GLPostingService,
+    private readonly taxConfigService: TaxConfigService,
   ) {}
 
   // ── Create sale ───────────────────────────────────────────────────────────
@@ -156,9 +158,12 @@ export class SalesService {
     }
     const salePrescriptionId = pomRxIds.size === 1 ? [...pomRxIds][0]! : null;
 
-    // Calculate totals — Ghana GRA: 15% VAT on non-exempt items
+    // Calculate totals — use branch tax config (defaults to Ghana GRA 15%)
     let subtotalPesewas = 0;
     let vatPesewas = 0;
+
+    // Load tax config once for this branch
+    const taxConfig = await this.taxConfigService.getTaxConfig(actor.branchId);
 
     for (const item of input.items) {
       const product = productMap.get(item.productId);
@@ -166,7 +171,8 @@ export class SalesService {
       const lineTotal = product.unit_price * item.quantity;
       subtotalPesewas += lineTotal;
       if (!product.vat_exempt) {
-        vatPesewas += Math.round(lineTotal * VAT_CONFIG.standardRate);
+        const effectiveRate = await this.taxConfigService.getEffectiveRate(actor.branchId, product.classification);
+        vatPesewas += Math.round(lineTotal * effectiveRate);
       }
     }
 

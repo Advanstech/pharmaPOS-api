@@ -22,6 +22,8 @@ import { HealthModule } from './health/health.module';
 import { AuditModule } from './audit/audit.module';
 import { SalesEffectiveAtModule } from './sales/sales-effective-at.module';
 import { CustomersModule } from './customers/customers.module';
+import { TaxConfigService } from './config/tax-config.service';
+import { TaxConfigResolver } from './config/tax-config.resolver';
 import { isOriginAllowed } from './config/cors-origins';
 
 @Module({
@@ -132,5 +134,6 @@ import { isOriginAllowed } from './config/cors-origins';
     AuditModule,
     CustomersModule,
   ],
+  providers: [TaxConfigService, TaxConfigResolver],
 })
 export class AppModule {}
