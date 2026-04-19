@@ -1,6 +1,6 @@
 import { Processor, Process } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bull';
+import { Job } from 'bullmq';
 import { InvoiceOcrService } from './invoice-ocr.service';
 import { ProductImageService } from '../ai/product-image.service';
 
