@@ -355,7 +355,7 @@ export class ProductsService {
     addField('supplier_id', input.supplierId);
     addField('category_id', input.categoryId);
 
-    if (sets.length === 0 && input.reorderLevel === undefined) {
+    if (sets.length === 0 && input.reorderLevel === undefined && input.nearestExpiry === undefined) {
       throw new BadRequestException('No fields to update');
     }
 
@@ -374,6 +374,58 @@ export class ProductsService {
         await em.query(
           `UPDATE inventory SET reorder_level = $1, updated_at = NOW() WHERE product_id = $2 AND branch_id = $3`,
           [Math.max(1, input.reorderLevel), id, actor.branchId],
+        );
+      }
+
+      // Update nearest expiry: update the earliest batch's expiry_date
+      if (input.nearestExpiry !== undefined) {
+        if (input.nearestExpiry === null || input.nearestExpiry === '') {
+          // Clear expiry on the nearest batch (set to NULL)
+          await em.query(
+            `UPDATE inventory_batches
+             SET expiry_date = NULL, updated_at = NOW()
+             WHERE product_id = $1 AND branch_id = $2
+               AND expiry_date = (
+                 SELECT MIN(expiry_date) FROM inventory_batches
+                 WHERE product_id = $1 AND branch_id = $2 AND expiry_date IS NOT NULL
+               )`,
+            [id, actor.branchId],
+          );
+        } else {
+          // Update the nearest (earliest) batch expiry, or insert a placeholder batch if none exists
+          const [nearestBatch] = await em.query(
+            `SELECT id FROM inventory_batches
+             WHERE product_id = $1 AND branch_id = $2
+             ORDER BY expiry_date ASC NULLS LAST
+             LIMIT 1`,
+            [id, actor.branchId],
+          ) as Array<{ id: string }>;
+
+          if (nearestBatch) {
+            await em.query(
+              `UPDATE inventory_batches SET expiry_date = $1, updated_at = NOW() WHERE id = $2`,
+              [input.nearestExpiry, nearestBatch.id],
+            );
+          } else {
+            // No batch exists yet — create a placeholder batch with the expiry date
+            await em.query(
+              `INSERT INTO inventory_batches (id, product_id, branch_id, batch_number, quantity, expiry_date)
+               VALUES (gen_random_uuid(), $1, $2, 'MANUAL', 0, $3)
+               ON CONFLICT DO NOTHING`,
+              [id, actor.branchId, input.nearestExpiry],
+            );
+          }
+        }
+
+        await em.query(
+          `INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+           VALUES (gen_random_uuid(), $1, $2, 'PRODUCT_EXPIRY_UPDATED', 'product', $3, $4)`,
+          [
+            actor.branchId,
+            actor.sub,
+            id,
+            JSON.stringify({ nearest_expiry: input.nearestExpiry }),
+          ],
         );
       }
 

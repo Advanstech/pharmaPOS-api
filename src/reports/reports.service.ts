@@ -283,6 +283,38 @@ export class ReportsService {
     });
   }
 
+  // ── Payment Method Breakdown ──────────────────────────────────────────────
+
+  async getPaymentMethodBreakdown(branchId: string, periodStart: string, periodEnd: string): Promise<PaymentMethodBreakdown[]> {
+    const at = this.effectiveSaleAt.sql('s');
+    const saleAccraDay = `(${at} AT TIME ZONE 'Africa/Accra')::date`;
+    
+    // Aggregate from sale_tenders — graceful fallback if table doesn't exist
+    try {
+      const rows = await this.dataSource.query(`
+        SELECT
+          st.method,
+          COUNT(DISTINCT st.sale_id)::int AS count,
+          COALESCE(SUM(st.amount_pesewas), 0)::int AS total
+        FROM sale_tenders st
+        JOIN sales s ON s.id = st.sale_id
+        WHERE s.branch_id = $1 AND s.status = 'COMPLETED'
+          AND ${saleAccraDay} >= $2::date AND ${saleAccraDay} <= $3::date
+        GROUP BY st.method ORDER BY total DESC
+      `, [branchId, periodStart, periodEnd]);
+
+      return rows.map((r: any) => ({
+        method: r.method,
+        count: parseInt(r.count),
+        totalPesewas: parseInt(r.total),
+        totalFormatted: this.fmt(parseInt(r.total)),
+      }));
+    } catch {
+      // sale_tenders table doesn't exist — return empty array
+      return [];
+    }
+  }
+
   private fmt(pesewas: number): string {
     return `GH₵${(pesewas / 100).toFixed(2)}`;
   }

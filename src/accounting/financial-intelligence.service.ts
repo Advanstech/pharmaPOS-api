@@ -442,6 +442,36 @@ export class FinancialIntelligenceService {
 
     const insight = this.buildRevenueInsight(trendSignal, momGrowth, yoyGrowth, cmgr6, projectedNext);
 
+    // Payment mix — from sale_tenders (last 30 days)
+    let paymentMix: Array<{ method: string; label: string; totalPesewas: number; totalFormatted: string; sharePct: number }> = [];
+    try {
+      const tenderRows = await this.dataSource.query(`
+        SELECT
+          st.method,
+          COALESCE(SUM(st.amount_pesewas), 0)::int AS total
+        FROM sale_tenders st
+        JOIN sales s ON s.id = st.sale_id
+        WHERE s.branch_id = $1 AND s.status = 'COMPLETED'
+          AND (${at}) >= NOW() - INTERVAL '30 days'
+        GROUP BY st.method ORDER BY total DESC
+      `, [branchId]) as Array<{ method: string; total: number }>;
+
+      const methodLabels: Record<string, string> = {
+        CASH: 'Cash', MTN_MOMO: 'MTN MoMo', VODAFONE_CASH: 'Vodafone Cash',
+        AIRTELTIGO_MONEY: 'AirtelTigo Money', CARD: 'Card', SPLIT: 'Split',
+      };
+      const grandTotal = tenderRows.reduce((s, r) => s + r.total, 0);
+      paymentMix = tenderRows.map(r => ({
+        method: r.method,
+        label: methodLabels[r.method] ?? r.method,
+        totalPesewas: r.total,
+        totalFormatted: this.fmt(r.total),
+        sharePct: grandTotal > 0 ? Math.round((r.total / grandTotal) * 1000) / 10 : 0,
+      }));
+    } catch {
+      // sale_tenders not available — degrade gracefully
+    }
+
     return {
       monthlyTrend: trend,
       momGrowthPct: Math.round(momGrowth * 10) / 10,
@@ -454,6 +484,7 @@ export class FinancialIntelligenceService {
       revenuePerRxGhs: Math.round(revenuePerRx * 100) / 100,
       trendSignal,
       insight,
+      paymentMix,
     };
   }
 

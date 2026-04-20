@@ -1712,6 +1712,23 @@ input PaymentInstructionsInput {
   tin: String
 }
 
+"""Payment method breakdown"""
+type PaymentMethodBreakdown {
+  count: Int!
+  method: String!
+  totalFormatted: String!
+  totalPesewas: Int!
+}
+
+"""Payment method share in revenue"""
+type PaymentMethodShare {
+  label: String!
+  method: String!
+  sharePct: Float!
+  totalFormatted: String!
+  totalPesewas: Int!
+}
+
 """Invoice payment status"""
 enum PaymentStatus {
   OVERDUE
@@ -2198,6 +2215,9 @@ type Query {
   me: User!
   myStockAlerts(limit: Int): [StockAlertNotification!]!
   ocrColumnMappingPresets(supplierId: ID): [OcrColumnMappingPresetOutput!]!
+
+  """Revenue breakdown by payment method (Cash, MoMo, Card) for a period."""
+  paymentMethodBreakdown(periodEnd: String!, periodStart: String!): [PaymentMethodBreakdown!]!
   pendingPrescriptions: [PrescriptionOutput!]!
   prescription(id: ID!): PrescriptionOutput!
   prescriptionsForProduct(productId: ID!): [PrescriptionOutput!]!
@@ -2392,6 +2412,9 @@ type RevenueIntelligence {
   """Monthly revenue trend (last 12 months)"""
   monthlyTrend: [RevenueTrendPoint!]!
 
+  """Revenue breakdown by payment method (Cash, MoMo, Card)"""
+  paymentMix: [PaymentMethodShare!]!
+
   """Best performing hour of day (e.g. "10:00–11:00")"""
   peakHour: String!
   projectedNextMonthFormatted: String!
@@ -2571,6 +2594,9 @@ type SaleOutput {
 
   """Sale status. Values: `COMPLETED` | `REFUNDED` | `VOID`"""
   status: String!
+
+  """Payment tenders used for this sale"""
+  tenders: [TenderOutput!]!
 
   """Human-readable total. Always GH₵ — never USD. Example: `GH₵115.00`"""
   totalFormatted: String!
@@ -3341,6 +3367,23 @@ input TenderInput {
   momoReference: String
 }
 
+"""A payment tender line on a completed sale"""
+type TenderOutput {
+  """Human-readable amount. Example: GH₵21.85"""
+  amountFormatted: String!
+
+  """Amount tendered in GHS pesewas"""
+  amountPesewas: Int!
+
+  """
+  Payment method: CASH | MTN_MOMO | VODAFONE_CASH | AIRTELTIGO_MONEY | CARD | SPLIT
+  """
+  method: String!
+
+  """MoMo transaction reference (if applicable)"""
+  momoReference: String
+}
+
 """A product ranked by sales volume or revenue in a given period"""
 type TopProduct {
   """UUID of the product"""
@@ -3436,6 +3479,11 @@ input UpdateProductInput {
 
   """Brand/trade name"""
   name: String
+
+  """
+  Update the nearest batch expiry date (ISO 8601). Updates the earliest inventory batch for this product.
+  """
+  nearestExpiry: String
 
   """Reason for the change (required for price changes)"""
   reason: String

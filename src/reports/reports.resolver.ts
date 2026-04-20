@@ -4,6 +4,7 @@ import { ReportsService } from './reports.service';
 import {
   RevenueReport, TopProduct, DashboardKpis,
   DailyRevenuePoint, HourlySalesPoint, CategoryBreakdown, StaffPerformance,
+  PaymentMethodBreakdown,
 } from './dto/reports.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -80,5 +81,15 @@ export class ReportsResolver {
     @Args('periodEnd') periodEnd: string,
   ): Promise<StaffPerformance[]> {
     return this.reportsService.getStaffPerformance(actor.branchId, periodStart, periodEnd);
+  }
+
+  @Query(() => [PaymentMethodBreakdown], { name: 'paymentMethodBreakdown', description: 'Revenue breakdown by payment method (Cash, MoMo, Card) for a period.' })
+  @Roles('owner', 'se_admin', 'manager')
+  paymentMethodBreakdown(
+    @CurrentUser() actor: JwtUser,
+    @Args('periodStart') periodStart: string,
+    @Args('periodEnd') periodEnd: string,
+  ): Promise<PaymentMethodBreakdown[]> {
+    return this.reportsService.getPaymentMethodBreakdown(actor.branchId, periodStart, periodEnd);
   }
 }

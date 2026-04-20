@@ -352,14 +352,34 @@ export class AuditService {
     const findings: AuditFinding[] = [];
 
     // Revenue reconciliation: expected = sum of all non-void sale items
+    // Cash vs MoMo split from sale_tenders (graceful fallback if table missing)
     const revenue = await this.dataSource.query<
-      { expected: string; recorded: string; cash: string; momo: string }[]
+      { expected: string; recorded: string; cash: string; momo: string; card: string }[]
     >(
       `SELECT
          COALESCE(SUM(CASE WHEN s.status != 'VOIDED' THEN s.total_amount END), 0) as expected,
          COALESCE(SUM(CASE WHEN s.status = 'COMPLETED' THEN s.total_amount END), 0) as recorded,
-         COALESCE(SUM(CASE WHEN s.status = 'COMPLETED' THEN s.total_amount END), 0) as cash,
-         0 as momo
+         COALESCE((
+           SELECT SUM(st.amount_pesewas) FROM sale_tenders st
+           JOIN sales ss ON ss.id = st.sale_id
+           WHERE ss.branch_id = $1 AND ss.status = 'COMPLETED'
+             AND (${this.effectiveSaleAt.sql('ss')}) BETWEEN $2 AND $3
+             AND st.method = 'CASH'
+         ), 0) as cash,
+         COALESCE((
+           SELECT SUM(st.amount_pesewas) FROM sale_tenders st
+           JOIN sales ss ON ss.id = st.sale_id
+           WHERE ss.branch_id = $1 AND ss.status = 'COMPLETED'
+             AND (${this.effectiveSaleAt.sql('ss')}) BETWEEN $2 AND $3
+             AND st.method IN ('MTN_MOMO', 'VODAFONE_CASH', 'AIRTELTIGO_MONEY')
+         ), 0) as momo,
+         COALESCE((
+           SELECT SUM(st.amount_pesewas) FROM sale_tenders st
+           JOIN sales ss ON ss.id = st.sale_id
+           WHERE ss.branch_id = $1 AND ss.status = 'COMPLETED'
+             AND (${this.effectiveSaleAt.sql('ss')}) BETWEEN $2 AND $3
+             AND st.method = 'CARD'
+         ), 0) as card
        FROM sales s
        WHERE s.branch_id = $1 AND (${this.effectiveSaleAt.sql('s')}) BETWEEN $2 AND $3`,
       [branchId, input.periodStart, input.periodEnd],
@@ -368,6 +388,7 @@ export class AuditService {
     const recordedRevenuePesewas = parseInt(revenue[0]?.recorded ?? '0', 10);
     const cashSalesPesewas = parseInt(revenue[0]?.cash ?? '0', 10);
     const momoSalesPesewas = parseInt(revenue[0]?.momo ?? '0', 10);
+    const cardSalesPesewas = parseInt(revenue[0]?.card ?? '0', 10);
     const revenueDiscrepancyPesewas = expectedRevenuePesewas - recordedRevenuePesewas;
 
     if (revenueDiscrepancyPesewas > 50000) {
@@ -415,8 +436,9 @@ export class AuditService {
     }
 
     // Cash dominance flag — > 80% cash is suspicious
-    const cashToMomoRatio = momoSalesPesewas > 0 ? cashSalesPesewas / momoSalesPesewas : 99;
-    const cashDominanceFlag = cashSalesPesewas / (cashSalesPesewas + momoSalesPesewas + 1) > 0.8;
+    const digitalSalesPesewas = momoSalesPesewas + cardSalesPesewas;
+    const cashToMomoRatio = digitalSalesPesewas > 0 ? cashSalesPesewas / digitalSalesPesewas : 99;
+    const cashDominanceFlag = cashSalesPesewas / (cashSalesPesewas + digitalSalesPesewas + 1) > 0.8;
     if (cashDominanceFlag) {
       findings.push(
         this.finding({
@@ -543,8 +565,7 @@ export class AuditService {
       cashSalesPesewas,
       momoSalesPesewas,
       cashToMomoRatio,
-      cashDominanceFlag,
-      unmatchedInvoiceCount,
+      cashDominanceFlag,      unmatchedInvoiceCount,
       unmatchedInvoiceValuePesewas,
       unmatchedInvoiceFormatted: this.fmt(unmatchedInvoiceValuePesewas),
       duplicateInvoiceCount,

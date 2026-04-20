@@ -178,6 +178,21 @@ export class SaleItemOutput {
   stockStatus!: string;
 }
 
+@ObjectType({ description: 'A payment tender line on a completed sale' })
+export class TenderOutput {
+  @Field(() => String, { description: 'Payment method: CASH | MTN_MOMO | VODAFONE_CASH | AIRTELTIGO_MONEY | CARD | SPLIT' })
+  method!: string;
+
+  @Field(() => Int, { description: 'Amount tendered in GHS pesewas' })
+  amountPesewas!: number;
+
+  @Field({ description: 'Human-readable amount. Example: GH₵21.85' })
+  amountFormatted!: string;
+
+  @Field({ nullable: true, description: 'MoMo transaction reference (if applicable)' })
+  momoReference?: string;
+}
+
 @ObjectType({ description: 'A completed sale record' })
 export class SaleOutput {
   @Field(() => ID, { description: 'UUID of the sale' })
@@ -197,6 +212,9 @@ export class SaleOutput {
 
   @Field(() => [SaleItemOutput], { description: 'Line items in this sale' })
   items!: SaleItemOutput[];
+
+  @Field(() => [TenderOutput], { description: 'Payment tenders used for this sale' })
+  tenders!: TenderOutput[];
 
   @Field(() => Int, {
     description: 'Total sale amount in GHS pesewas (subtotal + VAT). Example: `11500` = GH₵115.00',

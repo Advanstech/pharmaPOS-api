@@ -72,4 +72,9 @@ export class UpdateProductInput {
   @IsString()
   @MaxLength(500)
   reason?: string;
+
+  @Field({ nullable: true, description: 'Update the nearest batch expiry date (ISO 8601). Updates the earliest inventory batch for this product.' })
+  @IsOptional()
+  @IsString()
+  nearestExpiry?: string;
 }

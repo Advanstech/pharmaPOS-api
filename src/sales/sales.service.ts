@@ -287,6 +287,15 @@ export class SalesService {
         JSON.stringify({ total_pesewas: totalPesewas, item_count: input.items.length }),
       ]);
 
+      // Persist tenders
+      for (const tender of input.tenders) {
+        await em.query(`
+          INSERT INTO sale_tenders (id, sale_id, method, amount_pesewas, momo_reference)
+          VALUES (gen_random_uuid(), $1, $2, $3, $4)
+          ON CONFLICT DO NOTHING
+        `, [sale.id, tender.method, tender.amountPesewas, tender.momoReference ?? null]);
+      }
+
       return { saleId: sale.id, stockChanges: pendingStockEvents };
     });
 
@@ -473,7 +482,18 @@ export class SalesService {
       [saleId, sale.branch_id],
     ) as SaleItemRow[];
 
-    return this.mapSaleOutput(sale, items);
+    // Fetch tenders — fall back gracefully if table doesn't exist yet
+    let tenders: Array<{ method: string; amount_pesewas: number; momo_reference: string | null }> = [];
+    try {
+      tenders = await this.dataSource.query(
+        `SELECT method, amount_pesewas, momo_reference FROM sale_tenders WHERE sale_id = $1 ORDER BY amount_pesewas DESC`,
+        [saleId],
+      ) as typeof tenders;
+    } catch {
+      // sale_tenders table may not exist on older deployments — degrade gracefully
+    }
+
+    return this.mapSaleOutput(sale, items, tenders);
   }
 
   // ── Daily summary ─────────────────────────────────────────────────────────
@@ -826,7 +846,11 @@ export class SalesService {
     return d;
   }
 
-  private mapSaleOutput(sale: SaleRow, items: SaleItemRow[]): SaleOutput {
+  private mapSaleOutput(
+    sale: SaleRow,
+    items: SaleItemRow[],
+    tenders: Array<{ method: string; amount_pesewas: number; momo_reference: string | null }> = [],
+  ): SaleOutput {
     return {
       id: sale.id,
       branchId: sale.branch_id,
@@ -840,6 +864,12 @@ export class SalesService {
       idempotencyKey: sale.idempotency_key,
       soldAt: sale.sold_at ?? null,
       createdAt: sale.created_at,
+      tenders: tenders.map(t => ({
+        method: t.method,
+        amountPesewas: t.amount_pesewas,
+        amountFormatted: this.formatGhs(t.amount_pesewas),
+        momoReference: t.momo_reference ?? undefined,
+      })),
       items: items.map((i): SaleItemOutput => ({
         id: i.id,
         productId: i.product_id,

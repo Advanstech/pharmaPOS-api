@@ -199,6 +199,15 @@ export class RevenueTrendPoint {
   @Field(() => Float, { nullable: true }) growthPct?: number; // vs prior period
 }
 
+@ObjectType({ description: 'Payment method share in revenue' })
+export class PaymentMethodShare {
+  @Field() method!: string;
+  @Field() label!: string;
+  @Field(() => Int) totalPesewas!: number;
+  @Field() totalFormatted!: string;
+  @Field(() => Float) sharePct!: number;
+}
+
 @ObjectType({ description: 'Revenue intelligence — trends, seasonality, anomalies' })
 export class RevenueIntelligence {
   @Field(() => [RevenueTrendPoint], { description: 'Monthly revenue trend (last 12 months)' })
@@ -231,6 +240,9 @@ export class RevenueIntelligence {
 
   @Field({ description: 'Narrative insight from the intelligence engine' })
   insight!: string;
+
+  @Field(() => [PaymentMethodShare], { description: 'Revenue breakdown by payment method (Cash, MoMo, Card)' })
+  paymentMix!: PaymentMethodShare[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
