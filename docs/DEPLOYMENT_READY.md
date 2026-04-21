@@ -246,6 +246,7 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 - [ ] Test image fetching with real products
 - [ ] Monitor error logs
 - [ ] Check S3 storage usage
+- [ ] Verify Redis mode via `/health/ready` (`healthy` / `degraded` / `disabled`)
 
 ## Git Status
 
@@ -269,10 +270,24 @@ DATABASE_DIRECT_URL=postgresql://...
 JWT_SECRET=...
 JWT_REFRESH_SECRET=...
 REDIS_URL=redis://...
+REDIS_ENABLED=true
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_S3_BUCKET=...
 ```
+
+### Redis Degraded-Mode Toggle
+
+If Redis is unavailable or quota-limited (e.g., Upstash max request cap reached):
+
+```bash
+REDIS_ENABLED=false
+```
+
+Effect:
+- API startup remains healthy (no Redis crash loop)
+- Queue-backed OCR/image jobs are skipped with warning logs
+- Health endpoints expose Redis state for ops (`/health`, `/health/ready`)
 
 ### Optional (For Enhanced Image Coverage)
 ```bash

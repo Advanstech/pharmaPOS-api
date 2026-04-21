@@ -35,6 +35,9 @@ DATABASE_DIRECT_URL=postgresql://...
 
 # Redis (auto-injected when you add Redis)
 REDIS_URL=redis://...
+# Feature flag: keep true when Redis is healthy.
+# Set false to run API in degraded mode without Redis/Bull queues.
+REDIS_ENABLED=true
 
 # OpenAI (REQUIRED - add manually)
 OPENAI_API_KEY=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
@@ -121,10 +124,20 @@ curl https://your-app.railway.app/health
   "status": "ok",
   "info": {
     "database": { "status": "up" },
-    "redis": { "status": "up" }
+    "redis": { "status": "up", "mode": "healthy" }
   }
 }
 ```
+
+### 1b. Readiness Check (includes Redis mode)
+
+```bash
+curl https://your-app.railway.app/health/ready
+```
+
+**Expected fields**:
+- `database`: `connected` or `disconnected`
+- `redis`: `healthy`, `degraded`, or `disabled`
 
 ### 2. GraphQL Playground
 
@@ -215,6 +228,7 @@ railway run npm run migration:run
 **Solution**:
 1. Add Redis database in Railway dashboard
 2. Restart deployment
+3. If Redis quota is exhausted, set `REDIS_ENABLED=false` to keep API online in degraded mode
 
 ### Issue: OpenAI API Errors
 
@@ -264,6 +278,11 @@ After deployment, you should have:
 - ✅ Invoice OCR functional
 - ✅ Staff expenses functional
 - ✅ All documentation available
+
+If Redis is disabled/degraded:
+- API remains online
+- Queue-backed OCR/image jobs are skipped with warning logs
+- Health endpoints expose Redis mode for operations visibility
 
 ---
 

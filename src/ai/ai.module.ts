@@ -4,6 +4,8 @@ import { ProductImageService } from './product-image.service';
 import { ImagePipelineProcessor } from './image-pipeline.processor';
 import { ProductsModule } from '../products/products.module';
 
+const REDIS_ENABLED = process.env['REDIS_ENABLED'] !== 'false';
+
 /**
  * AI Capabilities Module
  * 
@@ -16,14 +18,18 @@ import { ProductsModule } from '../products/products.module';
 @Module({
   imports: [
     // BullMQ queue for async image processing
-    BullModule.registerQueue({
-      name: 'image-pipeline',
-    }),
+    ...(REDIS_ENABLED
+      ? [
+          BullModule.registerQueue({
+            name: 'image-pipeline',
+          }),
+        ]
+      : []),
     ProductsModule,
   ],
   providers: [
     ProductImageService,
-    ImagePipelineProcessor,
+    ...(REDIS_ENABLED ? [ImagePipelineProcessor] : []),
   ],
   exports: [ProductImageService],
 })

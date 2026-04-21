@@ -377,24 +377,24 @@ export class ProductsService {
         );
       }
 
-      // Update nearest expiry: update the earliest batch's expiry_date
+      // Update nearest expiry using stock_movements (canonical batch/expiry ledger)
       if (input.nearestExpiry !== undefined) {
         if (input.nearestExpiry === null || input.nearestExpiry === '') {
-          // Clear expiry on the nearest batch (set to NULL)
+          // Clear expiry on the earliest expiring movement row
           await em.query(
-            `UPDATE inventory_batches
-             SET expiry_date = NULL, updated_at = NOW()
+            `UPDATE stock_movements
+             SET expiry_date = NULL
              WHERE product_id = $1 AND branch_id = $2
                AND expiry_date = (
-                 SELECT MIN(expiry_date) FROM inventory_batches
+                 SELECT MIN(expiry_date) FROM stock_movements
                  WHERE product_id = $1 AND branch_id = $2 AND expiry_date IS NOT NULL
                )`,
             [id, actor.branchId],
           );
         } else {
-          // Update the nearest (earliest) batch expiry, or insert a placeholder batch if none exists
+          // Update the nearest (earliest) expiry row, or create a zero-quantity marker row.
           const [nearestBatch] = await em.query(
-            `SELECT id FROM inventory_batches
+            `SELECT id FROM stock_movements
              WHERE product_id = $1 AND branch_id = $2
              ORDER BY expiry_date ASC NULLS LAST
              LIMIT 1`,
@@ -403,16 +403,18 @@ export class ProductsService {
 
           if (nearestBatch) {
             await em.query(
-              `UPDATE inventory_batches SET expiry_date = $1, updated_at = NOW() WHERE id = $2`,
+              `UPDATE stock_movements SET expiry_date = $1 WHERE id = $2`,
               [input.nearestExpiry, nearestBatch.id],
             );
           } else {
-            // No batch exists yet — create a placeholder batch with the expiry date
+            // No movement row exists yet - record a zero-quantity adjustment marker.
             await em.query(
-              `INSERT INTO inventory_batches (id, product_id, branch_id, batch_number, quantity, expiry_date)
-               VALUES (gen_random_uuid(), $1, $2, 'MANUAL', 0, $3)
+              `INSERT INTO stock_movements (
+                 id, product_id, branch_id, batch_number, expiry_date, quantity, movement_type, performed_by
+               )
+               VALUES (gen_random_uuid(), $1, $2, 'MANUAL-EXPIRY', $3, 0, 'ADJUSTMENT', $4)
                ON CONFLICT DO NOTHING`,
-              [id, actor.branchId, input.nearestExpiry],
+              [id, actor.branchId, input.nearestExpiry, actor.sub],
             );
           }
         }

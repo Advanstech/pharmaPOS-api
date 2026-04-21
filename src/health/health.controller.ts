@@ -10,9 +10,11 @@ import {
   HealthCheckService,
   TypeOrmHealthIndicator,
   MemoryHealthIndicator,
+  HealthCheckError,
 } from '@nestjs/terminus';
 import { InjectConnection } from '@nestjs/typeorm';
 import { Connection } from 'typeorm';
+import { Socket } from 'node:net';
 
 // ── Response schema classes ───────────────────────────────────────────────
 
@@ -51,6 +53,9 @@ class ReadinessResponse {
   @ApiProperty({ example: 'connected', enum: ['connected', 'disconnected'] })
   database!: string;
 
+  @ApiProperty({ example: 'healthy', enum: ['healthy', 'degraded', 'disabled'] })
+  redis!: string;
+
   @ApiProperty({
     example: 'Connection refused',
     description: 'Only present when status is "error"',
@@ -79,6 +84,11 @@ class MemoryRssHealth {
   memory_rss!: HealthIndicatorResult;
 }
 
+class RedisHealth {
+  @ApiProperty({ type: HealthIndicatorResult })
+  redis!: HealthIndicatorResult;
+}
+
 class HealthCheckInfo {
   @ApiProperty({ type: DatabaseHealth })
   database!: DatabaseHealth;
@@ -88,6 +98,9 @@ class HealthCheckInfo {
 
   @ApiProperty({ type: MemoryRssHealth })
   memory_rss!: MemoryRssHealth;
+
+  @ApiProperty({ type: RedisHealth })
+  redis!: RedisHealth;
 }
 
 class HealthCheckResponse {
@@ -182,6 +195,7 @@ export class HealthController {
       () => this.db.pingCheck('database', { timeout: 3000 }),
       () => this.memory.checkHeap('memory_heap', 300 * 1024 * 1024),
       () => this.memory.checkRSS('memory_rss', 500 * 1024 * 1024),
+      () => this.redisHealthCheck(),
     ]);
   }
 
@@ -223,17 +237,86 @@ export class HealthController {
     },
   })
   async readiness() {
+    const redis = await this.getRedisStatus();
     try {
       await this.connection.query('SELECT 1');
-      return { status: 'ok', timestamp: new Date().toISOString(), database: 'connected' };
+      return {
+        status: redis === 'degraded' ? 'error' : 'ok',
+        timestamp: new Date().toISOString(),
+        database: 'connected',
+        redis,
+      };
     } catch (error) {
       return {
         status: 'error',
         timestamp: new Date().toISOString(),
         database: 'disconnected',
+        redis,
         error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
+  }
+
+  private async getRedisStatus(): Promise<'healthy' | 'degraded' | 'disabled'> {
+    if (process.env['REDIS_ENABLED'] === 'false') {
+      return 'disabled';
+    }
+
+    const endpoint = this.resolveRedisEndpoint();
+    if (!endpoint) {
+      return 'degraded';
+    }
+
+    return this.probeTcp(endpoint.host, endpoint.port);
+  }
+
+  private resolveRedisEndpoint(): { host: string; port: number } | null {
+    const redisUrl = process.env['REDIS_URL'];
+    if (redisUrl) {
+      try {
+        const url = new URL(redisUrl);
+        return {
+          host: url.hostname,
+          port: Number(url.port || 6379),
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    const host = process.env['REDIS_HOST'];
+    if (!host) return null;
+    const port = Number(process.env['REDIS_PORT'] || 6379);
+    return { host, port };
+  }
+
+  private probeTcp(host: string, port: number): Promise<'healthy' | 'degraded'> {
+    return new Promise((resolve) => {
+      const socket = new Socket();
+      let settled = false;
+      const finish = (state: 'healthy' | 'degraded') => {
+        if (settled) return;
+        settled = true;
+        socket.destroy();
+        resolve(state);
+      };
+
+      socket.setTimeout(800);
+      socket.once('connect', () => finish('healthy'));
+      socket.once('timeout', () => finish('degraded'));
+      socket.once('error', () => finish('degraded'));
+      socket.connect(port, host);
+    });
+  }
+
+  private async redisHealthCheck(): Promise<{ redis: { status: 'up'; mode: 'healthy' | 'disabled' } }> {
+    const redis = await this.getRedisStatus();
+    if (redis === 'degraded') {
+      throw new HealthCheckError('Redis unavailable', {
+        redis: { status: 'down', mode: 'degraded' },
+      });
+    }
+    return { redis: { status: 'up', mode: redis } };
   }
 
   @Get('live')

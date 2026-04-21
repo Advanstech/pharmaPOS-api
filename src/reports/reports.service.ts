@@ -74,6 +74,7 @@ export class ReportsService {
   ): Promise<TopProduct[]> {
     const at = this.effectiveSaleAt.sql('s');
     const saleAccraDay = `(${at} AT TIME ZONE 'Africa/Accra')::date`;
+    const safeLimit = Math.min(100, Math.max(1, Math.trunc(Number(limit) || 10)));
     const rows = await this.dataSource.query(`
       SELECT
         si.product_id,
@@ -90,7 +91,7 @@ export class ReportsService {
       GROUP BY si.product_id, p.name
       ORDER BY revenue DESC
       LIMIT $4
-    `, [branchId, periodStart, periodEnd, limit]) as TopProductRow[];
+    `, [branchId, periodStart, periodEnd, safeLimit]) as TopProductRow[];
 
     return rows.map((r) => ({
       productId: r.product_id,

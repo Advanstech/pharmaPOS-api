@@ -1,5 +1,5 @@
 import { Resolver, Mutation, Query, Args, ID } from '@nestjs/graphql';
-import { UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { UseGuards, UsePipes, ValidationPipe, Optional, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bullmq';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -38,6 +38,7 @@ const ALLOWED_INVOICE_MIME_TYPES = new Set([
 ]);
 
 const ALLOWED_INVOICE_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.heic', '.heif', '.tif', '.tiff', '.bmp'];
+const MAX_INVOICE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
 function isAllowedInvoiceFile(mimetype: string | undefined, filename: string | undefined): boolean {
   const normalizedMime = (mimetype || '').toLowerCase();
@@ -62,18 +63,20 @@ function inferMimeTypeFromFilename(filename: string | undefined): string {
 @Resolver()
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class InvoiceOcrResolver {
+  private readonly logger = new Logger(InvoiceOcrResolver.name);
+
   constructor(
     private readonly ocrService: InvoiceOcrService,
     private readonly s3Upload: S3UploadService,
     private readonly dataSource: DataSource,
-    @InjectQueue('invoice-ocr') private readonly ocrQueue: Queue,
+    @Optional() @InjectQueue('invoice-ocr') private readonly ocrQueue?: Queue,
   ) {}
 
   // ── Upload Invoice for OCR ────────────────────────────────────────────
 
   @Mutation(() => UploadInvoiceResponse, { name: 'uploadSupplierInvoice' })
   @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician')
-  @UsePipes(new ValidationPipe({ whitelist: false, forbidNonWhitelisted: false }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async uploadSupplierInvoice(
     @Args('input') input: UploadSupplierInvoiceInput,
     @CurrentUser() actor: JwtUser,
@@ -102,8 +105,14 @@ export class InvoiceOcrResolver {
     if (typeof createReadStream === 'function') {
       const stream = createReadStream();
       const chunks: Buffer[] = [];
+      let totalBytes = 0;
       for await (const chunk of stream) {
-        chunks.push(chunk);
+        const bufferChunk = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        totalBytes += bufferChunk.length;
+        if (totalBytes > MAX_INVOICE_SIZE_BYTES) {
+          throw new Error(`Invoice file is too large. Maximum size is ${Math.floor(MAX_INVOICE_SIZE_BYTES / 1024 / 1024)}MB.`);
+        }
+        chunks.push(bufferChunk);
       }
       buffer = Buffer.concat(chunks);
     } else {
@@ -115,6 +124,9 @@ export class InvoiceOcrResolver {
       buffer = await readFile(fileWithPath._path);
     }
     const fileSizeBytes = buffer.length;
+    if (fileSizeBytes > MAX_INVOICE_SIZE_BYTES) {
+      throw new Error(`Invoice file is too large. Maximum size is ${Math.floor(MAX_INVOICE_SIZE_BYTES / 1024 / 1024)}MB.`);
+    }
 
     // Upload using S3 client directly
     const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
@@ -148,15 +160,21 @@ export class InvoiceOcrResolver {
       actor.sub,
     );
 
-    // Queue OCR processing
-    await this.ocrQueue.add('extract-invoice', {
-      jobId,
-      fileUrl,
-      fileType: normalizedMime,
-      supplierId: input.supplierId || null,
-      branchId: actor.branchId,
-      createdBy: actor.sub,
-    });
+    // Queue OCR processing (degrade gracefully when Redis/Bull is disabled)
+    if (this.ocrQueue) {
+      await this.ocrQueue.add('extract-invoice', {
+        jobId,
+        fileUrl,
+        fileType: normalizedMime,
+        supplierId: input.supplierId || null,
+        branchId: actor.branchId,
+        createdBy: actor.sub,
+      });
+    } else {
+      this.logger.warn(
+        `OCR queue unavailable (REDIS_ENABLED=false or Redis down). Job ${jobId} stored but not enqueued.`,
+      );
+    }
 
     return {
       id: jobId,

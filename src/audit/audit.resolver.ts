@@ -156,8 +156,9 @@ export class AuditResolver {
   async staffActivityLog(
     @Args('userId', { type: () => ID }) userId: string,
     @Args('limit', { type: () => Int, nullable: true }) limit?: number,
+    @Args('offset', { type: () => Int, nullable: true }) offset?: number,
   ): Promise<StaffActivityEntry[]> {
-    const rows = await this.auditService.getStaffActivityLog(userId, limit || 50);
+    const rows = await this.auditService.getStaffActivityLog(userId, limit || 50, offset || 0);
     return rows;
   }
 }

@@ -1393,14 +1393,16 @@ export class AuditService {
   // STAFF ACTIVITY LOG
   // ───────────────────────────────────────────────────────────────────────────
 
-  async getStaffActivityLog(userId: string, limit = 50): Promise<any[]> {
+  async getStaffActivityLog(userId: string, limit = 50, offset = 0): Promise<any[]> {
+    const safeLimit = Math.min(100, Math.max(1, Math.trunc(Number(limit) || 50)));
+    const safeOffset = Math.max(0, Math.trunc(Number(offset) || 0));
     const rows = await this.dataSource.query(
       `SELECT id, type, ip_address, metadata, created_at
        FROM audit_logs
        WHERE user_id = $1
        ORDER BY created_at DESC
-       LIMIT $2`,
-      [userId, limit],
+       LIMIT $2 OFFSET $3`,
+      [userId, safeLimit, safeOffset],
     );
 
     return rows.map((r: any) => {

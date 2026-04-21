@@ -2245,7 +2245,7 @@ type Query {
   ): [ProductType!]!
 
   """Recent activity log for a staff member — pages visited, actions taken."""
-  staffActivityLog(limit: Int, userId: ID!): [StaffActivityEntry!]!
+  staffActivityLog(limit: Int, offset: Int, userId: ID!): [StaffActivityEntry!]!
 
   """
   Deep-dive behavioural profile for a single staff member. Ghana DPA 2012: user IDs only — no names in findings. RBAC: owner, se_admin only.

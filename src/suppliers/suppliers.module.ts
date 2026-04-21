@@ -12,10 +12,12 @@ import { Supplier } from './entities/supplier.entity';
 import { ProductsModule } from '../products/products.module';
 import { AiModule } from '../ai/ai.module';
 
+const REDIS_ENABLED = process.env['REDIS_ENABLED'] !== 'false';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([Supplier]),
-    BullModule.registerQueue({ name: 'invoice-ocr' }),
+    ...(REDIS_ENABLED ? [BullModule.registerQueue({ name: 'invoice-ocr' })] : []),
     MulterModule.register({ storage: undefined }), // memoryStorage (default)
     ProductsModule,
     AiModule,
@@ -26,7 +28,7 @@ import { AiModule } from '../ai/ai.module';
     SuppliersResolver,
     InvoiceOcrService,
     InvoiceOcrResolver,
-    InvoiceOcrProcessor,
+    ...(REDIS_ENABLED ? [InvoiceOcrProcessor] : []),
   ],
   exports: [SuppliersService, InvoiceOcrService],
 })

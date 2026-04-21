@@ -646,15 +646,67 @@ export class InventoryService {
    * RBAC: owner, se_admin, manager, head_pharmacist.
    */
   async listGRNs(branchId: string, limit = 50): Promise<import('./dto/inventory.types').GRNOutput[]> {
-    const grns = await this.dataSource.query(`
-      SELECT grn.id
+    const rows = await this.dataSource.query(`
+      SELECT
+        grn.id,
+        grn.branch_id,
+        grn.purchase_order_id,
+        grn.received_by,
+        grn.received_at,
+        grn.notes,
+        si.supplier_id,
+        s.name AS supplier_name,
+        si.invoice_number AS supplier_invoice_number,
+        si.invoice_date,
+        si.due_date,
+        si.total_amount,
+        si.s3_pdf_key AS invoice_pdf_s3_key,
+        si.status AS invoice_status,
+        u.name AS received_by_name
       FROM goods_received_notes grn
+      JOIN supplier_invoices si ON si.grn_id = grn.id
+      JOIN suppliers s ON s.id = si.supplier_id
+      JOIN users u ON u.id = grn.received_by
       WHERE grn.branch_id = $1
       ORDER BY grn.received_at DESC
       LIMIT $2
-    `, [branchId, limit]) as Array<{ id: string }>;
+    `, [branchId, limit]) as Array<{
+      id: string;
+      branch_id: string;
+      purchase_order_id: string | null;
+      received_by: string;
+      received_at: Date;
+      notes: string | null;
+      supplier_id: string;
+      supplier_name: string;
+      supplier_invoice_number: string;
+      invoice_date: Date;
+      due_date: Date | null;
+      total_amount: number;
+      invoice_pdf_s3_key: string | null;
+      invoice_status: string;
+      received_by_name: string;
+    }>;
 
-    return Promise.all(grns.map((g) => this.getGRN(g.id)));
+    return rows.map((grn) => ({
+      id: grn.id,
+      branchId: grn.branch_id,
+      supplierId: grn.supplier_id,
+      supplierName: grn.supplier_name,
+      purchaseOrderId: grn.purchase_order_id ?? undefined,
+      supplierInvoiceNumber: grn.supplier_invoice_number,
+      invoiceDate: grn.invoice_date,
+      dueDate: grn.due_date ?? undefined,
+      totalAmountPesewas: grn.total_amount,
+      totalAmountFormatted: `GH₵${(grn.total_amount / 100).toFixed(2)}`,
+      invoicePdfS3Key: grn.invoice_pdf_s3_key ?? undefined,
+      items: [],
+      notes: grn.notes ?? undefined,
+      receivedBy: grn.received_by,
+      receivedByName: grn.received_by_name,
+      receivedAt: grn.received_at,
+      isMatched: grn.invoice_status === 'MATCHED' || grn.invoice_status === 'PAID',
+    }));
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────

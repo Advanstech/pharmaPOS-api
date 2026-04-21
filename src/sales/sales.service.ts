@@ -533,18 +533,20 @@ export class SalesService {
 
   async getRecentSales(actor: JwtUser, limit = 20): Promise<SaleOutput[]> {
     const ownSalesOnly = !(BRANCH_WIDE_SALES_ROLES as readonly string[]).includes(actor.role);
-    const orderAt = this.effectiveSaleAt.hasSoldAt ? 'COALESCE(sold_at, created_at)' : 'created_at';
+    const orderAt = this.effectiveSaleAt.hasSoldAt ? 'COALESCE(s.sold_at, s.created_at)' : 's.created_at';
     const rowSelect = this.effectiveSaleAt.hasSoldAt
-      ? 'id, branch_id, cashier_id, total_amount, vat_amount, status, idempotency_key, sold_at, created_at'
-      : 'id, branch_id, cashier_id, total_amount, vat_amount, status, idempotency_key, NULL::timestamptz AS sold_at, created_at';
+      ? 's.id, s.branch_id, s.cashier_id, s.total_amount, s.vat_amount, s.status, s.idempotency_key, s.sold_at, s.created_at, b.name AS branch_name, u.name AS cashier_name'
+      : 's.id, s.branch_id, s.cashier_id, s.total_amount, s.vat_amount, s.status, s.idempotency_key, NULL::timestamptz AS sold_at, s.created_at, b.name AS branch_name, u.name AS cashier_name';
     let sales: SaleRow[];
 
     if (ownSalesOnly) {
       sales = (await this.dataSource.query(
         `
         SELECT ${rowSelect}
-        FROM sales
-        WHERE branch_id = $1 AND status = 'COMPLETED' AND cashier_id = $3
+        FROM sales s
+        JOIN branches b ON b.id = s.branch_id
+        JOIN users u ON u.id = s.cashier_id
+        WHERE s.branch_id = $1 AND s.status = 'COMPLETED' AND s.cashier_id = $3
         ORDER BY ${orderAt} DESC
         LIMIT $2
       `,
@@ -556,7 +558,9 @@ export class SalesService {
         `
         SELECT ${rowSelect}
         FROM sales s
-        WHERE ${clause} AND status = 'COMPLETED'
+        JOIN branches b ON b.id = s.branch_id
+        JOIN users u ON u.id = s.cashier_id
+        WHERE ${clause} AND s.status = 'COMPLETED'
         ORDER BY ${orderAt} DESC
         LIMIT $${params.length + 1}
       `,
@@ -564,7 +568,68 @@ export class SalesService {
       )) as SaleRow[];
     }
 
-    return Promise.all(sales.map((s) => this.getSale(s.id, actor)));
+    if (sales.length === 0) return [];
+    const saleIds = sales.map((s) => s.id);
+
+    const items = (await this.dataSource.query(
+      `
+      SELECT
+        si.sale_id,
+        si.id,
+        si.product_id,
+        p.name AS product_name,
+        p.classification AS classification,
+        si.quantity,
+        si.unit_price,
+        si.vat_exempt,
+        si.supplier_id,
+        COALESCE(inv.quantity_on_hand, 0) AS stock_after_sale,
+        COALESCE(inv.reorder_level, 10) AS reorder_level,
+        sup.name AS supplier_name
+      FROM sale_items si
+      JOIN products p ON p.id = si.product_id
+      LEFT JOIN suppliers sup ON sup.id = si.supplier_id
+      LEFT JOIN sales s ON s.id = si.sale_id
+      LEFT JOIN inventory inv ON inv.product_id = si.product_id AND inv.branch_id = s.branch_id
+      WHERE si.sale_id = ANY($1)
+      ORDER BY si.sale_id, si.id
+    `,
+      [saleIds],
+    )) as Array<SaleItemRow & { sale_id: string }>;
+
+    let tenders: Array<{ sale_id: string; method: string; amount_pesewas: number; momo_reference: string | null }> = [];
+    try {
+      tenders = (await this.dataSource.query(
+        `SELECT sale_id, method, amount_pesewas, momo_reference
+         FROM sale_tenders
+         WHERE sale_id = ANY($1)
+         ORDER BY sale_id, amount_pesewas DESC`,
+        [saleIds],
+      )) as typeof tenders;
+    } catch {
+      // sale_tenders table may not exist on older deployments — degrade gracefully
+    }
+
+    const itemsBySale = new Map<string, SaleItemRow[]>();
+    for (const item of items) {
+      const list = itemsBySale.get(item.sale_id) ?? [];
+      list.push(item);
+      itemsBySale.set(item.sale_id, list);
+    }
+    const tendersBySale = new Map<string, Array<{ method: string; amount_pesewas: number; momo_reference: string | null }>>();
+    for (const tender of tenders) {
+      const list = tendersBySale.get(tender.sale_id) ?? [];
+      list.push(tender);
+      tendersBySale.set(tender.sale_id, list);
+    }
+
+    return sales.map((sale) =>
+      this.mapSaleOutput(
+        sale,
+        itemsBySale.get(sale.id) ?? [],
+        tendersBySale.get(sale.id) ?? [],
+      ),
+    );
   }
 
   // ── Refund sale ────────────────────────────────────────────────────────────

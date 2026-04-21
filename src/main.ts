@@ -7,6 +7,37 @@ import * as winston from 'winston';
 import helmet from 'helmet';
 import { isOriginAllowed } from './config/cors-origins';
 
+function isRecoverableRedisQuotaError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return (
+    /max requests limit exceeded/i.test(message) ||
+    /upstash/i.test(message)
+  );
+}
+
+function registerRedisSafetyGuards(): void {
+  process.on('uncaughtException', (error) => {
+    if (isRecoverableRedisQuotaError(error)) {
+      console.error(
+        '[Redis] quota/auth error detected. Running in degraded mode (Redis-dependent features may be unavailable). ' +
+          'Set REDIS_ENABLED=false to disable Redis cleanly for this process.',
+      );
+      return;
+    }
+    throw error;
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    if (isRecoverableRedisQuotaError(reason)) {
+      console.error(
+        '[Redis] async quota/auth error detected. Continuing without Redis availability where possible.',
+      );
+      return;
+    }
+    throw reason;
+  });
+}
+
 // ── GraphQL operation reference — embedded in Swagger description ─────────
 // This is the canonical reference for the frontend team and third-party
 // integrators. The primary API surface is GraphQL at /graphql.
@@ -244,7 +275,7 @@ query DailySummary {
 
 \`\`\`graphql
 # Validate a prescriber's GMDC licence before creating Rx
-# Cached 24h in Redis — never blocks due to GMDC API outage
+# Cached 24h in Redis when available (degrades gracefully if Redis is disabled)
 query ValidateGmdcLicence {
   validateGmdcLicence(licenceNo: "GMDC-2024-001234") {
     licenceNo
@@ -1282,6 +1313,7 @@ The web POS is an offline-first PWA. When offline:
 `;
 
 async function bootstrap() {
+  registerRedisSafetyGuards();
   const app = await NestFactory.create(AppModule, {
     logger: WinstonModule.createLogger({
       transports: [
@@ -1320,8 +1352,8 @@ async function bootstrap() {
 
   app.useGlobalPipes(
     new ValidationPipe({ 
-      whitelist: false,
-      forbidNonWhitelisted: false,
+      whitelist: true,
+      forbidNonWhitelisted: true,
       transform: true,
     }),
   );
@@ -1401,7 +1433,7 @@ curl -X POST http://localhost:${port}/graphql \\
 | Chemical shop no POM | \`BranchTypeGuard\` on all Rx endpoints |
 | Controlled drugs 2 sign-offs | \`approvalCount >= 2\` check before dispensing |
 | VAT 15% (non-exempt) | Calculated in \`SalesService.createSale\` |
-| Rx PDFs 5-year retention | BullMQ async upload to S3 after approval |
+| Rx PDFs 5-year retention | BullMQ async upload to S3 after approval (skipped in Redis-disabled degraded mode) |
 | Audit log immutable | PostgreSQL RULE blocks UPDATE/DELETE |
 
 ## Currency Rules

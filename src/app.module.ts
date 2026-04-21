@@ -26,38 +26,44 @@ import { TaxConfigService } from './config/tax-config.service';
 import { TaxConfigResolver } from './config/tax-config.resolver';
 import { isOriginAllowed } from './config/cors-origins';
 
+const REDIS_ENABLED = process.env['REDIS_ENABLED'] !== 'false';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     CacheModule.register({ isGlobal: true, ttl: 3600000 }),
 
     // Bull queue — Redis connection (used by invoice-ocr and image-pipeline queues)
-    BullModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const redisUrl = config.get<string>('REDIS_URL');
-        if (redisUrl) {
-          // Parse the Redis URL manually to support TLS (rediss://)
-          const url = new URL(redisUrl);
-          const isTls = url.protocol === 'rediss:';
-          return {
-            redis: {
-              host: url.hostname,
-              port: parseInt(url.port || '6379', 10),
-              password: url.password || undefined,
-              username: url.username || undefined,
-              tls: isTls ? { rejectUnauthorized: false } : undefined,
+    ...(REDIS_ENABLED
+      ? [
+          BullModule.forRootAsync({
+            inject: [ConfigService],
+            useFactory: (config: ConfigService) => {
+              const redisUrl = config.get<string>('REDIS_URL');
+              if (redisUrl) {
+                // Parse the Redis URL manually to support TLS (rediss://)
+                const url = new URL(redisUrl);
+                const isTls = url.protocol === 'rediss:';
+                return {
+                  redis: {
+                    host: url.hostname,
+                    port: parseInt(url.port || '6379', 10),
+                    password: url.password || undefined,
+                    username: url.username || undefined,
+                    tls: isTls ? { rejectUnauthorized: false } : undefined,
+                  },
+                };
+              }
+              return {
+                redis: {
+                  host: config.get('REDIS_HOST', 'localhost'),
+                  port: config.get<number>('REDIS_PORT', 6379),
+                },
+              };
             },
-          };
-        }
-        return {
-          redis: {
-            host: config.get('REDIS_HOST', 'localhost'),
-            port: config.get<number>('REDIS_PORT', 6379),
-          },
-        };
-      },
-    }),
+          }),
+        ]
+      : []),
 
     // Code-first GraphQL — never schema-first (ADR-01)
     GraphQLModule.forRootAsync<ApolloDriverConfig>({
@@ -67,8 +73,8 @@ import { isOriginAllowed } from './config/cors-origins';
           ? true  // In-memory schema generation — no filesystem write needed in prod
           : join(process.cwd(), 'src/schema.gql'),
         sortSchema: true,
-        // Apollo Server 5 defaults CSRF checks that reject some valid clients; we use Bearer JWT, not cookies.
-        csrfPrevention: false,
+        // Keep CSRF protection enabled for safer browser-sourced requests.
+        csrfPrevention: true,
         // WS: graphql-ws transport for subscriptions (not subscriptions-transport-ws)
         subscriptions: {
           'graphql-ws': {

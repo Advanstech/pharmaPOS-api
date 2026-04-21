@@ -34,7 +34,7 @@ Default Railway flow from config:
 | http://localhost:4000/graphql | GraphQL Playground |
 | http://localhost:4000/api-docs | Swagger UI (REST health + embedded GraphQL reference) |
 | http://localhost:4000/health | Full health check |
-| http://localhost:4000/health/ready | Readiness (DB `SELECT 1`) |
+| http://localhost:4000/health/ready | Readiness (DB + Redis state: `healthy` / `degraded` / `disabled`) |
 | http://localhost:4000/health/live | Liveness (process only) |
 
 **Structured reference:** [docs/REST-AND-GRAPHQL-REFERENCE.md](./docs/REST-AND-GRAPHQL-REFERENCE.md) — every REST route with request/response shapes; GraphQL transport, `login` example, and links to `schema.gql`.
@@ -80,6 +80,7 @@ See `.env.example` for the full list. Critical ones:
 | `DATABASE_DIRECT_URL` | Supabase direct connection (port 5432) — migrations only |
 | `JWT_SECRET` | Generate: `openssl rand -hex 64` |
 | `REDIS_URL` | Upstash Redis URL |
+| `REDIS_ENABLED` | `true` or `false`; disable Redis/Bull startup for degraded mode |
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Bypasses RLS — never expose to client |
 
@@ -109,7 +110,7 @@ src/
 All POM enforcement is at the API level — no client-side bypass is possible:
 - POM products require an approved Rx before sale (`PomEnforcementGuard`)
 - Chemical shop branch cannot process any POM (`BranchTypeGuard`)
-- GMDC prescriber licence validated on every Rx (cached 24h in Redis)
+- GMDC prescriber licence validated on every Rx (cached 24h in Redis when Redis is available)
 - Controlled drugs require two pharmacist sign-offs
 - Rx validity: 30 days, never extendable
 - Drug interactions: contraindicated = hard block, no override for any role
@@ -120,3 +121,4 @@ All POM enforcement is at the API level — no client-side bypass is possible:
 - Audit log is PostgreSQL append-only (RULE blocks UPDATE/DELETE)
 - All monetary values in GHS — never USD
 - Timestamps use `Africa/Accra` timezone (TIMESTAMPTZ)
+- Redis degraded mode: set `REDIS_ENABLED=false` to keep API online when Redis quota/connectivity fails; queue-backed OCR/image jobs are skipped with warning logs
