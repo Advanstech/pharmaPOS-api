@@ -1,4 +1,4 @@
-# Railway: set service Root directory to `apps/api` when the repo is the monorepo.
+# Railway API service config (standalone api repo).
 
 [phases.setup]
 nixPkgs = ["nodejs_22", "pnpm-9_x"]
@@ -6,14 +6,11 @@ nixPkgs = ["nodejs_22", "pnpm-9_x"]
 [phases.install]
 cmds = [
   "npm install -g corepack@0.24.1 && corepack enable",
-  "pnpm install --no-frozen-lockfile",
+  "pnpm install --no-frozen-lockfile --prod=false",
 ]
 
 [phases.build]
 cmds = ["pnpm build"]
-
-[variables]
-NODE_ENV = "production"
 
 [start]
 cmd = "node dist/main"
