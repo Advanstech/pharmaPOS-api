@@ -155,7 +155,7 @@ export class StaffService {
           [targetBranchId]
         ) as Array<{ name: string }>;
         
-        const branchName = branchRow?.name || 'PharmaPOS Branch';
+        const branchName = branchRow?.name || 'Azzay Pharmacy Branch';
         const invitedByName = actor.role === 'owner'
           ? 'Branch Owner'
           : actor.role === 'se_admin'

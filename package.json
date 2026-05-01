@@ -1,7 +1,7 @@
 {
   "name": "api",
   "version": "0.1.0",
-  "description": "PharmaPOS Pro production API — NestJS 11 + GraphQL (Apollo) + TypeORM/PostgreSQL. Branch-scoped pharmacy operations: POS sales, inventory & stock alerts, prescriptions/dispensing, supplier intelligence, accounting (P&L, VAT, invoices), audit/compliance, real-time stock subscriptions (Redis), file storage (S3-compatible), notifications, and health checks. Intended for regulated retail pharmacy deployments (e.g. Ghana FDA / GRA–aligned reporting).",
+  "description": "Azzay Pharmacy Pro production API — NestJS 11 + GraphQL (Apollo) + TypeORM/PostgreSQL. Branch-scoped pharmacy operations: POS sales, inventory & stock alerts, prescriptions/dispensing, supplier intelligence, accounting (P&L, VAT, invoices), audit/compliance, real-time stock subscriptions (Redis), file storage (S3-compatible), notifications, and health checks. Intended for regulated retail pharmacy deployments (e.g. Ghana FDA / GRA–aligned reporting).",
   "author": "Hanson Peprah <hanson.peprah@advansis.com> Advansis Technologies",
   "license": "UNLICENSED",
   "private": true,

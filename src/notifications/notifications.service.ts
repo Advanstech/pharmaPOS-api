@@ -34,8 +34,8 @@ export class NotificationsService {
     const envFrom = this.config.get<string>('EMAIL_FROM') || '';
     this.emailFrom = envFrom || (
       this.emailProvider === 'resend'
-        ? 'PharmaPOS <onboarding@resend.dev>'
-        : 'PharmaPOS <noreply@pharmapos.com>'
+        ? 'Azzay Pharmacy <onboarding@resend.dev>'
+        : 'Azzay Pharmacy <noreply@azzaypharmacy.com>'
     );
     this.whatsappWebhookUrl = this.config.get('WHATSAPP_WEBHOOK_URL') || '';
     this.whatsappFallbackToSms = (this.config.get('WHATSAPP_FALLBACK_TO_SMS') || 'true') !== 'false';
@@ -114,11 +114,11 @@ export class NotificationsService {
    */
   async sendWelcomeEmail(email: string, name: string): Promise<void> {
     const html = `
-      <h1>Welcome to PharmaPOS Pro, ${name}!</h1>
+      <h1>Welcome to Azzay Pharmacy Pro, ${name}!</h1>
       <p>Your account has been created successfully.</p>
       <p>Start managing your pharmacy operations with ease.</p>
     `;
-    await this.sendEmail({ to: email, subject: 'Welcome to PharmaPOS Pro', html });
+    await this.sendEmail({ to: email, subject: 'Welcome to Azzay Pharmacy Pro', html });
   }
 
   /**

@@ -46,7 +46,7 @@ OPENAI_API_KEY=<your key>
 # Email
 EMAIL_PROVIDER=resend
 EMAIL_API_KEY=<your resend key>
-EMAIL_FROM=PharmaPOS <noreply@yourdomain.com>
+EMAIL_FROM=Azzay Pharmacy <noreply@yourdomain.com>
 
 # Optional — leave blank to disable
 HUBTEL_CLIENT_ID=

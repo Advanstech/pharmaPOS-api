@@ -1,4 +1,4 @@
-# PharmaPOS Pro - Quick Start Guide
+# Azzay Pharmacy Pro - Quick Start Guide
 
 ## 🚀 Phase 1: Invoice OCR is LIVE!
 

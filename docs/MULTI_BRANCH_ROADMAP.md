@@ -1,7 +1,7 @@
-# PharmaPOS Pro - Multi-Branch Inventory Roadmap
+# Azzay Pharmacy Pro - Multi-Branch Inventory Roadmap
 
 ## Executive Summary
-This document outlines the implementation plan for enhanced multi-branch inventory management with AI capabilities for PharmaPOS Pro, supporting both pharmaceutical and chemical shop branches.
+This document outlines the implementation plan for enhanced multi-branch inventory management with AI capabilities for Azzay Pharmacy Pro, supporting both pharmaceutical and chemical shop branches.
 
 ## Current Architecture
 

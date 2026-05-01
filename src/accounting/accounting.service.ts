@@ -899,7 +899,7 @@ export class AccountingService {
       ]);
 
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'PharmaPOS Pro';
+    wb.creator = 'Azzay Pharmacy Pro';
     wb.created = new Date();
 
     const summary = wb.addWorksheet('Executive Summary');

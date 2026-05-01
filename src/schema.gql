@@ -164,11 +164,14 @@ input BankDetailsInput {
 """A branch of the organization"""
 type BranchOutput {
   address: String
+  createdAt: DateTime!
   id: ID!
   isActive: Boolean!
   name: String!
+  organizationId: ID!
   phone: String
   type: String!
+  updatedAt: DateTime!
 }
 
 """
@@ -274,6 +277,15 @@ type CfoBriefing {
   workingCapital: WorkingCapitalReport!
 }
 
+"""Change password for the currently authenticated user"""
+input ChangePasswordInput {
+  """Current account password"""
+  currentPassword: String!
+
+  """New account password (minimum 8 characters)"""
+  newPassword: String!
+}
+
 type ChartOfAccountsEntry {
   accountCode: String!
   accountName: String!
@@ -281,6 +293,20 @@ type ChartOfAccountsEntry {
   balanceFormatted: String!
   balancePesewas: Int!
   category: String!
+}
+
+input CloseRegisterInput {
+  """Business date YYYY-MM-DD (Accra calendar day)"""
+  businessDate: String!
+
+  """Cash physically counted in pesewas"""
+  cashCountedPesewas: Int!
+
+  """Closing notes from cashier"""
+  closingNotes: String
+
+  """MoMo received in pesewas"""
+  momoCountedPesewas: Int!
 }
 
 """Complete a stock count session"""
@@ -356,6 +382,13 @@ input ConfirmedInvoiceItemInput {
 
   """Unit price in pesewas"""
   unitPricePesewas: Int!
+}
+
+input CreateBranchInput {
+  address: String
+  name: String!
+  phone: String
+  type: String!
 }
 
 """
@@ -797,6 +830,40 @@ type EnhancedSupplierInvoice {
 
   """Total amount in pesewas"""
   totalAmountPesewas: Int!
+}
+
+type EodRecordOutput {
+  branchId: String!
+  branchName: String!
+  businessDate: String!
+  cashCountedFormatted: String!
+  cashCountedPesewas: Int!
+  cashierName: String!
+  closedAt: DateTime!
+  closingNotes: String
+  expectedCashFormatted: String!
+  expectedCashPesewas: Int!
+  expensesCount: Int!
+  expensesFormatted: String!
+  expensesPesewas: Int!
+  grossRevenueFormatted: String!
+  grossRevenuePesewas: Int!
+  id: ID!
+  isBalanced: Boolean!
+  momoCountedFormatted: String!
+  momoCountedPesewas: Int!
+  netRevenueFormatted: String!
+  netRevenuePesewas: Int!
+  refundsCount: Int!
+  refundsFormatted: String!
+  refundsPesewas: Int!
+  totalCountedFormatted: String!
+  totalCountedPesewas: Int!
+  totalSalesCount: Int!
+  varianceFormatted: String!
+  variancePesewas: Int!
+  vatCollectedFormatted: String!
+  vatCollectedPesewas: Int!
 }
 
 """Current USD/GHS exchange rate configuration"""
@@ -1526,8 +1593,15 @@ type Mutation {
   bulkUpdateProductPrices(input: BulkUpdatePriceInput!): [PriceUpdateResult!]!
   cancelStockCount(sessionId: ID!): Boolean!
   cancelStockTransfer(reason: String!, transferId: ID!): StockTransferOutput!
+  changePassword(input: ChangePasswordInput!): Boolean!
+
+  """
+  Close the daily register — saves cash count, variance, and posts GL entry if variance exists.
+  """
+  closeRegister(input: CloseRegisterInput!): EodRecordOutput!
   completeStockCount(input: CompleteStockCountInput!): StockCountSessionOutput!
   confirmOcrInvoice(input: ConfirmOcrInvoiceInput!): ConfirmInvoiceResponse!
+  createBranch(input: CreateBranchInput!): BranchOutput!
   createCustomer(input: CreateCustomerInput!): CustomerOutput!
   createExpense(input: CreateExpenseInput!): ExpenseOutput!
   createGRN(input: CreateGRNInput!): GRNOutput!
@@ -1538,6 +1612,7 @@ type Mutation {
   createStockCount(input: CreateStockCountInput!): StockCountSessionOutput!
   createStockTransfer(input: CreateStockTransferInput!): StockTransferOutput!
   createSupplier(input: CreateSupplierInput!): Supplier!
+  deactivateBranch(id: ID!): Boolean!
 
   """Deactivate a product (soft delete). Owner only."""
   deactivateProduct(id: String!): Boolean!
@@ -1551,6 +1626,7 @@ type Mutation {
   login(input: LoginInput!): AuthPayload!
   logout: Boolean!
   matchSupplierInvoice(input: MatchSupplierInvoiceInput!): SupplierInvoiceOutput!
+  reactivateBranch(id: ID!): Boolean!
   reactivateSupplier(id: String!): Boolean!
   receiveStock(input: ReceiveStockInput!): InventoryItem!
   receiveStockTransfer(transferId: ID!): StockTransferOutput!
@@ -1566,13 +1642,16 @@ type Mutation {
 
   """Manager rejects a refund request."""
   rejectRefundRequest(notes: String!, requestId: ID!): Boolean!
+  requestPasswordReset(email: String!): Boolean!
 
   """Cashier/pharmacist requests a refund. Manager must approve."""
   requestRefund(reason: String!, saleId: ID!): RefundRequestOutput!
+  resetPasswordWithToken(newPassword: String!, token: String!): Boolean!
   resetStaffPassword(input: ResetStaffPasswordInput!): Boolean!
   setPrimaryProductImage(imageId: String!, productId: String!): Boolean!
   setUsdExchangeRate(input: SetExchangeRateInput!): ExchangeRate!
   suspendSupplier(id: String!): Boolean!
+  updateBranch(id: ID!, input: UpdateBranchInput!): BranchOutput!
   updateCustomer(input: UpdateCustomerInput!): CustomerOutput!
 
   """Update product fields. Price changes tracked in cost history."""
@@ -2052,7 +2131,7 @@ type ProductSupplierType {
 }
 
 """
-A product in the PharmaPOS catalogue. Products are scoped to an organisation and can be available at `pharmaceutical`, `chemical`, or `both` branch types. When no approved `product_images` row exists, the web POS uses a deterministic Unsplash stock-photo fallback from id, name, generic name, and category.
+A product in the Azzay Pharmacy catalogue. Products are scoped to an organisation and can be available at `pharmaceutical`, `chemical`, or `both` branch types. When no approved `product_images` row exists, the web POS uses a deterministic Unsplash stock-photo fallback from id, name, generic name, and category.
 """
 type ProductType {
   """Barcode (EAN-13 or custom). Used for barcode scanner at POS."""
@@ -2152,6 +2231,11 @@ type Query {
 
   """List all active branches in the organization"""
   branches: [BranchOutput!]!
+
+  """
+  List organization branches for branch management (optionally include inactive)
+  """
+  branchesAdmin(includeInactive: Boolean = true): [BranchOutput!]!
   cashFlowForecast: CashFlowForecast!
   categoryBreakdown(periodEnd: String!, periodStart: String!): [CategoryBreakdown!]!
   cfoBriefing: CfoBriefing!
@@ -2169,6 +2253,9 @@ type Query {
   Ghana FDA dispensing compliance audit — POM enforcement, Rx validity, GMDC validation, controlled drug sign-offs, PDF retention. RBAC: owner, se_admin, manager, head_pharmacist.
   """
   dispensingComplianceAudit(input: AuditPeriodInput!): DispensingComplianceAudit!
+
+  """List EOD records for this branch. Manager/owner only."""
+  eodHistory(limit: Int): [EodRecordOutput!]!
   expenseAnalytics(endDate: String!, startDate: String!): ExpenseAnalyticsOutput!
 
   """
@@ -2224,6 +2311,9 @@ type Query {
   productPriceHistory(limit: Int! = 20, productId: String!): [PriceHistory!]!
   profitLoss(periodEnd: String!, periodStart: String!): ProfitLossStatement!
   recentSales(limit: Float): [SaleOutput!]!
+
+  """Get a single refund request by ID."""
+  refundRequest(id: ID!): RefundRequestOutput
 
   """List refund requests for the branch. Pending first."""
   refundRequests: [RefundRequestOutput!]!
@@ -2290,6 +2380,9 @@ type Query {
   """
   taxComplianceAudit(input: AuditPeriodInput!): TaxComplianceAudit!
   taxConfig: TaxConfigOutput!
+
+  """Check if today's register has been closed for this branch."""
+  todayEodStatus: TodayEodStatus!
   topProducts(limit: Float, periodEnd: String!, periodStart: String!): [TopProduct!]!
   trialBalance(asOfDate: String): [TrialBalanceRowOutput!]!
   validateGmdcLicence(licenceNo: String!): GmdcValidationResult!
@@ -3384,6 +3477,11 @@ type TenderOutput {
   momoReference: String
 }
 
+type TodayEodStatus {
+  isClosed: Boolean!
+  record: EodRecordOutput
+}
+
 """A product ranked by sales volume or revenue in a given period"""
 type TopProduct {
   """UUID of the product"""
@@ -3423,6 +3521,13 @@ type TrialBalanceRowOutput {
   balanceType: String!
   totalCredit: Int!
   totalDebit: Int!
+}
+
+input UpdateBranchInput {
+  address: String
+  name: String
+  phone: String
+  type: String
 }
 
 """Update optional profile fields for an existing customer."""

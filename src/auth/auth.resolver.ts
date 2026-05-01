@@ -2,7 +2,7 @@ import { Resolver, Mutation, Query, Args, Context } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { LoginInput, RegisterInput, AuthPayload } from './dto/auth.types';
+import { LoginInput, RegisterInput, ChangePasswordInput, AuthPayload } from './dto/auth.types';
 import { User } from './entities/user.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser, JwtUser } from './decorators/current-user.decorator';
@@ -36,6 +36,29 @@ export class AuthResolver {
     @Context() ctx: { req?: HttpRequestLike },
   ): Promise<AuthPayload> {
     return this.authService.refreshToken(token, extractClientSessionMeta(ctx.req));
+  }
+
+  @Mutation(() => Boolean)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT')
+  async changePassword(
+    @Args('input') input: ChangePasswordInput,
+    @CurrentUser() user: JwtUser,
+  ): Promise<boolean> {
+    return this.authService.changePassword(user, input.currentPassword, input.newPassword);
+  }
+
+  @Mutation(() => Boolean)
+  async requestPasswordReset(@Args('email') email: string): Promise<boolean> {
+    return this.authService.requestPasswordReset(email);
+  }
+
+  @Mutation(() => Boolean)
+  async resetPasswordWithToken(
+    @Args('token') token: string,
+    @Args('newPassword') newPassword: string,
+  ): Promise<boolean> {
+    return this.authService.resetPasswordWithToken(token, newPassword);
   }
 
   @Mutation(() => Boolean)

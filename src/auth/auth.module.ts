@@ -12,10 +12,12 @@ import { RolesGuard } from './guards/roles.guard';
 import { User } from './entities/user.entity';
 import { Subscription } from './entities/subscription.entity';
 import { SubscriptionGuard } from './guards/subscription.guard';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Subscription]),
+    NotificationsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       inject: [ConfigService],

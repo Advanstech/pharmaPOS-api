@@ -1,11 +1,11 @@
 /**
- * PharmaPOS Pro — API configuration constants
+ * Azzay Pharmacy Pro — API configuration constants
  * Inlined from packages/config — no workspace dependency at deploy time
  * Never put secrets here — use environment variables
  */
 
 export const APP_CONFIG = {
-  name: 'PharmaPOS Pro',
+  name: 'Azzay Pharmacy Pro',
   client: 'Azzay Pharmacy',
   country: 'GH',
   timezone: 'Africa/Accra',

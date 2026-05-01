@@ -367,7 +367,7 @@ export class SalesService {
             [actor.branchId]
           ) as Array<{ name: string }>;
           
-          const branchName = branchRow?.name || 'PharmaPOS Branch';
+          const branchName = branchRow?.name || 'Azzay Pharmacy Branch';
           
           // Decrypt customer name
           let customerName = 'Valued Customer';
@@ -830,7 +830,51 @@ export class SalesService {
       LIMIT 50
     `, [actor.branchId]);
 
-    return rows.map((r: any) => ({
+    return rows.map((r: any) => this.mapRefundRequest(r));
+  }
+
+  // ── Get single refund request ─────────────────────────────────────────────
+
+  async getRefundRequest(id: string, actor: JwtUser): Promise<any | null> {
+    const [r] = await this.dataSource.query(`
+      SELECT rr.*, u.name AS requested_by_name, s.total_amount, s.vat_amount,
+        s.cashier_id, cu.name AS cashier_name, s.branch_id AS sale_branch_id,
+        b.name AS branch_name,
+        (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = rr.sale_id)::int AS item_count,
+        ru.name AS reviewed_by_name,
+        json_agg(json_build_object(
+          'productId', si.product_id,
+          'productName', p.name,
+          'quantity', si.quantity,
+          'unitPricePesewas', si.unit_price,
+          'vatExempt', si.vat_exempt
+        ) ORDER BY p.name) AS items
+      FROM refund_requests rr
+      JOIN users u ON u.id = rr.requested_by
+      JOIN sales s ON s.id = rr.sale_id
+      JOIN users cu ON cu.id = s.cashier_id
+      JOIN branches b ON b.id = rr.branch_id
+      LEFT JOIN users ru ON ru.id = rr.reviewed_by
+      LEFT JOIN sale_items si ON si.sale_id = rr.sale_id
+      LEFT JOIN products p ON p.id = si.product_id
+      WHERE rr.id = $1 AND rr.branch_id = $2
+      GROUP BY rr.id, u.name, s.total_amount, s.vat_amount, s.cashier_id,
+               cu.name, s.branch_id, b.name, ru.name
+    `, [id, actor.branchId]) as any[];
+
+    if (!r) return null;
+    return {
+      ...this.mapRefundRequest(r),
+      cashierName: r.cashier_name,
+      branchName: r.branch_name,
+      vatPesewas: r.vat_amount,
+      subtotalPesewas: r.total_amount - r.vat_amount,
+      items: r.items ?? [],
+    };
+  }
+
+  private mapRefundRequest(r: any) {
+    return {
       id: r.id,
       saleId: r.sale_id,
       saleTotalFormatted: `GH₵ ${(r.total_amount / 100).toFixed(2)}`,
@@ -842,7 +886,7 @@ export class SalesService {
       reviewedAt: r.reviewed_at || null,
       createdAt: r.created_at,
       saleItemCount: r.item_count,
-    }));
+    };
   }
 
   // ── Approve Refund Request (manager/owner) ────────────────────────────────

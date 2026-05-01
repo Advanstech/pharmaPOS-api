@@ -41,6 +41,19 @@ export class RegisterInput {
   role!: string;
 }
 
+@InputType({ description: 'Change password for the currently authenticated user' })
+export class ChangePasswordInput {
+  @Field({ description: 'Current account password' })
+  @IsString()
+  @MinLength(8)
+  currentPassword!: string;
+
+  @Field({ description: 'New account password (minimum 8 characters)' })
+  @IsString()
+  @MinLength(8)
+  newPassword!: string;
+}
+
 @ObjectType({
   description:
     'Returned on successful login, register, or token refresh. ' +

@@ -55,11 +55,11 @@ async function seed() {
     console.log(`  branch id: ${branchId}`);
 
     // ── All role users ────────────────────────────────────────────────────
-    // All passwords are bcrypt hash of "PharmaPOS@2025!" (rounds=12)
+    // All passwords are bcrypt hash of "Azzay Pharmacy@2025!" (rounds=12)
     // se_admin (creator/root) password: "AdvansisMaster#1" — separate hash
     console.log('Seeding all role users...');
 
-    // Hash for "PharmaPOS@2025!" — bcrypt rounds=12
+    // Hash for "Azzay Pharmacy@2025!" — bcrypt rounds=12
     const STAFF_HASH = '$2b$12$AzfUpdmBPAmGbeINEJ5W6OFFJ6/X1649sn4KlGN3EbtgJNYnbnG1m';
     // Hash for "AdvansisMaster#1" — bcrypt rounds=12 (se_admin root)
     const ROOT_HASH  = '$2b$12$wjP58F6AGagm2wORO6VyEucDN3Aq71JHKZ1hhU1Pey2G5QopUBKeC';
@@ -276,19 +276,19 @@ async function seed() {
     console.log('\n✅ Seed complete!');
     console.log('');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('  PharmaPOS Pro — Test Credentials');
+    console.log('  Azzay Pharmacy Pro — Test Credentials');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('');
     console.log('  ROLE              EMAIL                                  PASSWORD');
     console.log('  ─────────────────────────────────────────────────────────────────────────────');
     console.log('  se_admin (ROOT)   root@advansis.io                       AdvansisMaster#1');
-    console.log('  owner             owner@azzaypharmacy.com                PharmaPOS@2025!');
-    console.log('  manager           manager@azzaypharmacy.com              PharmaPOS@2025!');
-    console.log('  head_pharmacist   head.pharmacist@azzaypharmacy.com      PharmaPOS@2025!');
-    console.log('  pharmacist        pharmacist@azzaypharmacy.com           PharmaPOS@2025!');
-    console.log('  technician        technician@azzaypharmacy.com           PharmaPOS@2025!');
-    console.log('  cashier           cashier@azzaypharmacy.com              PharmaPOS@2025!');
-    console.log('  chemical_cashier  chemical.cashier@azzaypharmacy.com     PharmaPOS@2025!');
+    console.log('  owner             owner@azzaypharmacy.com                Azzay Pharmacy@2025!');
+    console.log('  manager           manager@azzaypharmacy.com              Azzay Pharmacy@2025!');
+    console.log('  head_pharmacist   head.pharmacist@azzaypharmacy.com      Azzay Pharmacy@2025!');
+    console.log('  pharmacist        pharmacist@azzaypharmacy.com           Azzay Pharmacy@2025!');
+    console.log('  technician        technician@azzaypharmacy.com           Azzay Pharmacy@2025!');
+    console.log('  cashier           cashier@azzaypharmacy.com              Azzay Pharmacy@2025!');
+    console.log('  chemical_cashier  chemical.cashier@azzaypharmacy.com     Azzay Pharmacy@2025!');
     console.log('');
     console.log('  se_admin has cross-org root access to ALL queries and mutations.');
     console.log('  All other accounts are scoped to Azzay Pharmacy — Main Branch.');

@@ -8,26 +8,26 @@ export interface EmailTemplate {
 
 export class EmailTemplates {
   private static readonly brandColors = {
-    primary: '#006D77', // teal
-    secondary: '#FFD60A', // gold
-    dark: '#003049',
-    light: '#F8F9FA',
-    success: '#065F46',
-    danger: '#991B1B',
+    primary: '#064E3B', // Deep Emerald Green
+    secondary: '#D97706', // Golden Amber
+    dark: '#06392F',
+    light: '#F8FAFB',
+    success: '#059669',
+    danger: '#DC2626',
   };
 
-  private static readonly baseUrl = process.env.WEB_APP_URL || 'https://pharmapos.com';
+  private static readonly baseUrl = process.env.WEB_APP_URL || 'https://azzaypharmacy.com';
 
   static staffInvitation(staffName: string, email: string, temporaryPassword: string, invitedBy: string, branchName: string): EmailTemplate {
     return {
-      subject: `Welcome to PharmaPOS - Your Account Details`,
+      subject: `Welcome to Azzay Pharmacy - Your Account Details`,
       html: `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to PharmaPOS</title>
+    <title>Welcome to Azzay Pharmacy</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
         .header { background: ${this.brandColors.primary}; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
@@ -42,15 +42,15 @@ export class EmailTemplates {
 </head>
 <body>
     <div class="header">
-        <div class="logo">🏥 PharmaPOS</div>
+        <div class="logo">🏥 Azzay Pharmacy</div>
         <p>Pharmacy Management System</p>
     </div>
     
     <div class="content">
         <h2>Welcome aboard, ${staffName}!</h2>
-        <p>You've been invited to join <span class="highlight">${branchName}</span> on PharmaPOS by ${invitedBy}.</p>
+        <p>You've been invited to join <span class="highlight">${branchName}</span> on Azzay Pharmacy by ${invitedBy}.</p>
         
-        <p>PharmaPOS is your comprehensive pharmacy management solution, designed to streamline operations, manage inventory, and serve customers better.</p>
+        <p>Azzay Pharmacy is your comprehensive pharmacy management solution, designed to streamline operations, manage inventory, and serve customers better.</p>
         
         <div class="credentials">
             <h3>Your Login Credentials</h3>
@@ -59,7 +59,7 @@ export class EmailTemplates {
             <p class="warning">⚠️ You must change this password on your first login for security.</p>
         </div>
         
-        <a href="${this.baseUrl}/login" class="button">Login to PharmaPOS</a>
+        <a href="${this.baseUrl}/login" class="button">Login to Azzay Pharmacy</a>
         
         <h3>Getting Started</h3>
         <ul>
@@ -71,11 +71,11 @@ export class EmailTemplates {
         
         <p>If you have any questions or need assistance, please contact your system administrator.</p>
         
-        <p>Best regards,<br>The PharmaPOS Team</p>
+        <p>Best regards,<br>The Azzay Pharmacy Team</p>
     </div>
     
     <div class="footer">
-        <p>© 2026 PharmaPOS. All rights reserved.</p>
+        <p>© 2026 Azzay Pharmacy. All rights reserved.</p>
         <p>This is an automated message. Please do not reply to this email.</p>
     </div>
 </body>
@@ -102,14 +102,14 @@ export class EmailTemplates {
     const formatCurrency = (amount: number) => `₵${(amount / 100).toFixed(2)}`;
     
     return {
-      subject: `PharmaPOS Receipt - Sale #${saleDetails.saleId.slice(-8)}`,
+      subject: `Azzay Pharmacy Receipt - Sale #${saleDetails.saleId.slice(-8)}`,
       html: `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PharmaPOS Receipt</title>
+    <title>Azzay Pharmacy Receipt</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
         .header { background: ${this.brandColors.primary}; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
@@ -129,7 +129,7 @@ export class EmailTemplates {
 </head>
 <body>
     <div class="header">
-        <div class="logo">🏥 PharmaPOS</div>
+        <div class="logo">🏥 Azzay Pharmacy</div>
         <p>Official Receipt</p>
     </div>
     
@@ -193,7 +193,7 @@ export class EmailTemplates {
     </div>
     
     <div class="footer">
-        <p>© 2026 PharmaPOS. All rights reserved.</p>
+        <p>© 2026 Azzay Pharmacy. All rights reserved.</p>
         <p>This is an automated receipt. Please do not reply to this email.</p>
     </div>
 </body>
@@ -281,7 +281,7 @@ export class EmailTemplates {
     </div>
     
     <div class="footer">
-        <p>© 2026 ${branchName}. Powered by PharmaPOS.</p>
+        <p>© 2026 ${branchName}. Powered by Azzay Pharmacy.</p>
         <p>This is an automated message. Please do not reply to this email.</p>
     </div>
 </body>
@@ -294,14 +294,14 @@ export class EmailTemplates {
     const resetUrl = `${this.baseUrl}/reset-password?token=${resetToken}`;
     
     return {
-      subject: 'PharmaPOS - Password Reset Request',
+      subject: 'Azzay Pharmacy - Password Reset Request',
       html: `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Password Reset - PharmaPOS</title>
+    <title>Password Reset - Azzay Pharmacy</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
         .header { background: ${this.brandColors.primary}; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
@@ -315,7 +315,7 @@ export class EmailTemplates {
 </head>
 <body>
     <div class="header">
-        <div class="logo">🏥 PharmaPOS</div>
+        <div class="logo">🏥 Azzay Pharmacy</div>
         <p>Password Reset Request</p>
     </div>
     
@@ -325,7 +325,7 @@ export class EmailTemplates {
         ${requestedBy ? `
         <p>Your password has been reset by <span class="highlight">${requestedBy}</span>. Please create a new password to secure your account.</p>
         ` : `
-        <p>We received a request to reset your password for your PharmaPOS account. If you didn't make this request, please ignore this email.</p>
+        <p>We received a request to reset your password for your Azzay Pharmacy account. If you didn't make this request, please ignore this email.</p>
         `}
         
         <div class="alert">
@@ -347,11 +347,11 @@ export class EmailTemplates {
         
         <p>If you continue to have issues accessing your account, please contact your system administrator.</p>
         
-        <p>Best regards,<br>The PharmaPOS Team</p>
+        <p>Best regards,<br>The Azzay Pharmacy Team</p>
     </div>
     
     <div class="footer">
-        <p>© 2026 PharmaPOS. All rights reserved.</p>
+        <p>© 2026 Azzay Pharmacy. All rights reserved.</p>
         <p>This is an automated message. Please do not reply to this email.</p>
     </div>
 </body>

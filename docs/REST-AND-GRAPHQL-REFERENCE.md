@@ -1,6 +1,6 @@
-# PharmaPOS Pro — Developer API Reference
+# Azzay Pharmacy Pro — Developer API Reference
 
-Welcome to the **PharmaPOS Pro API**. We are redefining pharmaceutical retail infrastructure by combining a lightning-fast GraphQL core with native AI capabilities, including a Virtual CFO, Internal Auditor, and clinical intelligence.
+Welcome to the **Azzay Pharmacy Pro API**. We are redefining pharmaceutical retail infrastructure by combining a lightning-fast GraphQL core with native AI capabilities, including a Virtual CFO, Internal Auditor, and clinical intelligence.
 
 This document serves as the primary integration guide for external developers, partners, and integrators.
 
@@ -8,11 +8,11 @@ This document serves as the primary integration guide for external developers, p
 
 ## 🏗 Architecture Overview
 
-PharmaPOS Pro is built on a modern, code-first **GraphQL** architecture. We expose a single, unified graph for all business operations, ensuring clients only fetch exactly the data they need.
+Azzay Pharmacy Pro is built on a modern, code-first **GraphQL** architecture. We expose a single, unified graph for all business operations, ensuring clients only fetch exactly the data they need.
 
 ```mermaid
 graph TD;
-    Client[External Client / POS App] -->|HTTP POST /graphql| API[PharmaPOS API Gateway]
+    Client[External Client / POS App] -->|HTTP POST /graphql| API[Azzay Pharmacy API Gateway]
     Client -->|WebSocket /graphql| API
     
     API --> Auth[Auth & RBAC Layer]
@@ -108,7 +108,7 @@ mutation Login($email: String!, $password: String!) {
 
 ## 🧠 AI & Intelligence Endpoints
 
-PharmaPOS Pro is the first POS to include built-in AI agents. These are accessible via standard GraphQL queries.
+Azzay Pharmacy Pro is the first POS to include built-in AI agents. These are accessible via standard GraphQL queries.
 
 ### 1. Virtual CFO (`getCfoBriefing`)
 Analyzes the branch ledger, calculates runway, detects revenue signals, and provides actionable investment ideas.
@@ -206,7 +206,7 @@ query GetInventory($branchId: String!) {
 
 To listen for live events (e.g., a new prescription arriving from a doctor), connect via WebSockets using the `graphql-ws` protocol.
 
-- **URL:** `wss://api.pharmapos.com/graphql`
+- **URL:** `wss://api.azzaypharmacy.com/graphql`
 - **Auth:** Send the JWT in the `connectionParams` during the initial handshake:
   ```json
   {
@@ -218,7 +218,7 @@ To listen for live events (e.g., a new prescription arriving from a doctor), con
 
 ## 🚨 Error Handling
 
-PharmaPOS Pro uses standard GraphQL error formatting, enriched with custom extension codes for programmatic handling.
+Azzay Pharmacy Pro uses standard GraphQL error formatting, enriched with custom extension codes for programmatic handling.
 
 ```json
 {
@@ -246,7 +246,7 @@ PharmaPOS Pro uses standard GraphQL error formatting, enriched with custom exten
 
 ## 🏥 Compliance & Regulatory
 
-PharmaPOS Pro enforces strict regulatory compliance at the API level. External clients **cannot** bypass these rules:
+Azzay Pharmacy Pro enforces strict regulatory compliance at the API level. External clients **cannot** bypass these rules:
 - **POM Enforcement:** Prescription-Only Medicines cannot be checked out without a linked, verified `prescription_id`.
 - **Chemical Shop Isolation:** Branches designated as "chemical shops" are hard-blocked from accessing or selling POMs.
 - **Audit Logging:** Every critical action (Rx verification, price changes, refunds) is written to an immutable, append-only PostgreSQL audit log.

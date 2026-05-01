@@ -1,9 +1,10 @@
-import { Injectable, UnauthorizedException, ConflictException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, NotFoundException, Logger, Optional } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
+import { createHash } from 'crypto';
 import { User } from './entities/user.entity';
 import { LoginInput, RegisterInput, AuthPayload } from './dto/auth.types';
 import { JwtUser } from './decorators/current-user.decorator';
@@ -12,6 +13,8 @@ import { SubscriptionOverview } from './dto/subscription.types';
 import { SalesEffectiveAtService } from '../sales/sales-effective-at.service';
 import type { ClientSessionMeta } from './client-session-meta';
 import { normalizeRoleForApi } from '../config/roles';
+import { NotificationsService } from '../notifications/notifications.service';
+import { EmailTemplates } from '../notifications/email-templates';
 
 interface BranchRow { id: string; type: 'pharmaceutical' | 'chemical' }
 interface SubscriptionRow {
@@ -32,6 +35,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly dataSource: DataSource,
     private readonly effectiveSaleAt: SalesEffectiveAtService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   // ── Login ────────────────────────────────────────────────────────────────
@@ -154,6 +158,143 @@ export class AuthService {
       [currentUser.sessionId],
     );
     this.logger.log(`User ${currentUser.sub} logged out`);
+    return true;
+  }
+
+  async changePassword(currentUser: JwtUser, currentPassword: string, newPassword: string): Promise<boolean> {
+    const user = await this.users.findOne({ where: { id: currentUser.sub, is_active: true } });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const valid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!valid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    if (currentPassword === newPassword) {
+      throw new ConflictException('New password must be different from current password');
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 12);
+
+    await this.dataSource.transaction(async (em) => {
+      await em.update(User, { id: user.id }, { password_hash: newHash });
+      await em.query(
+        `UPDATE staff_sessions SET ended_at = NOW() WHERE user_id = $1 AND ended_at IS NULL`,
+        [user.id],
+      );
+      await em.query(`DELETE FROM sessions WHERE user_id = $1`, [user.id]);
+      await em.query(
+        `
+        INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+        VALUES (gen_random_uuid(), $1, $2, 'PASSWORD_CHANGED', 'user', $3, $4)
+      `,
+        [
+          user.branch_id,
+          user.id,
+          user.id,
+          JSON.stringify({ changed_by: user.id, source: 'self_service' }),
+        ],
+      );
+    });
+
+    this.logger.log(`Password changed: user=${user.id}`);
+    return true;
+  }
+
+  async requestPasswordReset(email: string): Promise<boolean> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.users.findOne({ where: { email: normalizedEmail, is_active: true } });
+
+    if (!user) {
+      // Constant-time response to prevent user enumeration
+      await bcrypt.compare('dummy-password', '$2b$10$invalidhashtopreventtiming00000000000000000000000000000');
+      return true;
+    }
+
+    const resetSecret = this.config.get<string>('JWT_PASSWORD_RESET_SECRET')
+      ?? this.config.getOrThrow<string>('JWT_SECRET');
+
+    const resetToken = this.jwt.sign(
+      {
+        sub: user.id,
+        type: 'password_reset',
+        phf: this.passwordHashFingerprint(user.password_hash),
+      },
+      {
+        secret: resetSecret,
+        expiresIn: '30m',
+      },
+    );
+
+    if (user.email && this.notifications) {
+      try {
+        const template = EmailTemplates.passwordReset(user.name, resetToken);
+        await this.notifications.sendEmail({
+          to: user.email,
+          subject: template.subject,
+          html: template.html,
+        });
+      } catch (error) {
+        this.logger.warn(`Password reset email delivery failed for ${user.email}`);
+        this.logger.debug(String(error));
+      }
+    }
+
+    this.logger.log(`Password reset requested: user=${user.id}`);
+    return true;
+  }
+
+  async resetPasswordWithToken(token: string, newPassword: string): Promise<boolean> {
+    const resetSecret = this.config.get<string>('JWT_PASSWORD_RESET_SECRET')
+      ?? this.config.getOrThrow<string>('JWT_SECRET');
+
+    let payload: { sub: string; type: string; phf?: string };
+    try {
+      payload = this.jwt.verify(token, { secret: resetSecret }) as typeof payload;
+    } catch {
+      throw new UnauthorizedException('Invalid or expired password reset token');
+    }
+
+    if (payload.type !== 'password_reset') {
+      throw new UnauthorizedException('Invalid password reset token');
+    }
+
+    const user = await this.users.findOne({ where: { id: payload.sub, is_active: true } });
+    if (!user) {
+      throw new UnauthorizedException('Invalid password reset token');
+    }
+
+    const currentFingerprint = this.passwordHashFingerprint(user.password_hash);
+    if (!payload.phf || payload.phf !== currentFingerprint) {
+      throw new UnauthorizedException('Password reset token has already been used');
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 12);
+
+    await this.dataSource.transaction(async (em) => {
+      await em.update(User, { id: user.id }, { password_hash: newHash });
+      await em.query(
+        `UPDATE staff_sessions SET ended_at = NOW() WHERE user_id = $1 AND ended_at IS NULL`,
+        [user.id],
+      );
+      await em.query(`DELETE FROM sessions WHERE user_id = $1`, [user.id]);
+      await em.query(
+        `
+        INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+        VALUES (gen_random_uuid(), $1, $2, 'PASSWORD_RESET', 'user', $3, $4)
+      `,
+        [
+          user.branch_id,
+          user.id,
+          user.id,
+          JSON.stringify({ source: 'reset_token' }),
+        ],
+      );
+    });
+
+    this.logger.log(`Password reset completed: user=${user.id}`);
     return true;
   }
 
@@ -284,6 +425,10 @@ export class AuthService {
       `UPDATE staff_sessions SET ended_at = NOW() WHERE session_id = $1 AND ended_at IS NULL`,
       [sessionId],
     );
+  }
+
+  private passwordHashFingerprint(passwordHash: string): string {
+    return createHash('sha256').update(passwordHash).digest('hex').slice(0, 24);
   }
 
   private buildAuthPayload(

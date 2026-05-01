@@ -296,7 +296,7 @@ export class ProductImageService {
       });
 
       const buffer = Buffer.from(response.data);
-      const contentType = response.headers['content-type'] || 'image/jpeg';
+      const contentType = String(response.headers['content-type'] || 'image/jpeg');
       const extension = contentType.split('/')[1] || 'jpg';
 
       // Upload to S3 using existing upload method

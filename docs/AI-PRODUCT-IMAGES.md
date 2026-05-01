@@ -2,7 +2,7 @@
 
 ## Overview
 
-PharmaPOS Pro automatically sources high-quality product images from multiple free and paid APIs, eliminating the need for manual image uploads for every product in your catalog.
+Azzay Pharmacy Pro automatically sources high-quality product images from multiple free and paid APIs, eliminating the need for manual image uploads for every product in your catalog.
 
 ## Image Sources (Priority Order)
 

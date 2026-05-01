@@ -65,7 +65,7 @@ AWS_REGION=us-east-1
 # Email (should already be set)
 EMAIL_PROVIDER=resend
 EMAIL_API_KEY=re_j9Kfgx5b_aXgvkuRYvDUvmEdinucKfmLx
-EMAIL_FROM=PharmaPOS <onboarding@resend.dev>
+EMAIL_FROM=Azzay Pharmacy <onboarding@resend.dev>
 
 # App Config
 NODE_ENV=production

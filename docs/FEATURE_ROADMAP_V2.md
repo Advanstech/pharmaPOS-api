@@ -1,4 +1,4 @@
-# PharmaPOS Pro - Feature Roadmap V2
+# Azzay Pharmacy Pro - Feature Roadmap V2
 ## Revolutionary Pharmaceutical POS System
 
 ## Vision

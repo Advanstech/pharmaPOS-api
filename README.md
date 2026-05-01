@@ -1,4 +1,4 @@
-# PharmaPOS Pro — API
+# Azzay Pharmacy Pro — API
 
 NestJS GraphQL API. Runs on port 4000.
 
@@ -44,13 +44,13 @@ Default Railway flow from config:
 | Role | Email | Password |
 |------|-------|----------|
 | se_admin (ROOT) | root@advansis.io | AdvansisMaster#1 |
-| owner | owner@azzaypharmacy.com | PharmaPOS@2025! |
-| manager | manager@azzaypharmacy.com | PharmaPOS@2025! |
-| head_pharmacist | head.pharmacist@azzaypharmacy.com | PharmaPOS@2025! |
-| pharmacist | pharmacist@azzaypharmacy.com | PharmaPOS@2025! |
-| technician | technician@azzaypharmacy.com | PharmaPOS@2025! |
-| cashier | cashier@azzaypharmacy.com | PharmaPOS@2025! |
-| chemical_cashier | chemical.cashier@azzaypharmacy.com | PharmaPOS@2025! |
+| owner | owner@azzaypharmacy.com | Azzay Pharmacy@2025! |
+| manager | manager@azzaypharmacy.com | Azzay Pharmacy@2025! |
+| head_pharmacist | head.pharmacist@azzaypharmacy.com | Azzay Pharmacy@2025! |
+| pharmacist | pharmacist@azzaypharmacy.com | Azzay Pharmacy@2025! |
+| technician | technician@azzaypharmacy.com | Azzay Pharmacy@2025! |
+| cashier | cashier@azzaypharmacy.com | Azzay Pharmacy@2025! |
+| chemical_cashier | chemical.cashier@azzaypharmacy.com | Azzay Pharmacy@2025! |
 
 > `se_admin` has cross-org root access. All other accounts are scoped to **Azzay Pharmacy — Main Branch**.
 

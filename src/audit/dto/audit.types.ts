@@ -339,7 +339,7 @@ export class InternalAuditReport {
   @Field() generatedAt!: Date;
   @Field() branchName!: string;
   @Field() auditPeriod!: string;
-  @Field() auditedBy!: string; // "PharmaPOS Internal Audit Engine v1"
+  @Field() auditedBy!: string; // "Azzay Pharmacy Internal Audit Engine v1"
 
   // ── Headline risk score ───────────────────────────────────────────────────
   @Field(() => Int, { description: 'Overall risk score 0–100 (100 = maximum risk)' })

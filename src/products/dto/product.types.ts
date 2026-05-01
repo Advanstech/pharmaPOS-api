@@ -166,7 +166,7 @@ export class ProductCategoryType {
 
 @ObjectType({
   description:
-    'A product in the PharmaPOS catalogue. ' +
+    'A product in the Azzay Pharmacy catalogue. ' +
     'Products are scoped to an organisation and can be available at `pharmaceutical`, `chemical`, or `both` branch types. ' +
     'When no approved `product_images` row exists, the web POS uses a deterministic Unsplash stock-photo fallback from id, name, generic name, and category.',
 })

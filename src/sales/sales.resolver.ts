@@ -88,6 +88,19 @@ export class SalesResolver {
     return this.salesService.listRefundRequests(actor);
   }
 
+  @Query(() => RefundRequestOutput, {
+    name: 'refundRequest',
+    nullable: true,
+    description: 'Get a single refund request by ID.',
+  })
+  @Roles('owner', 'se_admin', 'manager')
+  refundRequest(
+    @Args('id', { type: () => ID }) id: string,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<RefundRequestOutput | null> {
+    return this.salesService.getRefundRequest(id, actor);
+  }
+
   @Mutation(() => SaleOutput, {
     name: 'approveRefundRequest',
     description: 'Manager approves a refund request — executes the refund.',

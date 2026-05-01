@@ -128,7 +128,7 @@ export class AuditService {
       generatedAt: new Date(),
       branchName,
       auditPeriod: `${input.periodStart} to ${input.periodEnd}`,
-      auditedBy: 'PharmaPOS Internal Audit Engine v1',
+      auditedBy: 'Azzay Pharmacy Internal Audit Engine v1',
       overallRiskScore,
       overallRiskRating,
       criticalFindingsCount,

@@ -122,7 +122,7 @@ The Swagger API documentation at http://localhost:4000/api-docs has been compreh
 2. **Use test credentials**:
    ```
    Email: owner@azzaypharmacy.com
-   Password: PharmaPOS@2025!
+   Password: Azzay Pharmacy@2025!
    ```
 3. **Try image sourcing**:
    ```graphql
@@ -152,7 +152,7 @@ The Swagger API documentation at http://localhost:4000/api-docs has been compreh
 - **Responsive tables**: Better mobile experience
 
 ### UI Enhancements
-- Custom "PharmaPOS Pro" branding in header
+- Custom "Azzay Pharmacy Pro" branding in header
 - Gold "Authorize" button for better visibility
 - Teal operation badges for consistency
 - Improved markdown rendering with code highlighting

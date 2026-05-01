@@ -1,6 +1,6 @@
 /**
  * Canonical role strings for JWT claims and GraphQL user objects (web RBAC).
- * @see PharmaPOS-web GraphQL handoff
+ * @see Azzay Pharmacy-web GraphQL handoff
  */
 const KNOWN_ROLES = new Set([
   'owner',

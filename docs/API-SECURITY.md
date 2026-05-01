@@ -253,7 +253,7 @@ Before deploying to production:
 ## Support
 
 For security issues:
-- Email: security@pharmapos.com
+- Email: security@azzaypharmacy.com
 - Report vulnerabilities responsibly
 - Do not disclose publicly until patched
 

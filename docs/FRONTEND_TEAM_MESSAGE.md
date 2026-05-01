@@ -8,7 +8,7 @@
 
 Hi Frontend Team,
 
-Great news! Phase 1 & 2 of the PharmaPOS API are now **live in production** and ready for integration. 🚀
+Great news! Phase 1 & 2 of the Azzay Pharmacy API are now **live in production** and ready for integration. 🚀
 
 ## 🔗 API Endpoint
 

@@ -61,7 +61,7 @@ For better coverage of OTC and chemical shop products, add these optional APIs:
    - Click "New Application"
    - Accept terms
    - Fill in application details:
-     - Name: "PharmaPOS Pro"
+     - Name: "Azzay Pharmacy Pro"
      - Description: "Product image sourcing for pharmacy POS"
 
 3. **Get Access Key**:

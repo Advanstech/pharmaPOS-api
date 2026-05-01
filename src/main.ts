@@ -1290,7 +1290,7 @@ import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { createClient } from 'graphql-ws';
 
 const wsLink = new GraphQLWsLink(createClient({
-  url: 'wss://api.pharmapos.com/graphql',
+  url: 'wss://api.azzaypharmacy.com/graphql',
   connectionParams: { Authorization: \`Bearer \${accessToken}\` },
   keepAlive: 30_000,  // 30s heartbeat
 }));
@@ -1388,7 +1388,7 @@ async function bootstrap() {
   const swaggerDescription = `
 ## Overview
 
-PharmaPOS Pro is a **Ghana FDA-compliant SaaS pharmacy POS** built for West Africa.
+Azzay Pharmacy Pro is a **Ghana FDA-compliant SaaS pharmacy POS** built for West Africa.
 Delivered by **Advansis Technologies** for Azzay Pharmacy, Accra.
 
 > **Primary API surface:** GraphQL at \`/graphql\`
@@ -1401,7 +1401,7 @@ Delivered by **Advansis Technologies** for Azzay Pharmacy, Accra.
 # 1. Get an access token
 curl -X POST http://localhost:${port}/graphql \\
   -H "Content-Type: application/json" \\
-  -d '{"query":"mutation { login(input:{email:\\"owner@azzaypharmacy.com\\",password:\\"PharmaPOS@2025!\\"}) { access_token refresh_token expires_in user { id name role } } }"}'
+  -d '{"query":"mutation { login(input:{email:\\"owner@azzaypharmacy.com\\",password:\\"Azzay Pharmacy@2025!\\"}) { access_token refresh_token expires_in user { id name role } } }"}'
 
 # Password matches seeded users after \`pnpm db:seed\` (see README).
 
@@ -1457,11 +1457,11 @@ Limits enforced at API level — no client-side bypass possible.
 ${GQL_REFERENCE}`;
 
   const config = new DocumentBuilder()
-    .setTitle('PharmaPOS Pro — API Reference')
+    .setTitle('Azzay Pharmacy Pro — API Reference')
     .setDescription(swaggerDescription)
     .setVersion('1.0.0')
     .setContact('Advansis Technologies', 'https://advansis.tech', 'api-support@advansis.tech')
-    .setLicense('Proprietary — All rights reserved', 'https://pharmapos.com/terms')
+    .setLicense('Proprietary — All rights reserved', 'https://azzaypharmacy.com/terms')
     .setExternalDoc('GraphQL Playground (run queries live)', `http://localhost:${port}/graphql`)
     .addTag('health', 'Liveness, readiness, and dependency health probes — used by AWS ELB')
     .addBearerAuth(
@@ -1480,50 +1480,50 @@ ${GQL_REFERENCE}`;
       'JWT',
     )
     .addServer(`http://localhost:${port}`, 'Local Development')
-    .addServer('https://api.pharmapos.com', 'Production (West Africa — AWS EB)')
-    .addServer('https://staging-api.pharmapos.com', 'Staging')
+    .addServer('https://api.azzaypharmacy.com', 'Production (West Africa — AWS EB)')
+    .addServer('https://staging-api.azzaypharmacy.com', 'Staging')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
 
   SwaggerModule.setup('api-docs', app, document, {
-    customSiteTitle: 'PharmaPOS Pro — API Reference',
+    customSiteTitle: 'Azzay Pharmacy Pro — API Reference',
     customfavIcon: '/favicon.ico',
     customCss: `
-      /* Brand: Teal primary, Gold CTA */
-      .swagger-ui .topbar { background-color: #006D77; padding: 12px 0; }
+      /* Brand: Emerald primary, Golden Amber CTA */
+      .swagger-ui .topbar { background-color: #064E3B; padding: 12px 0; }
       .swagger-ui .topbar .download-url-wrapper { display: none; }
       .swagger-ui .topbar-wrapper .link { display: flex; align-items: center; gap: 10px; }
       .swagger-ui .topbar-wrapper .link::before {
-        content: 'PharmaPOS Pro';
+        content: 'Azzay Pharmacy Pro';
         color: #fff;
         font-size: 18px;
         font-weight: 700;
         font-family: Inter, sans-serif;
         letter-spacing: -0.3px;
       }
-      .swagger-ui .info .title { color: #006D77; font-family: Inter, sans-serif; }
-      .swagger-ui .info .title small { background: #006D77; }
-      .swagger-ui .info a { color: #006D77; }
+      .swagger-ui .info .title { color: #064E3B; font-family: Inter, sans-serif; }
+      .swagger-ui .info .title small { background: #064E3B; }
+      .swagger-ui .info a { color: #064E3B; }
       /* Gold authorize button */
       .swagger-ui .btn.authorize {
-        background-color: #E8A838;
-        border-color: #E8A838;
+        background-color: #D97706;
+        border-color: #D97706;
         color: #fff;
         font-weight: 600;
       }
-      .swagger-ui .btn.authorize:hover { background-color: #d4952a; border-color: #d4952a; }
+      .swagger-ui .btn.authorize:hover { background-color: #b45309; border-color: #b45309; }
       .swagger-ui .btn.authorize svg { fill: #fff; }
-      /* Teal operation badges */
-      .swagger-ui .opblock.opblock-get .opblock-summary-method { background: #006D77; }
-      .swagger-ui .opblock.opblock-post .opblock-summary-method { background: #004E57; }
+      /* Emerald operation badges */
+      .swagger-ui .opblock.opblock-get .opblock-summary-method { background: #064E3B; }
+      .swagger-ui .opblock.opblock-post .opblock-summary-method { background: #06392F; }
       /* Code blocks */
       .swagger-ui .highlight-code { background: #f8fafb; border-radius: 6px; }
       /* Table styling */
-      .swagger-ui table thead tr th { background: #C8E6EA; color: #004E57; }
+      .swagger-ui table thead tr th { background: #D1FAE5; color: #064E3B; }
       /* Markdown in description */
       .swagger-ui .markdown p { line-height: 1.7; }
-      .swagger-ui .markdown code { background: #FDF3DC; color: #004E57; padding: 2px 6px; border-radius: 3px; }
+      .swagger-ui .markdown code { background: #FEF3C7; color: #92400E; padding: 2px 6px; border-radius: 3px; }
       .swagger-ui .markdown pre { background: #1e1e2e; color: #cdd6f4; border-radius: 8px; padding: 16px; }
       .swagger-ui .markdown pre code { background: transparent; color: inherit; padding: 0; }
     `,
@@ -1545,7 +1545,7 @@ ${GQL_REFERENCE}`;
   console.log(`❤️  Health check:                   http://localhost:${port}/health`);
 
   await app.listen(port, '0.0.0.0');
-  console.log(`PharmaPOS API running on port ${port}`);
+  console.log(`Azzay Pharmacy API running on port ${port}`);
 }
 
 bootstrap();

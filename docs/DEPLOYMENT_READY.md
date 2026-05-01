@@ -1,4 +1,4 @@
-# ✅ PharmaPOS Pro - Deployment Ready!
+# ✅ Azzay Pharmacy Pro - Deployment Ready!
 
 ## Server Status: RUNNING ✅
 
@@ -59,7 +59,7 @@ Open GraphQL Playground: http://localhost:4000/graphql
 ```graphql
 # 1. Login first
 mutation {
-  login(email: "owner@azzaypharmacy.com", password: "PharmaPOS@2025!") {
+  login(email: "owner@azzaypharmacy.com", password: "Azzay Pharmacy@2025!") {
     accessToken
     user {
       id
@@ -316,15 +316,15 @@ OPENAI_API_KEY=...        # Paid
 ```
 Role: owner
 Email: owner@azzaypharmacy.com
-Password: PharmaPOS@2025!
+Password: Azzay Pharmacy@2025!
 
 Role: manager
 Email: manager@azzaypharmacy.com
-Password: PharmaPOS@2025!
+Password: Azzay Pharmacy@2025!
 
 Role: pharmacist
 Email: pharmacist@azzaypharmacy.com
-Password: PharmaPOS@2025!
+Password: Azzay Pharmacy@2025!
 ```
 
 ## Summary
