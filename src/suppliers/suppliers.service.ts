@@ -204,7 +204,9 @@ export class SuppliersService {
   /**
    * Get supplier with ALL their products (not just stock alerts)
    * This shows the complete product catalog for a supplier
-   * Products are linked to suppliers through stock_movements → supplier_invoices
+   * Products are linked to suppliers through:
+   * 1. Direct supplier_id on products table
+   * 2. stock_movements → supplier_invoices (for purchase history)
    */
   async getSupplierWithProducts(supplierId: string, branchId: string): Promise<any> {
     const supplier = await this.getSupplierById(supplierId);
@@ -233,8 +235,6 @@ export class SuppliersService {
           LIMIT 1
         ) AS nearest_expiry
       FROM products p
-      INNER JOIN stock_movements sm ON sm.product_id = p.id
-      INNER JOIN supplier_invoices si ON si.id = sm.reference_id
       LEFT JOIN inventory inv ON inv.product_id = p.id AND inv.branch_id = $2
       LEFT JOIN LATERAL (
         SELECT COALESCE(SUM(si2.quantity), 0)::int AS sold_7d
@@ -254,10 +254,18 @@ export class SuppliersService {
           AND si3.product_id = p.id
           AND sa.created_at >= NOW() - INTERVAL '30 days'
       ) sale30 ON true
-      WHERE si.supplier_id = $1
-        AND p.is_active = true
-        AND sm.branch_id = $2
-        AND sm.movement_type = 'PURCHASE'
+      WHERE p.is_active = true
+        AND (
+          p.supplier_id = $1
+          OR EXISTS (
+            SELECT 1 FROM stock_movements sm
+            INNER JOIN supplier_invoices si ON si.id = sm.reference_id
+            WHERE sm.product_id = p.id
+              AND si.supplier_id = $1
+              AND sm.branch_id = $2
+              AND sm.movement_type = 'PURCHASE'
+          )
+        )
       ORDER BY p.name ASC
     `, [supplierId, branchId]);
 
