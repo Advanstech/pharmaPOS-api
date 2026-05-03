@@ -204,12 +204,13 @@ export class SuppliersService {
   /**
    * Get supplier with ALL their products (not just stock alerts)
    * This shows the complete product catalog for a supplier
+   * Products are linked to suppliers through stock_movements → supplier_invoices
    */
   async getSupplierWithProducts(supplierId: string, branchId: string): Promise<any> {
     const supplier = await this.getSupplierById(supplierId);
 
     const products = await this.dataSource.query(`
-      SELECT
+      SELECT DISTINCT
         p.id,
         p.name,
         p.generic_name,
@@ -232,27 +233,31 @@ export class SuppliersService {
           LIMIT 1
         ) AS nearest_expiry
       FROM products p
+      INNER JOIN stock_movements sm ON sm.product_id = p.id
+      INNER JOIN supplier_invoices si ON si.id = sm.reference_id
       LEFT JOIN inventory inv ON inv.product_id = p.id AND inv.branch_id = $2
       LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(si.quantity), 0)::int AS sold_7d
-        FROM sale_items si
-        INNER JOIN sales sa ON sa.id = si.sale_id
+        SELECT COALESCE(SUM(si2.quantity), 0)::int AS sold_7d
+        FROM sale_items si2
+        INNER JOIN sales sa ON sa.id = si2.sale_id
         WHERE sa.branch_id = $2
           AND sa.status = 'COMPLETED'
-          AND si.product_id = p.id
+          AND si2.product_id = p.id
           AND sa.created_at >= NOW() - INTERVAL '7 days'
       ) sale7 ON true
       LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(si.quantity), 0)::int AS sold_30d
-        FROM sale_items si
-        INNER JOIN sales sa ON sa.id = si.sale_id
+        SELECT COALESCE(SUM(si3.quantity), 0)::int AS sold_30d
+        FROM sale_items si3
+        INNER JOIN sales sa ON sa.id = si3.sale_id
         WHERE sa.branch_id = $2
           AND sa.status = 'COMPLETED'
-          AND si.product_id = p.id
+          AND si3.product_id = p.id
           AND sa.created_at >= NOW() - INTERVAL '30 days'
       ) sale30 ON true
-      WHERE p.supplier_id = $1
+      WHERE si.supplier_id = $1
         AND p.is_active = true
+        AND sm.branch_id = $2
+        AND sm.movement_type = 'PURCHASE'
       ORDER BY p.name ASC
     `, [supplierId, branchId]);
 
