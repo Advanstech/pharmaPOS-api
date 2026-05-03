@@ -665,4 +665,80 @@ export class ProductsService {
       );
     }
   }
+
+  // ── Bulk Supplier Reassignment ───────────────────────────────────────────
+
+  /**
+   * Bulk reassign multiple products to a different supplier (or remove supplier).
+   * This updates the supplier_id on products table.
+   * Note: sale_items retain original supplier for historical traceability.
+   */
+  async bulkReassignToSupplier(
+    productIds: string[],
+    supplierId: string | null,
+    actor: JwtUser,
+  ): Promise<number> {
+    // RBAC check
+    if (!['owner', 'se_admin', 'manager', 'head_pharmacist'].includes(actor.role)) {
+      throw new ForbiddenException(
+        `Role '${actor.role}' cannot reassign products. Required: owner, se_admin, manager, head_pharmacist`,
+      );
+    }
+
+    if (!productIds || productIds.length === 0) {
+      throw new BadRequestException('No product IDs provided');
+    }
+
+    // Validate supplier exists if provided
+    if (supplierId) {
+      const [supplier] = await this.dataSource.query(
+        `SELECT id FROM suppliers WHERE id = $1 AND is_active = true`,
+        [supplierId],
+      ) as Array<{ id: string }>;
+      if (!supplier) {
+        throw new NotFoundException(`Supplier ${supplierId} not found or inactive`);
+      }
+    }
+
+    // Filter to only active products that exist
+    const placeholders = productIds.map((_, i) => `$${i + 1}`).join(',');
+    const existingProducts = await this.dataSource.query(
+      `SELECT id, supplier_id as current_supplier_id FROM products 
+       WHERE id IN (${placeholders}) AND is_active = true`,
+      productIds,
+    ) as Array<{ id: string; current_supplier_id: string | null }>;
+
+    if (existingProducts.length === 0) {
+      throw new NotFoundException('No active products found for the provided IDs');
+    }
+
+    // Filter out products that already have the target supplier
+    const productsToUpdate = existingProducts.filter(
+      p => p.current_supplier_id !== supplierId,
+    );
+
+    if (productsToUpdate.length === 0) {
+      return 0; // Nothing to update
+    }
+
+    const idsToUpdate = productsToUpdate.map(p => p.id);
+    const updatePlaceholders = idsToUpdate.map((_, i) => `$${i + 2}`).join(',');
+
+    // Perform bulk update
+    const result = await this.dataSource.query(
+      `UPDATE products 
+       SET supplier_id = $1, updated_at = NOW()
+       WHERE id IN (${updatePlaceholders})
+       RETURNING id`,
+      [supplierId, ...idsToUpdate],
+    ) as Array<{ id: string }>;
+
+    const updatedCount = result.length;
+
+    this.logger.log(
+      `Bulk reassigned ${updatedCount} products to supplier ${supplierId ?? 'null'} by ${actor.sub}`,
+    );
+
+    return updatedCount;
+  }
 }

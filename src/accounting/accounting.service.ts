@@ -54,8 +54,12 @@ interface InvoiceRow {
   total_amount: number;
   paid_amount: number;
   status: string;
+  payment_status: string;
   s3_pdf_key: string | null;
   created_at: Date;
+  days_outstanding: number;
+  is_overdue: boolean;
+  overdue_by_days: number;
 }
 
 interface InvoiceLookupRow {
@@ -306,7 +310,14 @@ export class AccountingService {
       SELECT
         si.id, si.supplier_id, s.name AS supplier_name, si.branch_id, si.grn_id,
         si.invoice_number, si.invoice_date, si.due_date,
-        si.total_amount, si.paid_amount, si.status, si.s3_pdf_key, si.created_at
+        si.total_amount, si.paid_amount, si.status, si.payment_status, si.s3_pdf_key, si.created_at,
+        EXTRACT(DAY FROM (NOW() - si.invoice_date))::INT as days_outstanding,
+        (si.due_date IS NOT NULL AND si.due_date < CURRENT_DATE AND si.payment_status != 'PAID') as is_overdue,
+        CASE 
+          WHEN si.due_date IS NOT NULL AND si.due_date < CURRENT_DATE AND si.payment_status != 'PAID'
+          THEN EXTRACT(DAY FROM (CURRENT_DATE - si.due_date))::INT
+          ELSE 0
+        END as overdue_by_days
       FROM supplier_invoices si
       JOIN suppliers s ON s.id = si.supplier_id
       WHERE ${branchClause}
@@ -1094,6 +1105,9 @@ export class AccountingService {
 
   private mapInvoiceOutput(row: InvoiceRow): SupplierInvoiceOutput {
     const balance = row.total_amount - row.paid_amount;
+    const paymentProgressPct = row.total_amount > 0
+      ? Math.max(0, Math.min(100, Math.round((row.paid_amount / row.total_amount) * 100)))
+      : 0;
     return {
       id: row.id,
       supplierId: row.supplier_id,
@@ -1110,6 +1124,11 @@ export class AccountingService {
       balancePesewas: balance,
       balanceFormatted: this.fmt(balance),
       status: row.status,
+      paymentStatus: row.payment_status,
+      paymentProgressPct,
+      daysOutstanding: row.days_outstanding,
+      isOverdue: row.is_overdue,
+      overdueByDays: row.overdue_by_days > 0 ? row.overdue_by_days : undefined,
       s3PdfKey: row.s3_pdf_key ?? undefined,
       createdAt: row.created_at,
     };

@@ -9,6 +9,7 @@ export interface CloseRegisterInput {
   cashCountedPesewas: number;
   momoCountedPesewas: number;
   closingNotes?: string;
+  discrepancyReason?: string;
 }
 
 export interface EodRecord {
@@ -32,6 +33,8 @@ export interface EodRecord {
   netRevenueFormatted: string;
   expectedCashPesewas: number;
   expectedCashFormatted: string;
+  expectedMomoPesewas: number;
+  expectedMomoFormatted: string;
   cashCountedPesewas: number;
   cashCountedFormatted: string;
   momoCountedPesewas: number;
@@ -42,6 +45,7 @@ export interface EodRecord {
   varianceFormatted: string;
   isBalanced: boolean;
   closingNotes: string | null;
+  discrepancyReason: string | null;
   closedAt: Date;
   approvalStatus: string;
   approvedByName: string | null;
@@ -63,11 +67,166 @@ export class EodService {
     return `GH₵${(pesewas / 100).toFixed(2)}`;
   }
 
+  // ── EOD Preview (before closing) ─────────────────────────────────────────
+
+  async getEodPreview(actor: JwtUser, businessDate: string): Promise<{
+    salesCount: number;
+    grossRevenuePesewas: number;
+    grossRevenueFormatted: string;
+    vatCollectedPesewas: number;
+    vatCollectedFormatted: string;
+    refundsCount: number;
+    refundsPesewas: number;
+    refundsFormatted: string;
+    expensesCount: number;
+    expensesPesewas: number;
+    expensesFormatted: string;
+    netRevenuePesewas: number;
+    netRevenueFormatted: string;
+    expectedCashPesewas: number;
+    expectedCashFormatted: string;
+    expectedMomoPesewas: number;
+    expectedMomoFormatted: string;
+    sourceScope: string;
+    isClosed: boolean;
+  }> {
+    const at = this.effectiveSaleAt.sql('s');
+    const saleAccraDay = `(${at} AT TIME ZONE 'Africa/Accra')::date`;
+
+    const [salesRow] = await this.dataSource.query(`
+      SELECT
+        COUNT(CASE WHEN s.status = 'COMPLETED' THEN 1 END)::int AS sales_count,
+        COALESCE(SUM(CASE WHEN s.status = 'COMPLETED' THEN s.total_amount END), 0)::bigint AS gross_revenue,
+        COALESCE(SUM(CASE WHEN s.status = 'COMPLETED' THEN s.vat_amount END), 0)::bigint AS vat_collected,
+        COUNT(CASE WHEN s.status = 'REFUNDED' THEN 1 END)::int AS refunds_count,
+        COALESCE(SUM(CASE WHEN s.status = 'REFUNDED' THEN s.total_amount END), 0)::bigint AS refunds_pesewas
+      FROM sales s
+      WHERE s.branch_id = $1
+        AND s.cashier_id = $2
+        AND ${saleAccraDay} = $3::date
+    `, [actor.branchId, actor.sub, businessDate]) as Array<{
+      sales_count: number; gross_revenue: number; vat_collected: number;
+      refunds_count: number; refunds_pesewas: number;
+    }>;
+
+    let salesCount = Number(salesRow?.sales_count ?? 0);
+    let grossRevenue = Number(salesRow?.gross_revenue ?? 0);
+    let vatCollected = Number(salesRow?.vat_collected ?? 0);
+    let refundsCount = Number(salesRow?.refunds_count ?? 0);
+    let refundsPesewas = Number(salesRow?.refunds_pesewas ?? 0);
+    let useBranchWideSales = false;
+
+    if (salesCount === 0 && grossRevenue === 0) {
+      const [branchSalesRow] = await this.dataSource.query(`
+        SELECT
+          COUNT(CASE WHEN s.status = 'COMPLETED' THEN 1 END)::int AS sales_count,
+          COALESCE(SUM(CASE WHEN s.status = 'COMPLETED' THEN s.total_amount END), 0)::bigint AS gross_revenue,
+          COALESCE(SUM(CASE WHEN s.status = 'COMPLETED' THEN s.vat_amount END), 0)::bigint AS vat_collected,
+          COUNT(CASE WHEN s.status = 'REFUNDED' THEN 1 END)::int AS refunds_count,
+          COALESCE(SUM(CASE WHEN s.status = 'REFUNDED' THEN s.total_amount END), 0)::bigint AS refunds_pesewas
+        FROM sales s
+        WHERE s.branch_id = $1
+          AND ${saleAccraDay} = $2::date
+      `, [actor.branchId, businessDate]) as Array<{
+        sales_count: number; gross_revenue: number; vat_collected: number;
+        refunds_count: number; refunds_pesewas: number;
+      }>;
+
+      const branchGross = Number(branchSalesRow?.gross_revenue ?? 0);
+      const branchCount = Number(branchSalesRow?.sales_count ?? 0);
+      if (branchCount > 0 || branchGross > 0) {
+        useBranchWideSales = true;
+        salesCount = branchCount;
+        grossRevenue = branchGross;
+        vatCollected = Number(branchSalesRow?.vat_collected ?? 0);
+        refundsCount = Number(branchSalesRow?.refunds_count ?? 0);
+        refundsPesewas = Number(branchSalesRow?.refunds_pesewas ?? 0);
+      }
+    }
+
+    const [expRow] = await this.dataSource.query(`
+      SELECT
+        COUNT(*)::int AS expenses_count,
+        COALESCE(SUM(amount_pesewas), 0)::bigint AS expenses_pesewas
+      FROM expenses
+      WHERE branch_id = $1
+        AND expense_date::date = $2::date
+        AND status IN ('APPROVED', 'REIMBURSED')
+    `, [actor.branchId, businessDate]) as Array<{ expenses_count: number; expenses_pesewas: number }>;
+
+    const expensesPesewas = Number(expRow?.expenses_pesewas ?? 0);
+    const netRevenue = grossRevenue - refundsPesewas - expensesPesewas;
+
+    let expectedCashPesewas = grossRevenue;
+    let expectedMomoPesewas = 0;
+    try {
+      const tenderRows = useBranchWideSales
+        ? await this.dataSource.query(`
+            SELECT
+              COALESCE(SUM(CASE WHEN st.method = 'CASH' THEN st.amount_pesewas ELSE 0 END), 0)::bigint AS expected_cash,
+              COALESCE(SUM(CASE WHEN st.method IN ('MTN_MOMO','VODAFONE_CASH','AIRTELTIGO_MONEY') THEN st.amount_pesewas ELSE 0 END), 0)::bigint AS expected_momo
+            FROM sale_tenders st
+            JOIN sales s ON s.id = st.sale_id
+            WHERE s.branch_id = $1
+              AND s.status = 'COMPLETED'
+              AND ${saleAccraDay} = $2::date
+          `, [actor.branchId, businessDate])
+        : await this.dataSource.query(`
+            SELECT
+              COALESCE(SUM(CASE WHEN st.method = 'CASH' THEN st.amount_pesewas ELSE 0 END), 0)::bigint AS expected_cash,
+              COALESCE(SUM(CASE WHEN st.method IN ('MTN_MOMO','VODAFONE_CASH','AIRTELTIGO_MONEY') THEN st.amount_pesewas ELSE 0 END), 0)::bigint AS expected_momo
+            FROM sale_tenders st
+            JOIN sales s ON s.id = st.sale_id
+            WHERE s.branch_id = $1
+              AND s.cashier_id = $2
+              AND s.status = 'COMPLETED'
+              AND ${saleAccraDay} = $3::date
+          `, [actor.branchId, actor.sub, businessDate]);
+      const rawCash = Number(tenderRows[0]?.expected_cash ?? 0);
+      const rawMomo = Number(tenderRows[0]?.expected_momo ?? 0);
+      // If tenders returned all-zero but we have revenue, the table may exist
+      // but tenders weren't recorded — fall back to treating everything as cash.
+      if (rawCash === 0 && rawMomo === 0 && grossRevenue > 0) {
+        expectedCashPesewas = grossRevenue;
+      } else {
+        expectedCashPesewas = rawCash;
+        expectedMomoPesewas = rawMomo;
+      }
+    } catch { /* sale_tenders may not exist */ }
+
+    const [closedCheck] = await this.dataSource.query(
+      `SELECT id FROM end_of_day_records WHERE branch_id = $1 AND cashier_id = $2 AND business_date = $3`,
+      [actor.branchId, actor.sub, businessDate],
+    ) as Array<{ id: string }>;
+
+    return {
+      salesCount,
+      grossRevenuePesewas: grossRevenue,
+      grossRevenueFormatted: this.fmt(grossRevenue),
+      vatCollectedPesewas: vatCollected,
+      vatCollectedFormatted: this.fmt(vatCollected),
+      refundsCount,
+      refundsPesewas,
+      refundsFormatted: this.fmt(refundsPesewas),
+      expensesCount: Number(expRow?.expenses_count ?? 0),
+      expensesPesewas,
+      expensesFormatted: this.fmt(expensesPesewas),
+      netRevenuePesewas: netRevenue,
+      netRevenueFormatted: this.fmt(netRevenue),
+      expectedCashPesewas,
+      expectedCashFormatted: this.fmt(expectedCashPesewas),
+      expectedMomoPesewas,
+      expectedMomoFormatted: this.fmt(expectedMomoPesewas),
+      sourceScope: useBranchWideSales ? 'BRANCH_FALLBACK' : 'CASHIER',
+      isClosed: !!closedCheck,
+    };
+  }
+
   // ── Close Register ────────────────────────────────────────────────────────
 
   async closeRegister(input: CloseRegisterInput, actor: JwtUser): Promise<EodRecord> {
     // Any authenticated staff can close their own register
-    const { businessDate, cashCountedPesewas, momoCountedPesewas, closingNotes } = input;
+    const { businessDate, cashCountedPesewas, momoCountedPesewas, closingNotes, discrepancyReason } = input;
 
     // Validate date format
     if (!/^\d{4}-\d{2}-\d{2}$/.test(businessDate)) {
@@ -87,7 +246,7 @@ export class EodService {
     const at = this.effectiveSaleAt.sql('s');
     const saleAccraDay = `(${at} AT TIME ZONE 'Africa/Accra')::date`;
 
-    // Snapshot today's sales
+    // Snapshot today's sales for this cashier
     const [salesRow] = await this.dataSource.query(`
       SELECT
         COUNT(CASE WHEN s.status = 'COMPLETED' THEN 1 END)::int AS sales_count,
@@ -97,11 +256,47 @@ export class EodService {
         COALESCE(SUM(CASE WHEN s.status = 'REFUNDED' THEN s.total_amount END), 0)::bigint AS refunds_pesewas
       FROM sales s
       WHERE s.branch_id = $1
-        AND ${saleAccraDay} = $2::date
-    `, [actor.branchId, businessDate]) as Array<{
+        AND s.cashier_id = $2
+        AND ${saleAccraDay} = $3::date
+    `, [actor.branchId, actor.sub, businessDate]) as Array<{
       sales_count: number; gross_revenue: number; vat_collected: number;
       refunds_count: number; refunds_pesewas: number;
     }>;
+
+    let salesCount = Number(salesRow?.sales_count ?? 0);
+    let grossRevenue = Number(salesRow?.gross_revenue ?? 0);
+    let vatCollected = Number(salesRow?.vat_collected ?? 0);
+    let refundsCount = Number(salesRow?.refunds_count ?? 0);
+    let refundsPesewas = Number(salesRow?.refunds_pesewas ?? 0);
+    let useBranchWideSales = false;
+
+    if (salesCount === 0 && grossRevenue === 0) {
+      const [branchSalesRow] = await this.dataSource.query(`
+        SELECT
+          COUNT(CASE WHEN s.status = 'COMPLETED' THEN 1 END)::int AS sales_count,
+          COALESCE(SUM(CASE WHEN s.status = 'COMPLETED' THEN s.total_amount END), 0)::bigint AS gross_revenue,
+          COALESCE(SUM(CASE WHEN s.status = 'COMPLETED' THEN s.vat_amount END), 0)::bigint AS vat_collected,
+          COUNT(CASE WHEN s.status = 'REFUNDED' THEN 1 END)::int AS refunds_count,
+          COALESCE(SUM(CASE WHEN s.status = 'REFUNDED' THEN s.total_amount END), 0)::bigint AS refunds_pesewas
+        FROM sales s
+        WHERE s.branch_id = $1
+          AND ${saleAccraDay} = $2::date
+      `, [actor.branchId, businessDate]) as Array<{
+        sales_count: number; gross_revenue: number; vat_collected: number;
+        refunds_count: number; refunds_pesewas: number;
+      }>;
+
+      const branchGross = Number(branchSalesRow?.gross_revenue ?? 0);
+      const branchCount = Number(branchSalesRow?.sales_count ?? 0);
+      if (branchCount > 0 || branchGross > 0) {
+        useBranchWideSales = true;
+        salesCount = branchCount;
+        grossRevenue = branchGross;
+        vatCollected = Number(branchSalesRow?.vat_collected ?? 0);
+        refundsCount = Number(branchSalesRow?.refunds_count ?? 0);
+        refundsPesewas = Number(branchSalesRow?.refunds_pesewas ?? 0);
+      }
+    }
 
     // Snapshot today's approved expenses
     const [expRow] = await this.dataSource.query(`
@@ -114,14 +309,61 @@ export class EodService {
         AND status IN ('APPROVED', 'REIMBURSED')
     `, [actor.branchId, businessDate]) as Array<{ expenses_count: number; expenses_pesewas: number }>;
 
-    const grossRevenue = Number(salesRow?.gross_revenue ?? 0);
-    const vatCollected = Number(salesRow?.vat_collected ?? 0);
-    const refundsPesewas = Number(salesRow?.refunds_pesewas ?? 0);
     const expensesPesewas = Number(expRow?.expenses_pesewas ?? 0);
+
+    // Expected cash and MoMo from sale_tenders for this cashier today
+    let expectedCashPesewas = 0;
+    let expectedMomoPesewas = 0;
+    try {
+      const tenderRows = useBranchWideSales
+        ? await this.dataSource.query(`
+            SELECT
+              COALESCE(SUM(CASE WHEN st.method = 'CASH' THEN st.amount_pesewas ELSE 0 END), 0)::bigint AS expected_cash,
+              COALESCE(SUM(CASE WHEN st.method IN ('MTN_MOMO','VODAFONE_CASH','AIRTELTIGO_MONEY') THEN st.amount_pesewas ELSE 0 END), 0)::bigint AS expected_momo
+            FROM sale_tenders st
+            JOIN sales s ON s.id = st.sale_id
+            WHERE s.branch_id = $1
+              AND s.status = 'COMPLETED'
+              AND ${saleAccraDay} = $2::date
+          `, [actor.branchId, businessDate])
+        : await this.dataSource.query(`
+            SELECT
+              COALESCE(SUM(CASE WHEN st.method = 'CASH' THEN st.amount_pesewas ELSE 0 END), 0)::bigint AS expected_cash,
+              COALESCE(SUM(CASE WHEN st.method IN ('MTN_MOMO','VODAFONE_CASH','AIRTELTIGO_MONEY') THEN st.amount_pesewas ELSE 0 END), 0)::bigint AS expected_momo
+            FROM sale_tenders st
+            JOIN sales s ON s.id = st.sale_id
+            WHERE s.branch_id = $1
+              AND s.cashier_id = $2
+              AND s.status = 'COMPLETED'
+              AND ${saleAccraDay} = $3::date
+          `, [actor.branchId, actor.sub, businessDate]);
+      const rawCash = Number(tenderRows[0]?.expected_cash ?? 0);
+      const rawMomo = Number(tenderRows[0]?.expected_momo ?? 0);
+      // If tenders returned all-zero but we have revenue, the table may exist
+      // but tenders weren't recorded — fall back to treating everything as cash.
+      if (rawCash === 0 && rawMomo === 0 && grossRevenue > 0) {
+        expectedCashPesewas = grossRevenue;
+      } else {
+        expectedCashPesewas = rawCash;
+        expectedMomoPesewas = rawMomo;
+      }
+    } catch {
+      // sale_tenders table may not exist — fall back to gross revenue
+      expectedCashPesewas = Number(salesRow?.gross_revenue ?? 0);
+    }
+
     const netRevenue = grossRevenue - refundsPesewas - expensesPesewas;
     const totalCounted = cashCountedPesewas + momoCountedPesewas;
-    const variance = totalCounted - grossRevenue;
+    const expectedTotal = expectedCashPesewas + expectedMomoPesewas || grossRevenue;
+    const variance = totalCounted - expectedTotal;
     const isBalanced = Math.abs(variance) <= 100; // within GH₵1.00
+
+    // Require discrepancy reason when short by more than GH₵1.00
+    if (variance < -100 && !discrepancyReason?.trim()) {
+      throw new BadRequestException(
+        'A discrepancy reason is required when the counted amount is less than the system expected amount.',
+      );
+    }
 
     // Save EOD record
     const [record] = await this.dataSource.query(`
@@ -131,23 +373,26 @@ export class EodService {
         refunds_count, refunds_pesewas,
         expenses_count, expenses_pesewas, net_revenue_pesewas,
         expected_cash_pesewas, cash_counted_pesewas, momo_counted_pesewas,
-        total_counted_pesewas, variance_pesewas, is_balanced, closing_notes
+        total_counted_pesewas, variance_pesewas, is_balanced, closing_notes,
+        discrepancy_reason
       ) VALUES (
         gen_random_uuid(), $1, $2, $3,
         $4, $5, $6,
         $7, $8,
         $9, $10, $11,
         $12, $13, $14,
-        $15, $16, $17, $18
+        $15, $16, $17, $18,
+        $19
       )
       RETURNING id, closed_at
     `, [
       actor.branchId, actor.sub, businessDate,
-      salesRow?.sales_count ?? 0, grossRevenue, vatCollected,
-      salesRow?.refunds_count ?? 0, refundsPesewas,
+      salesCount, grossRevenue, vatCollected,
+      refundsCount, refundsPesewas,
       expRow?.expenses_count ?? 0, expensesPesewas, netRevenue,
-      grossRevenue, cashCountedPesewas, momoCountedPesewas,
+      expectedCashPesewas || grossRevenue, cashCountedPesewas, momoCountedPesewas,
       totalCounted, variance, isBalanced, closingNotes?.trim() || null,
+      discrepancyReason?.trim() || null,
     ]) as Array<{ id: string; closed_at: Date }>;
 
     // Audit log
@@ -161,7 +406,10 @@ export class EodService {
         variance_pesewas: variance,
         is_balanced: isBalanced,
         gross_revenue: grossRevenue,
+        expected_cash: expectedCashPesewas,
+        expected_momo: expectedMomoPesewas,
         total_counted: totalCounted,
+        discrepancy_reason: discrepancyReason?.trim() || null,
       }),
     ]);
 
@@ -171,13 +419,11 @@ export class EodService {
         try {
           const desc = `EOD Cash Variance — ${businessDate}`;
           if (variance > 0) {
-            // Over — more cash than expected: debit Cash, credit Cash Discrepancy
             await this.glPosting.postDoubleEntry([
               { branchId: actor.branchId, accountCode: '1000', accountName: 'Cash & Bank', debit: variance, credit: 0, description: desc, referenceType: 'EOD_VARIANCE', referenceId: record.id },
               { branchId: actor.branchId, accountCode: '4200', accountName: 'Other Income', debit: 0, credit: variance, description: desc, referenceType: 'EOD_VARIANCE', referenceId: record.id },
             ]);
           } else {
-            // Short — less cash than expected: debit Cash Discrepancy, credit Cash
             const abs = Math.abs(variance);
             await this.glPosting.postDoubleEntry([
               { branchId: actor.branchId, accountCode: '5900', accountName: 'Cash Discrepancy / Shortage', debit: abs, credit: 0, description: desc, referenceType: 'EOD_VARIANCE', referenceId: record.id },
@@ -302,6 +548,8 @@ export class EodService {
       netRevenueFormatted: this.fmt(Number(r.net_revenue_pesewas)),
       expectedCashPesewas: Number(r.expected_cash_pesewas),
       expectedCashFormatted: this.fmt(Number(r.expected_cash_pesewas)),
+      expectedMomoPesewas: Number(r.expected_momo_pesewas ?? 0),
+      expectedMomoFormatted: this.fmt(Number(r.expected_momo_pesewas ?? 0)),
       cashCountedPesewas: Number(r.cash_counted_pesewas),
       cashCountedFormatted: this.fmt(Number(r.cash_counted_pesewas)),
       momoCountedPesewas: Number(r.momo_counted_pesewas),
@@ -312,6 +560,7 @@ export class EodService {
       varianceFormatted: this.fmt(Math.abs(Number(r.variance_pesewas))),
       isBalanced: Boolean(r.is_balanced),
       closingNotes: r.closing_notes || null,
+      discrepancyReason: r.discrepancy_reason || null,
       closedAt: new Date(r.closed_at),
       approvalStatus: r.approval_status ?? 'PENDING',
       approvedByName: r.approved_by_name || null,

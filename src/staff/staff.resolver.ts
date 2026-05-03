@@ -8,6 +8,7 @@ import {
   StaffMemberOutput,
   StaffSessionOutput,
   InviteStaffResult,
+  GeneratedPasswordResult,
 } from './dto/staff.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -96,6 +97,16 @@ export class StaffResolver {
   }
 
   // RBAC: owner, se_admin, manager only
+  @Mutation(() => Boolean, { name: 'deleteStaff' })
+  @Roles('owner', 'se_admin', 'manager')
+  deleteStaff(
+    @Args('userId', { type: () => ID }) userId: string,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<boolean> {
+    return this.staffService.deleteStaff(userId, actor);
+  }
+
+  // RBAC: owner, se_admin, manager only
   @Mutation(() => Boolean, { name: 'resetStaffPassword' })
   @Roles('owner', 'se_admin', 'manager')
   resetStaffPassword(
@@ -103,5 +114,18 @@ export class StaffResolver {
     @CurrentUser() actor: JwtUser,
   ): Promise<boolean> {
     return this.staffService.resetPassword(input, actor);
+  }
+
+  // RBAC: owner, se_admin, manager only
+  @Mutation(() => GeneratedPasswordResult, {
+    name: 'generateStaffPassword',
+    description: 'Auto-generate a secure temporary password for a staff member and invalidate all active sessions.',
+  })
+  @Roles('owner', 'se_admin', 'manager')
+  generateStaffPassword(
+    @Args('userId', { type: () => ID }) userId: string,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<GeneratedPasswordResult> {
+    return this.staffService.generateStaffPassword(userId, actor);
   }
 }

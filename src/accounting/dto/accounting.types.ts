@@ -350,8 +350,23 @@ export class SupplierInvoiceOutput {
   @Field()
   balanceFormatted!: string;
 
-  @Field(() => String, { description: 'PENDING | MATCHED | PARTIAL | PAID | OVERDUE' })
+  @Field(() => String, { description: 'PENDING | MATCHED | VERIFIED | PAID' })
   status!: string;
+
+  @Field(() => String, { description: 'UNPAID | PARTIAL | PAID' })
+  paymentStatus!: string;
+
+  @Field(() => Int, { description: 'Payment progress percentage (0-100)' })
+  paymentProgressPct!: number;
+
+  @Field(() => Int, { description: 'Days since invoice date' })
+  daysOutstanding!: number;
+
+  @Field({ description: 'Is invoice overdue' })
+  isOverdue!: boolean;
+
+  @Field(() => Int, { nullable: true, description: 'Days overdue if applicable' })
+  overdueByDays?: number;
 
   @Field({ nullable: true })
   s3PdfKey?: string;

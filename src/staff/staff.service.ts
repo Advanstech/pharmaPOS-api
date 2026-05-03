@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -220,6 +221,22 @@ export class StaffService {
     const profile = await this.profiles.findOne({ where: { user_id: input.userId } });
     if (!profile) throw new NotFoundException(`Staff profile not found for user ${input.userId}`);
 
+    // Email update — touches users table, manager/owner only
+    if (input.email !== undefined && isManager) {
+      const emailVal = input.email.trim().toLowerCase() || null;
+      if (emailVal) {
+        const [conflict] = await this.dataSource.query(
+          `SELECT id FROM users WHERE email = $1 AND id != $2 LIMIT 1`,
+          [emailVal, input.userId],
+        ) as Array<{ id: string }>;
+        if (conflict) throw new ConflictException(`Email ${emailVal} is already used by another account`);
+      }
+      await this.dataSource.query(
+        `UPDATE users SET email = $1, updated_at = NOW() WHERE id = $2`,
+        [emailVal, input.userId],
+      );
+    }
+
     // Build update fields
     const updates: Record<string, unknown> = {};
 
@@ -300,6 +317,58 @@ export class StaffService {
     return true;
   }
 
+  /**
+   * Hard-delete a deactivated staff member with no historical accounting/sales links.
+   * RBAC: owner, se_admin, manager only.
+   */
+  async deleteStaff(userId: string, actor: JwtUser): Promise<boolean> {
+    this.assertStaffManager(actor);
+
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException(`User ${userId} not found`);
+    if (userId === actor.sub) throw new ForbiddenException('Cannot delete your own account');
+    if (user.is_active) {
+      throw new BadRequestException('Deactivate this staff account first before deleting');
+    }
+
+    const [usage] = await this.dataSource.query(
+      `SELECT
+         (SELECT COUNT(*)::int FROM sales WHERE cashier_id = $1) AS sales_count,
+         (SELECT COUNT(*)::int FROM end_of_day_records WHERE cashier_id = $1) AS eod_count,
+         (SELECT COUNT(*)::int FROM audit_logs WHERE user_id = $1) AS audit_count`,
+      [userId],
+    ) as Array<{ sales_count: number; eod_count: number; audit_count: number }>;
+
+    const salesCount = Number(usage?.sales_count ?? 0);
+    const eodCount = Number(usage?.eod_count ?? 0);
+    const auditCount = Number(usage?.audit_count ?? 0);
+    if (salesCount > 0 || eodCount > 0 || auditCount > 0) {
+      throw new BadRequestException(
+        'This staff member has historical records and cannot be permanently deleted. Keep the account deactivated.',
+      );
+    }
+
+    await this.dataSource.transaction(async (em) => {
+      await em.query(`DELETE FROM sessions WHERE user_id = $1`, [userId]);
+      await em.query(`DELETE FROM staff_sessions WHERE user_id = $1`, [userId]);
+      await em.query(`DELETE FROM staff_profiles WHERE user_id = $1`, [userId]);
+      await em.query(`DELETE FROM users WHERE id = $1`, [userId]);
+
+      await em.query(`
+        INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+        VALUES (gen_random_uuid(), $1, $2, 'STAFF_DELETED', 'user', $3, $4)
+      `, [
+        actor.branchId,
+        actor.sub,
+        userId,
+        JSON.stringify({ deleted_by: actor.sub }),
+      ]);
+    });
+
+    this.logger.log(`Staff deleted: user=${userId} by actor=${actor.sub}`);
+    return true;
+  }
+
   // ── Reset password ────────────────────────────────────────────────────────
 
   /**
@@ -336,6 +405,62 @@ export class StaffService {
 
     this.logger.log(`Password reset: user=${input.userId} by actor=${actor.sub}`);
     return true;
+  }
+
+  // ── Generate initial / one-time password ─────────────────────────────────
+
+  /**
+   * Auto-generates a cryptographically secure 12-char temporary password,
+   * sets it on the account, invalidates all active sessions, and returns
+   * the plain-text password once (never stored; display and share securely).
+   * RBAC: owner, se_admin, manager only.
+   */
+  async generateStaffPassword(userId: string, actor: JwtUser): Promise<{ userId: string; name: string; temporaryPassword: string }> {
+    this.assertStaffManager(actor);
+
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException(`User ${userId} not found`);
+
+    const tempPassword = crypto.randomBytes(6).toString('hex') + crypto.randomBytes(3).toString('base64url');
+    const newHash = await bcrypt.hash(tempPassword, 12);
+
+    await this.dataSource.transaction(async (em) => {
+      await em.update(User, { id: userId }, { password_hash: newHash });
+      await em.query(
+        `UPDATE staff_sessions SET ended_at = NOW() WHERE user_id = $1 AND ended_at IS NULL`,
+        [userId],
+      );
+      await em.query(`DELETE FROM sessions WHERE user_id = $1`, [userId]);
+      await em.query(`
+        INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+        VALUES (gen_random_uuid(), $1, $2, 'PASSWORD_GENERATED', 'user', $3, $4)
+      `, [
+        actor.branchId,
+        actor.sub,
+        userId,
+        JSON.stringify({ generated_by: actor.sub }),
+      ]);
+    });
+
+    this.logger.log(`Initial password generated: user=${userId} by actor=${actor.sub}`);
+
+    // Send email if staff has an address and email is configured
+    if (user.email) {
+      try {
+        const [branchRow] = await this.dataSource.query(
+          `SELECT name FROM branches WHERE id = $1`,
+          [actor.branchId],
+        ) as Array<{ name: string }>;
+        const branchName = branchRow?.name || 'Azzay Pharmacy';
+        const template = EmailTemplates.generatedPassword(user.name, user.email, tempPassword, branchName);
+        await this.notifications.sendEmail({ to: user.email, subject: template.subject, html: template.html });
+        this.logger.log(`Generated-password email sent to ${user.email}`);
+      } catch (err) {
+        this.logger.warn(`Generated-password email failed for ${user.email}: ${String(err)}`);
+      }
+    }
+
+    return { userId, name: user.name, temporaryPassword: tempPassword };
   }
 
   // ── Staff session history (login / refresh / logout) ─────────────────────
@@ -482,6 +607,7 @@ export class StaffService {
         sp.salary_amount_pesewas,
         sp.salary_period,
         sp.bank_name,
+        sp.phone_encrypted,
         EXISTS (
           SELECT 1 FROM staff_sessions ss
           WHERE ss.user_id = u.id AND ss.ended_at IS NULL
@@ -513,6 +639,7 @@ export class StaffService {
       salary_amount_pesewas: r.salary_amount_pesewas as number | undefined,
       salary_period: r.salary_period as string | undefined,
       bank_name: r.bank_name as string | undefined,
+      phone: r.phone_encrypted ? (() => { try { return decryptPii(this.encryptionKey, r.phone_encrypted as string); } catch { return undefined; } })() : undefined,
       is_on_duty: r.is_on_duty as boolean,
       last_seen_at: r.last_seen_at as Date | undefined,
       created_at: r.created_at as Date,
@@ -528,7 +655,7 @@ export class StaffService {
         sp.position, sp.department, sp.employment_type,
         sp.professional_licence_no, sp.licence_expiry_date,
         sp.start_date, sp.photo_url, sp.certificate_s3_keys,
-        sp.salary_amount_pesewas, sp.salary_period, sp.bank_name,
+        sp.salary_amount_pesewas, sp.salary_period, sp.bank_name, sp.phone_encrypted,
         EXISTS (
           SELECT 1 FROM staff_sessions ss
           WHERE ss.user_id = u.id AND ss.ended_at IS NULL
@@ -561,6 +688,7 @@ export class StaffService {
       salary_amount_pesewas: r.salary_amount_pesewas as number | undefined,
       salary_period: r.salary_period as string | undefined,
       bank_name: r.bank_name as string | undefined,
+      phone: r.phone_encrypted ? (() => { try { return decryptPii(this.encryptionKey, r.phone_encrypted as string); } catch { return undefined; } })() : undefined,
       is_on_duty: r.is_on_duty as boolean,
       last_seen_at: r.last_seen_at as Date | undefined,
       created_at: r.created_at as Date,

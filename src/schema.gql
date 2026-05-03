@@ -310,6 +310,9 @@ input CloseRegisterInput {
   """Closing notes from cashier"""
   closingNotes: String
 
+  """Required explanation when counted total is less than system expected"""
+  discrepancyReason: String
+
   """MoMo received in pesewas"""
   momoCountedPesewas: Int!
 }
@@ -862,6 +865,30 @@ type EnhancedSupplierInvoice {
   totalAmountPesewas: Int!
 }
 
+type EodPreviewOutput {
+  expectedCashFormatted: String!
+  expectedCashPesewas: Int!
+  expectedMomoFormatted: String!
+  expectedMomoPesewas: Int!
+  expensesCount: Int!
+  expensesFormatted: String!
+  expensesPesewas: Int!
+  grossRevenueFormatted: String!
+  grossRevenuePesewas: Int!
+  isClosed: Boolean!
+  netRevenueFormatted: String!
+  netRevenuePesewas: Int!
+  refundsCount: Int!
+  refundsFormatted: String!
+  refundsPesewas: Int!
+  salesCount: Int!
+
+  """Source scope for preview totals: CASHIER or BRANCH_FALLBACK"""
+  sourceScope: String!
+  vatCollectedFormatted: String!
+  vatCollectedPesewas: Int!
+}
+
 type EodRecordOutput {
   """PENDING | APPROVED | DECLINED"""
   approvalStatus: String!
@@ -875,8 +902,11 @@ type EodRecordOutput {
   cashierName: String!
   closedAt: DateTime!
   closingNotes: String
+  discrepancyReason: String
   expectedCashFormatted: String!
   expectedCashPesewas: Int!
+  expectedMomoFormatted: String!
+  expectedMomoPesewas: Int!
   expensesCount: Int!
   expensesFormatted: String!
   expensesPesewas: Int!
@@ -1157,6 +1187,22 @@ type GRNOutput {
   supplierName: String!
   totalAmountFormatted: String!
   totalAmountPesewas: Int!
+}
+
+"""
+Result of a manager-initiated auto-generated password for a staff member
+"""
+type GeneratedPasswordResult {
+  """Full name of the staff member"""
+  name: String!
+
+  """
+  Auto-generated temporary password. Show this once and share securely — it is never stored in plain text.
+  """
+  temporaryPassword: String!
+
+  """UUID of the staff account"""
+  userId: ID!
 }
 
 """Result of a GMDC prescriber licence validation check"""
@@ -1629,6 +1675,11 @@ type Mutation {
   approveRefundRequest(notes: String, requestId: ID!): SaleOutput!
   approveStaffExpense(input: ApproveStaffExpenseInput!): StaffExpenseOutput!
   approveStockTransfer(transferId: ID!): StockTransferOutput!
+
+  """
+  Bulk reassign multiple products to a different supplier (or remove supplier). Returns count of updated products.
+  """
+  bulkReassignProductsToSupplier(productIds: [String!]!, supplierId: String): Int!
   bulkUpdateProductPrices(input: BulkUpdatePriceInput!): [PriceUpdateResult!]!
   cancelStockCount(sessionId: ID!): Boolean!
   cancelStockTransfer(reason: String!, transferId: ID!): StockTransferOutput!
@@ -1659,8 +1710,14 @@ type Mutation {
   declineEodRecord(input: ApproveEodInput!): EodRecordOutput!
   deleteOcrColumnMappingPreset(presetId: ID!): Boolean!
   deleteProductImage(imageId: String!): Boolean!
+  deleteStaff(userId: ID!): Boolean!
   deleteSupplier(id: String!): Boolean!
   deleteSupplierWithProducts(id: String!): Boolean!
+
+  """
+  Auto-generate a secure temporary password for a staff member and invalidate all active sessions.
+  """
+  generateStaffPassword(userId: ID!): GeneratedPasswordResult!
   ingestSupplierInvoiceOcr(input: IngestSupplierInvoiceOcrInput!): InvoiceOcrIngestionResult!
   inviteStaff(input: InviteStaffInput!): InviteStaffResult!
   login(input: LoginInput!): AuthPayload!
@@ -2301,6 +2358,9 @@ type Query {
 
   """List EOD records for this branch. Manager/owner only."""
   eodHistory(limit: Int): [EodRecordOutput!]!
+
+  """Preview of today's sales/expected cash before closing the register."""
+  eodPreview(businessDate: String!): EodPreviewOutput!
   expenseAnalytics(endDate: String!, startDate: String!): ExpenseAnalyticsOutput!
 
   """
@@ -2935,6 +2995,9 @@ type StaffMemberOutput {
   """Full name"""
   name: String!
 
+  """Phone number (decrypted for manager/owner)"""
+  phone: String
+
   """Profile photo URL for avatar rendering."""
   photo_url: String
 
@@ -3298,16 +3361,31 @@ type SupplierInvoiceOutput {
   balancePesewas: Int!
   branchId: ID!
   createdAt: DateTime!
+
+  """Days since invoice date"""
+  daysOutstanding: Int!
   dueDate: DateTime
   grnId: ID
   id: ID!
   invoiceDate: DateTime!
   invoiceNumber: String!
+
+  """Is invoice overdue"""
+  isOverdue: Boolean!
+
+  """Days overdue if applicable"""
+  overdueByDays: Int
   paidAmountFormatted: String!
   paidAmountPesewas: Int!
+
+  """Payment progress percentage (0-100)"""
+  paymentProgressPct: Int!
+
+  """UNPAID | PARTIAL | PAID"""
+  paymentStatus: String!
   s3PdfKey: String
 
-  """PENDING | MATCHED | PARTIAL | PAID | OVERDUE"""
+  """PENDING | MATCHED | VERIFIED | PAID"""
   status: String!
   supplierId: ID!
   supplierName: String!
@@ -3389,6 +3467,7 @@ type SupplierProductDetail {
   id: ID!
   isActive: Boolean!
   name: String!
+  nearestExpiry: DateTime
   quantityOnHand: Int!
   reorderLevel: Int!
   sold7d: Int!
@@ -3716,6 +3795,9 @@ input UpdateStaffProfileInput {
 
   """Department"""
   department: String
+
+  """Work email address — used as login identifier. Manager/owner only."""
+  email: String
 
   """Emergency contact full name"""
   emergency_contact_name: String

@@ -221,7 +221,16 @@ export class SuppliersService {
         COALESCE(inv.quantity_on_hand, 0)::int AS quantity_on_hand,
         COALESCE(inv.reorder_level, 10)::int AS reorder_level,
         COALESCE(sale7.sold_7d, 0)::int AS sold_7d,
-        COALESCE(sale30.sold_30d, 0)::int AS sold_30d
+        COALESCE(sale30.sold_30d, 0)::int AS sold_30d,
+        (
+          SELECT MIN(sm.expiry_date)
+          FROM stock_movements sm
+          WHERE sm.product_id = p.id
+            AND sm.branch_id = $2
+            AND sm.expiry_date IS NOT NULL
+            AND sm.expiry_date > NOW()
+          LIMIT 1
+        ) AS nearest_expiry
       FROM products p
       LEFT JOIN inventory inv ON inv.product_id = p.id AND inv.branch_id = $2
       LEFT JOIN LATERAL (
@@ -261,6 +270,7 @@ export class SuppliersService {
         quantityOnHand: p.quantity_on_hand,
         reorderLevel: p.reorder_level,
         stockStatus: this.calcStockStatus(p.quantity_on_hand, p.reorder_level),
+        nearestExpiry: p.nearest_expiry,
         sold7d: p.sold_7d,
         sold30d: p.sold_30d,
       })),

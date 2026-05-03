@@ -83,6 +83,7 @@ export class SupplierProductDetail {
   @Field() isActive!: boolean;
   @Field(() => Int) quantityOnHand!: number;
   @Field(() => Int) reorderLevel!: number;
+  @Field({ nullable: true }) nearestExpiry?: Date;
   @Field() stockStatus!: string;
   @Field(() => Int) sold7d!: number;
   @Field(() => Int) sold30d!: number;

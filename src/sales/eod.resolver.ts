@@ -1,7 +1,7 @@
 import { Resolver, Mutation, Query, Args, Int, ObjectType, Field } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { EodService } from './eod.service';
-import { CloseRegisterInput, EodRecordOutput, TodayEodStatus, ApproveEodInput } from './dto/eod.types';
+import { CloseRegisterInput, EodRecordOutput, TodayEodStatus, ApproveEodInput, EodPreviewOutput } from './dto/eod.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -29,6 +29,18 @@ export class EodResolver {
     @CurrentUser() actor: JwtUser,
   ): Promise<EodRecordOutput> {
     return this.eodService.closeRegister(input, actor) as Promise<EodRecordOutput>;
+  }
+
+  @Query(() => EodPreviewOutput, {
+    name: 'eodPreview',
+    description: 'Preview of today\'s sales/expected cash before closing the register.',
+  })
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'pharmacist', 'technician', 'cashier', 'chemical_cashier')
+  eodPreview(
+    @CurrentUser() actor: JwtUser,
+    @Args('businessDate') businessDate: string,
+  ): Promise<EodPreviewOutput> {
+    return this.eodService.getEodPreview(actor, businessDate) as Promise<EodPreviewOutput>;
   }
 
   @Query(() => TodayEodStatus, {

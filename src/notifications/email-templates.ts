@@ -415,4 +415,59 @@ export class EmailTemplates {
       `,
     };
   }
+
+  static generatedPassword(staffName: string, email: string, temporaryPassword: string, branchName: string): EmailTemplate {
+    return {
+      subject: `Your new Azzay Pharmacy login password`,
+      html: `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your New Password</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: ${this.brandColors.primary}; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+        .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+        .content { background: white; padding: 40px; border: 1px solid #e5e7eb; border-top: none; }
+        .button { display: inline-block; background: ${this.brandColors.primary}; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+        .credentials { background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${this.brandColors.secondary}; }
+        .footer { background: ${this.brandColors.light}; padding: 20px; text-align: center; color: #6b7280; font-size: 14px; border-radius: 0 0 8px 8px; }
+        .highlight { color: ${this.brandColors.primary}; font-weight: 600; }
+        .warning { color: ${this.brandColors.danger}; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">🏥 Azzay Pharmacy</div>
+        <p>Pharmacy Management System</p>
+    </div>
+
+    <div class="content">
+        <h2>Hello, ${staffName}!</h2>
+        <p>A new temporary password has been generated for your account at <span class="highlight">${branchName}</span>. All your previous sessions have been signed out.</p>
+
+        <div class="credentials">
+            <h3>Your Login Details</h3>
+            <p><strong>Email:</strong> ${email}</p>
+            <p><strong>Temporary Password:</strong> <code style="background: #e5e7eb; padding: 4px 8px; border-radius: 4px; font-size: 16px;">${temporaryPassword}</code></p>
+            <p class="warning">⚠️ Please change this password immediately after logging in.</p>
+        </div>
+
+        <a href="${this.baseUrl}/login" class="button">Login to Azzay Pharmacy</a>
+
+        <p>If you did not expect this email, please contact your branch manager immediately.</p>
+        <p>Best regards,<br>The Azzay Pharmacy Team</p>
+    </div>
+
+    <div class="footer">
+        <p>© 2026 Azzay Pharmacy. All rights reserved.</p>
+        <p>This is an automated security message. Please do not reply to this email.</p>
+    </div>
+</body>
+</html>
+      `,
+    };
+  }
 }

@@ -93,6 +93,11 @@ export class UpdateStaffProfileInput {
   @IsString()
   userId!: string;
 
+  @Field({ nullable: true, description: 'Work email address — used as login identifier. Manager/owner only.' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
   @Field({ nullable: true, description: 'Job title' })
   @IsOptional()
   @IsString()
@@ -247,6 +252,9 @@ export class StaffMemberOutput {
   @Field({ nullable: true, description: 'Work email address' })
   email?: string;
 
+  @Field({ nullable: true, description: 'Phone number (decrypted for manager/owner)' })
+  phone?: string;
+
   @Field({
     description:
       'Assigned role. Values: `owner` | `head_pharmacist` | `pharmacist` | `cashier` | `manager`',
@@ -390,4 +398,20 @@ export class InviteStaffResult {
 
   @Field({ description: 'Human-readable confirmation message' })
   message!: string;
+}
+
+@ObjectType({ description: 'Result of a manager-initiated auto-generated password for a staff member' })
+export class GeneratedPasswordResult {
+  @Field(() => ID, { description: 'UUID of the staff account' })
+  userId!: string;
+
+  @Field({ description: 'Full name of the staff member' })
+  name!: string;
+
+  @Field({
+    description:
+      'Auto-generated temporary password. ' +
+      'Show this once and share securely — it is never stored in plain text.',
+  })
+  temporaryPassword!: string;
 }

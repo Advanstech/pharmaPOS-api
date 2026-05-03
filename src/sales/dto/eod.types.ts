@@ -21,6 +21,11 @@ export class CloseRegisterInput {
   @IsOptional()
   @IsString()
   closingNotes?: string;
+
+  @Field({ nullable: true, description: 'Required explanation when counted total is less than system expected' })
+  @IsOptional()
+  @IsString()
+  discrepancyReason?: string;
 }
 
 @ObjectType()
@@ -47,6 +52,8 @@ export class EodRecordOutput {
 
   @Field(() => Int) expectedCashPesewas!: number;
   @Field() expectedCashFormatted!: string;
+  @Field(() => Int, { defaultValue: 0 }) expectedMomoPesewas!: number;
+  @Field({ defaultValue: 'GH₵0.00' }) expectedMomoFormatted!: string;
   @Field(() => Int) cashCountedPesewas!: number;
   @Field() cashCountedFormatted!: string;
   @Field(() => Int) momoCountedPesewas!: number;
@@ -58,12 +65,37 @@ export class EodRecordOutput {
   @Field() isBalanced!: boolean;
 
   @Field({ nullable: true }) closingNotes?: string;
+  @Field({ nullable: true }) discrepancyReason?: string;
   @Field() closedAt!: Date;
 
   @Field({ description: 'PENDING | APPROVED | DECLINED' }) approvalStatus!: string;
   @Field({ nullable: true }) approvedByName?: string;
   @Field({ nullable: true }) approvedAt?: Date;
   @Field({ nullable: true }) managerNotes?: string;
+}
+
+@ObjectType()
+export class EodPreviewOutput {
+  @Field(() => Int) salesCount!: number;
+  @Field(() => Int) grossRevenuePesewas!: number;
+  @Field() grossRevenueFormatted!: string;
+  @Field(() => Int) vatCollectedPesewas!: number;
+  @Field() vatCollectedFormatted!: string;
+  @Field(() => Int) refundsCount!: number;
+  @Field(() => Int) refundsPesewas!: number;
+  @Field() refundsFormatted!: string;
+  @Field(() => Int) expensesCount!: number;
+  @Field(() => Int) expensesPesewas!: number;
+  @Field() expensesFormatted!: string;
+  @Field(() => Int) netRevenuePesewas!: number;
+  @Field() netRevenueFormatted!: string;
+  @Field(() => Int) expectedCashPesewas!: number;
+  @Field() expectedCashFormatted!: string;
+  @Field(() => Int) expectedMomoPesewas!: number;
+  @Field() expectedMomoFormatted!: string;
+  @Field({ description: 'Source scope for preview totals: CASHIER or BRANCH_FALLBACK' })
+  sourceScope!: string;
+  @Field() isClosed!: boolean;
 }
 
 @InputType()

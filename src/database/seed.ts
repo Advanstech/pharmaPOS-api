@@ -87,6 +87,68 @@ async function seed() {
       `, [branchId, name, email, hash, role]);
     }
 
+    // ── Real Azzay Pharmacy staff (Dormaa Ahenkro) ────────────────────────
+    // Branch lookup: Main Branch (pharmaceutical) and Chemical Shop (chemical)
+    console.log('Seeding real Azzay Pharmacy staff...');
+    const [mainBranch] = (await q.query(
+      `SELECT id FROM branches WHERE organization_id = $1 AND type = 'pharmaceutical' LIMIT 1`,
+      [orgId],
+    )) as Array<{ id: string }>;
+    const [chemBranch] = (await q.query(
+      `SELECT id FROM branches WHERE organization_id = $1 AND type = 'chemical' LIMIT 1`,
+      [orgId],
+    )) as Array<{ id: string }>;
+    const mainId = mainBranch?.id ?? branchId;
+    const chemId = chemBranch?.id ?? branchId;
+
+    // Real staff: [name, email|null, role, branchId]
+    // Passwords are the same default hash ("Azzay Pharmacy@2025!") — owner to generate
+    // individual passwords via the "Generate password" action in the staff UI.
+    const realStaff: Array<[string, string | null, string, string]> = [
+      // Main Branch — Dormaa Ahenkro (pharmaceutical)
+      ['Adua Azare',          null,                       'pharmacist',       mainId],
+      ['Otuwa Francis',       null,                       'pharmacist',       mainId],
+      ['Dery Ancelm',         null,                       'pharmacist',       mainId],
+      ['Ibrahim Latifa',      null,                       'pharmacist',       mainId],
+      ['Kumi Faisal',         null,                       'pharmacist',       mainId],
+      ['Emmanuel Atuahene',   'kemmohene@yahoo.com',      'owner',            mainId],
+      // Chemical Shop — Dormaa Yesu Mmo (chemical)
+      ['Henewaa Apraku Sandra', null,                     'chemical_cashier', chemId],
+      ['Antwi Emmanuel',      null,                       'pharmacist',       chemId],
+    ];
+
+    for (const [name, email, role, bId] of realStaff) {
+      if (email) {
+        await q.query(`
+          INSERT INTO users (id, branch_id, name, email, password_hash, role, is_active)
+          VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, true)
+          ON CONFLICT (email) DO UPDATE SET
+            name = EXCLUDED.name,
+            role = EXCLUDED.role,
+            branch_id = EXCLUDED.branch_id
+        `, [bId, name, email, STAFF_HASH, role]);
+      } else {
+        // No email — insert only if no user with same name+branch already exists
+        await q.query(`
+          INSERT INTO users (id, branch_id, name, email, password_hash, role, is_active)
+          SELECT gen_random_uuid(), $1, $2::text, NULL, $3, $4, true
+          WHERE NOT EXISTS (
+            SELECT 1 FROM users WHERE branch_id = $1 AND name = $2::text
+          )
+        `, [bId, name, STAFF_HASH, role]);
+      }
+      // Ensure staff_profile exists for each real staff member
+      await q.query(`
+        INSERT INTO staff_profiles (id, user_id, branch_id, employment_type)
+        SELECT gen_random_uuid(), u.id, u.branch_id, 'full_time'
+        FROM users u
+        WHERE u.branch_id = $1 AND u.name = $2
+          AND NOT EXISTS (SELECT 1 FROM staff_profiles sp WHERE sp.user_id = u.id)
+        LIMIT 1
+      `, [bId, name]);
+    }
+    console.log(`  Seeded ${realStaff.length} real staff members`);
+
     // ── Suppliers ─────────────────────────────────────────────────────────
     // Real Azzay Pharmacy suppliers from legacy POS export
     console.log('Seeding 10 real Azzay suppliers...');

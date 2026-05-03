@@ -167,4 +167,18 @@ export class ProductsResolver {
   ): Promise<boolean> {
     return this.productsService.setPrimaryImage(productId, imageId, actor);
   }
+
+  // ── Bulk Supplier Reassignment ─────────────────────────────────────────────
+
+  @Mutation(() => Int, {
+    description: 'Bulk reassign multiple products to a different supplier (or remove supplier). Returns count of updated products.',
+  })
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist')
+  async bulkReassignProductsToSupplier(
+    @Args('productIds', { type: () => [String] }) productIds: string[],
+    @Args('supplierId', { type: () => String, nullable: true }) supplierId: string | null,
+    @CurrentUser() actor: JwtUser,
+  ): Promise<number> {
+    return this.productsService.bulkReassignToSupplier(productIds, supplierId, actor);
+  }
 }

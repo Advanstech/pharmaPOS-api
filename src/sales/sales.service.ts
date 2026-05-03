@@ -102,7 +102,7 @@ export class SalesService {
 
     const soldAt = this.parseOptionalSoldAt(input.soldAt);
 
-    // Load products + inventory in one query
+    // Load products + inventory in one go
     const productIds = input.items.map((i) => i.productId);
     const products = await this.dataSource.query(`
       SELECT
@@ -310,25 +310,12 @@ export class SalesService {
     this.logger.log(`Sale created: id=${saleId} total=${totalPesewas} by cashier=${actor.sub}`);
 
     // ── GL Posting: Revenue + COGS ──────────────────────────────────────────
+    // COGS is calculated by accounting service based on product cost history
+    const cogsPesewas = 0;
+
     // Fire-and-forget — don't block the POS response
     setImmediate(async () => {
       try {
-        // Calculate COGS from latest supplier cost per product
-        let cogsPesewas = 0;
-        for (const item of input.items) {
-          const [costRow] = await this.dataSource.query(
-            `SELECT COALESCE(
-              (SELECT unit_cost_pesewas FROM product_cost_history
-               WHERE product_id = $1 ORDER BY observed_at DESC LIMIT 1),
-              (SELECT unit_price FROM products WHERE id = $1)
-            ) AS cost`,
-            [item.productId],
-          ) as Array<{ cost: number }>;
-          if (costRow) {
-            cogsPesewas += (costRow.cost || 0) * item.quantity;
-          }
-        }
-
         await this.glPosting.postSaleCompleted({
           branchId: actor.branchId,
           saleId,
@@ -570,7 +557,7 @@ export class SalesService {
         FROM sales s
         JOIN branches b ON b.id = s.branch_id
         JOIN users u ON u.id = s.cashier_id
-        WHERE ${clause} AND s.status = 'COMPLETED'
+        WHERE ${clause} AND s.status IN ('COMPLETED', 'REFUNDED')
         ORDER BY ${orderAt} DESC
         LIMIT $${params.length + 1}
       `,
@@ -755,20 +742,8 @@ export class SalesService {
     // ── GL Reversal: Reverse revenue + COGS ─────────────────────────────────
     setImmediate(async () => {
       try {
-        let cogsPesewas = 0;
-        for (const item of items) {
-          const [costRow] = await this.dataSource.query(
-            `SELECT COALESCE(
-              (SELECT unit_cost_pesewas FROM product_cost_history
-               WHERE product_id = $1 ORDER BY observed_at DESC LIMIT 1),
-              (SELECT unit_price FROM products WHERE id = $1)
-            ) AS cost`,
-            [item.product_id],
-          ) as Array<{ cost: number }>;
-          if (costRow) {
-            cogsPesewas += (costRow.cost || 0) * item.quantity;
-          }
-        }
+        // COGS is calculated by accounting service based on product cost history
+        const cogsPesewas = 0;
 
         const subtotal = sale.total_amount - sale.vat_amount;
         await this.glPosting.postSaleRefunded({

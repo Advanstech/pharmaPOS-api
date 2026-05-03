@@ -60,7 +60,7 @@ export class InvoiceOcrService {
     supplierId?: string,
   ): Promise<OcrExtractedData> {
     if (!this.openai) {
-      throw new Error('OpenAI API key not configured');
+      throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY in your environment.');
     }
 
     this.logger.log(`Extracting invoice data from ${fileType}`);
@@ -86,126 +86,67 @@ Important:
 
 Return ONLY valid JSON, no markdown or explanations.`;
 
-    try {
-      let content: string | null = null;
+    let content: string | null = null;
 
-      if (fileType === 'application/pdf') {
-        // PDFs: send as base64 file content to GPT-4o
-        const isDataUrl = fileUrl.startsWith('data:');
-        const base64Data = isDataUrl
-          ? fileUrl.split(',')[1]
-          : Buffer.from((await axios.get(fileUrl, { responseType: 'arraybuffer' })).data).toString('base64');
+    if (fileType === 'application/pdf') {
+      // PDFs: send as base64 file content to GPT-4o
+      const isDataUrl = fileUrl.startsWith('data:');
+      const base64Data = isDataUrl
+        ? fileUrl.split(',')[1]
+        : Buffer.from((await axios.get(fileUrl, { responseType: 'arraybuffer' })).data).toString('base64');
 
-        const response = await this.openai.chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: 'Extract all invoice data from this pharmaceutical supplier invoice PDF:' },
-                {
-                  type: 'image_url',
-                  image_url: {
-                    url: `data:application/pdf;base64,${base64Data}`,
-                    detail: 'high',
-                  },
-                } as any,
-              ],
-            },
-          ],
-          max_tokens: 2000,
-          temperature: 0.1,
-        });
-        content = response.choices[0]?.message?.content ?? null;
-      } else {
-        // Images: send directly as image_url
-        const imageUrl = fileUrl.startsWith('data:') ? fileUrl
-          : `data:${fileType};base64,${Buffer.from((await axios.get(fileUrl, { responseType: 'arraybuffer' })).data).toString('base64')}`;
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Extract all invoice data from this pharmaceutical supplier invoice PDF:' },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:application/pdf;base64,${base64Data}`,
+                  detail: 'high',
+                },
+              } as any,
+            ],
+          },
+        ],
+        max_tokens: 2000,
+        temperature: 0.1,
+      });
+      content = response.choices[0]?.message?.content ?? null;
+    } else {
+      // Images: send directly as image_url
+      const imageUrl = fileUrl.startsWith('data:')
+        ? fileUrl
+        : `data:${fileType};base64,${Buffer.from((await axios.get(fileUrl, { responseType: 'arraybuffer' })).data).toString('base64')}`;
 
-        const response = await this.openai.chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: 'Extract all invoice data from this pharmaceutical supplier invoice:' },
-                { type: 'image_url', image_url: { url: imageUrl, detail: 'high' } },
-              ],
-            },
-          ],
-          max_tokens: 2000,
-          temperature: 0.1,
-        });
-        content = response.choices[0]?.message?.content ?? null;
-      }
-
-      if (!content) throw new Error('No response from GPT-4o');
-
-      const extractedData = this.parseGptResponse(content);
-      const confidence = this.calculateConfidence(extractedData);
-      this.logger.log(`Invoice extraction completed with ${confidence}% confidence`);
-      return { ...extractedData, confidence };
-    } catch (error) {
-      this.logger.error(`Invoice OCR failed: ${error instanceof Error ? error.message : String(error)}`);
-      
-      // Fallback: Return mock data if OpenAI fails (for testing without credits)
-      if (error instanceof Error && (error.message.includes('429') || error.message.includes('quota') || error.message.includes('API key'))) {
-        this.logger.warn(`⚠️ OpenAI quota exceeded — returning mock data for testing`);
-        return this.getMockInvoiceData();
-      }
-      
-      throw error;
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Extract all invoice data from this pharmaceutical supplier invoice:' },
+              { type: 'image_url', image_url: { url: imageUrl, detail: 'high' } },
+            ],
+          },
+        ],
+        max_tokens: 2000,
+        temperature: 0.1,
+      });
+      content = response.choices[0]?.message?.content ?? null;
     }
-  }
 
-  /**
-   * Mock invoice data for testing when OpenAI is unavailable
-   */
-  private getMockInvoiceData(): OcrExtractedData {
-    return {
-      invoiceNumber: 'DAN-2026-4402',
-      invoiceDate: '2026-04-10',
-      supplierName: 'Danadams Pharmaceuticals Industry Limited',
-      supplierAddress: '67 Nungua Link, Spintex Road, Baatsona, Accra, Ghana',
-      supplierPhone: '+233244123456',
-      items: [
-        {
-          description: 'Camosunate (Artesunate + Amodiaquine)',
-          quantity: 200,
-          unitPrice: 4500, // GH₵45.00 in pesewas
-          totalPrice: 900000, // GH₵9,000.00
-          confidence: 95,
-        },
-        {
-          description: 'Danadams Hand Sanitizer (500ml)',
-          quantity: 100,
-          unitPrice: 2500, // GH₵25.00
-          totalPrice: 250000, // GH₵2,500.00
-          confidence: 92,
-        },
-        {
-          description: 'Lamivudine/Zidovudine (Generic ARV)',
-          quantity: 50,
-          unitPrice: 18500, // GH₵185.00
-          totalPrice: 925000, // GH₵9,250.00
-          confidence: 90,
-        },
-        {
-          description: 'Amoxicillin/Clavulanate (500/125mg)',
-          quantity: 80,
-          unitPrice: 11000, // GH₵110.00
-          totalPrice: 880000, // GH₵8,800.00
-          confidence: 93,
-        },
-      ],
-      subtotal: 2955000, // GH₵29,550.00
-      vat: 491000, // GH₵4,910.00 (NHIL 2.5% + GetFUND 2.5% + VAT 15% = 20% total)
-      totalAmount: 3546000, // GH₵35,460.00
-      confidence: 92,
-      rawText: '[MOCK DATA from Danadams Invoice DAN-2026-4402. OpenAI quota exceeded. TIN: P0001234567. Payment Terms: Net 30 Days (Due: May 10, 2026). Bank: Ecobank Ghana PLC, Acct: 001012345678901, Branch: Spintex Road. Add OpenAI credits for real OCR.]',
-    };
+    if (!content) throw new Error('No response from GPT-4o');
+
+    const extractedData = this.parseGptResponse(content);
+    const confidence = this.calculateConfidence(extractedData);
+    this.logger.log(`Invoice extraction completed with ${confidence}% confidence`);
+    return { ...extractedData, confidence };
   }
 
   /**
@@ -234,12 +175,9 @@ Return ONLY valid JSON, no markdown or explanations.`;
       };
 
       data.totalAmount = toPesewas(data.totalAmount);
-      data.subtotal = data.subtotal !== undefined && data.subtotal !== null
-        ? toPesewas(data.subtotal)
-        : undefined;
-      data.vat = data.vat !== undefined && data.vat !== null
-        ? toPesewas(data.vat)
-        : undefined;
+      data.subtotal =
+        data.subtotal !== undefined && data.subtotal !== null ? toPesewas(data.subtotal) : undefined;
+      data.vat = data.vat !== undefined && data.vat !== null ? toPesewas(data.vat) : undefined;
 
       data.items = data.items.map((item: any) => ({
         ...item,
@@ -253,7 +191,9 @@ Return ONLY valid JSON, no markdown or explanations.`;
 
       return data;
     } catch (error) {
-      this.logger.error(`Failed to parse GPT response: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Failed to parse GPT response: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw new Error('Failed to parse invoice data from OCR response');
     }
   }
@@ -303,10 +243,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
 
     for (const item of items) {
       const matches = await this.findProductMatches(item.description, supplierId, branchId);
-      results.push({
-        ocrItem: item,
-        matches,
-      });
+      results.push({ ocrItem: item, matches });
     }
 
     return results;
@@ -383,6 +320,10 @@ Return ONLY valid JSON, no markdown or explanations.`;
     // Strategy 3: Keyword match (extract key terms)
     const keywords = this.extractKeywords(cleanDesc);
     if (keywords.length > 0) {
+      // Build parameterized placeholders: $3, $4, $5, ...
+      const nameClauses = keywords.map((_k, i) => `LOWER(name) LIKE $${i + 3}`).join(' OR ');
+      const genericClauses = keywords.map((_k, i) => `LOWER(generic_name) LIKE $${i + 3}`).join(' OR ');
+
       const keywordMatches = await this.dataSource.query(
         `
         SELECT id, name, generic_name, supplier_id,
@@ -391,11 +332,11 @@ Return ONLY valid JSON, no markdown or explanations.`;
         FROM products
         WHERE is_active = true
           AND (
-            ${keywords.map((_, i) => `LOWER(name) LIKE $${i + 3}`).join(' OR ')}
-            OR ${keywords.map((_, i) => `LOWER(generic_name) LIKE $${i + 3}`).join(' OR ')}
+            ${nameClauses}
+            OR ${genericClauses}
           )
           AND (supplier_id = $1 OR supplier_id IS NULL)
-        ORDER BY 
+        ORDER BY
           CASE WHEN supplier_id = $1 THEN 1 ELSE 2 END,
           name
         LIMIT 5
@@ -539,7 +480,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
     await this.dataSource.query(
       `
       UPDATE invoice_ocr_jobs
-      SET 
+      SET
         status = $2::text,
         progress = $3,
         extracted_data = $4,
@@ -568,7 +509,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   async getOcrJob(jobId: string): Promise<any> {
     const [job] = await this.dataSource.query(
       `
-      SELECT 
+      SELECT
         ij.*,
         s.name as supplier_name,
         u.name as created_by_name
