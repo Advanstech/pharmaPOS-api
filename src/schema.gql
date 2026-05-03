@@ -419,6 +419,11 @@ input CreateCustomerInput {
   name: String
 
   """
+  Clinical notes, diagnosis, or medical history. Stored AES-256 encrypted — Ghana Data Protection Act 2012.
+  """
+  notes: String
+
+  """
   Mobile number (Ghana). Stored as a salted hash for deduplication — not returned in APIs.
   """
   phone: String
@@ -664,6 +669,9 @@ type CustomerOutput {
   Decrypted name when on file; otherwise null (use customerCode on receipts).
   """
   name: String
+
+  """Clinical notes or diagnosis history (decrypted for authorized staff)."""
+  notes: String
 
   """Customer receipt preference: email, print, or both."""
   receiptPreference: String
@@ -1748,6 +1756,11 @@ type Mutation {
   setPrimaryProductImage(imageId: String!, productId: String!): Boolean!
   setUsdExchangeRate(input: SetExchangeRateInput!): ExchangeRate!
   suspendSupplier(id: String!): Boolean!
+
+  """
+  Sync unassigned sales (NULL cashier_id) to a staff member. Useful when a new staff member joins and historical sales need attribution.
+  """
+  syncStaffSales(input: SyncStaffSalesInput!): SyncStaffSalesResult!
   updateBranch(id: ID!, input: UpdateBranchInput!): BranchOutput!
   updateCustomer(input: UpdateCustomerInput!): CustomerOutput!
 
@@ -3567,6 +3580,36 @@ type SupplierWithProducts {
   totalProducts: Int!
 }
 
+"""
+Sync unassigned sales to a staff member. Useful when a new staff member joins and historical sales (with NULL cashier_id) need to be attributed to them. Requires role: `owner` or `manager`.
+"""
+input SyncStaffSalesInput {
+  """
+  Assign only sales from this date onwards (ISO 8601). Useful for assigning only recent sales since the staff member joined.
+  """
+  fromDate: String
+
+  """
+  Limit the number of sales to assign (default: 1000). Set to 0 for unlimited.
+  """
+  limit: Float
+
+  """UUID of the staff member to assign sales to"""
+  userId: String!
+}
+
+"""Result of syncing sales to a staff member"""
+type SyncStaffSalesResult {
+  """Number of sales assigned to the staff member"""
+  assignedCount: Float!
+
+  """Human-readable confirmation message"""
+  message: String!
+
+  """Total sales checked for assignment"""
+  totalChecked: Float!
+}
+
 """Ghana GRA tax compliance audit — VAT, PAYE, withholding tax"""
 type TaxComplianceAudit {
   exemptSalesWithoutRxCount: Int!
@@ -3711,6 +3754,11 @@ input UpdateCustomerInput {
   ghanaCardNumber: String
   marketingConsent: Boolean
   name: String
+
+  """
+  Clinical notes, diagnosis, or medical history. Stored AES-256 encrypted. Set to empty string to clear.
+  """
+  notes: String
   phone: String
   receiptPreference: String
   sex: CustomerSex

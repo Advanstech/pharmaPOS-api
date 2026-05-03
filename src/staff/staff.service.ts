@@ -463,6 +463,91 @@ export class StaffService {
     return { userId, name: user.name, temporaryPassword: tempPassword };
   }
 
+  // ── Sync sales to staff member ───────────────────────────────────────────
+
+  /**
+   * Sync unassigned sales (NULL cashier_id) to a staff member.
+   * Useful when a new staff member joins and historical sales need attribution.
+   * RBAC: owner, se_admin, manager only.
+   * Only assigns sales from the same branch.
+   */
+  async syncStaffSales(
+    input: { userId: string; fromDate?: string; limit?: number },
+    actor: JwtUser,
+  ): Promise<{ assignedCount: number; totalChecked: number; message: string }> {
+    this.assertStaffManager(actor);
+
+    const user = await this.users.findOne({ where: { id: input.userId } });
+    if (!user) throw new NotFoundException(`User ${input.userId} not found`);
+    if (user.branch_id !== actor.branchId && !['owner', 'se_admin'].includes(actor.role)) {
+      throw new ForbiddenException('Cannot sync sales for staff in another branch');
+    }
+
+    const limit = input.limit ?? 1000;
+    const branchId = user.branch_id;
+
+    // Build date filter if fromDate provided
+    const dateFilter = input.fromDate ? `AND created_at >= $3::timestamptz` : '';
+    const params = input.fromDate ? [branchId, input.fromDate] : [branchId];
+
+    // Count unassigned sales in this branch (optionally from date)
+    const countSql = `
+      SELECT COUNT(*)::int as cnt
+      FROM sales
+      WHERE branch_id = $1
+        AND cashier_id IS NULL
+        AND status IN ('COMPLETED', 'REFUNDED')
+        ${dateFilter}
+    `;
+    const [countRow] = await this.dataSource.query(countSql, params) as Array<{ cnt: number }>;
+    const totalChecked = Number(countRow?.cnt ?? 0);
+
+    if (totalChecked === 0) {
+      return { assignedCount: 0, totalChecked: 0, message: 'No unassigned sales found to sync' };
+    }
+
+    // Assign up to limit sales to this staff member
+    const updateSql = `
+      UPDATE sales
+      SET cashier_id = $${params.length + 1}, updated_at = NOW()
+      WHERE id IN (
+        SELECT id FROM sales
+        WHERE branch_id = $1
+          AND cashier_id IS NULL
+          AND status IN ('COMPLETED', 'REFUNDED')
+          ${dateFilter}
+        ORDER BY created_at ASC
+        ${limit > 0 ? `LIMIT $${params.length + 2}` : ''}
+      )
+      RETURNING id
+    `;
+    const updateParams: (string | number)[] = [...params, input.userId];
+    if (limit > 0) updateParams.push(limit);
+
+    const updatedRows = await this.dataSource.query(updateSql, updateParams) as Array<{ id: string }>;
+    const assignedCount = updatedRows.length;
+
+    // Audit log
+    await this.dataSource.query(
+      `INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+       VALUES (gen_random_uuid(), $1, $2, 'STAFF_SALES_SYNCED', 'user', $3, $4)`,
+      [
+        actor.branchId,
+        actor.sub,
+        input.userId,
+        JSON.stringify({ assigned_count: assignedCount, from_date: input.fromDate, limit }),
+      ],
+    );
+
+    this.logger.log(`Sales synced: user=${input.userId} assigned=${assignedCount} by actor=${actor.sub}`);
+
+    return {
+      assignedCount,
+      totalChecked,
+      message: `${assignedCount} sales assigned to ${user.name}${assignedCount < totalChecked ? ` (${totalChecked - assignedCount} remaining)` : ''}`,
+    };
+  }
+
   // ── Staff session history (login / refresh / logout) ─────────────────────
 
   /**

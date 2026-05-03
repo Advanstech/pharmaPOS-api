@@ -137,6 +137,7 @@ export class CustomersService {
       sex: string | null;
       age_years: number | null;
       ghana_card_encrypted: string | null;
+      notes_encrypted: string | null;
       email: string | null;
       email_verified_at: Date | null;
       receipt_preference: string;
@@ -150,6 +151,14 @@ export class CustomersService {
         name = decryptPii(this.encryptionKey, r.name_encrypted);
       } catch {
         this.logger.warn(`Could not decrypt name for customer ${r.id}`);
+      }
+    }
+    let notes: string | undefined;
+    if (r.notes_encrypted) {
+      try {
+        notes = decryptPii(this.encryptionKey, r.notes_encrypted);
+      } catch {
+        this.logger.warn(`Could not decrypt notes for customer ${r.id}`);
       }
     }
     return {
@@ -166,6 +175,7 @@ export class CustomersService {
       receiptPreference: r.receipt_preference as 'email' | 'print' | 'both',
       marketingConsent: r.marketing_consent,
       emailVerifiedAt: r.email_verified_at ?? undefined,
+      notes,
       createdAt: r.created_at,
     };
   }
@@ -179,6 +189,9 @@ export class CustomersService {
     const ghEnc = input.ghanaCardNumber?.trim()
       ? encryptPii(this.encryptionKey, input.ghanaCardNumber.trim())
       : null;
+    const notesEnc = input.notes?.trim()
+      ? encryptPii(this.encryptionKey, input.notes.trim())
+      : null;
     const sex = input.sex ?? null;
     const ageYears = input.ageYears ?? null;
     const email = input.email?.trim().toLowerCase() || null;
@@ -189,16 +202,16 @@ export class CustomersService {
       `
       INSERT INTO customers (
         id, branch_id, phone_hash, name_encrypted, date_of_birth_encrypted, allergies_encrypted,
-        is_active, customer_code, sex, age_years, ghana_card_encrypted, email, 
+        is_active, customer_code, sex, age_years, ghana_card_encrypted, notes_encrypted, email, 
         receipt_preference, marketing_consent
       )
       VALUES (
-        gen_random_uuid(), $1, $2, $3, NULL, NULL, true, $4, $5, $6, $7, $8, $9, $10
+        gen_random_uuid(), $1, $2, $3, NULL, NULL, true, $4, $5, $6, $7, $8, $9, $10, $11
       )
       RETURNING id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, 
-               ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
+               ghana_card_encrypted, notes_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
     `,
-      [actor.branchId, phoneHash, nameEnc, customerCode, sex, ageYears, ghEnc, email, receiptPreference, marketingConsent],
+      [actor.branchId, phoneHash, nameEnc, customerCode, sex, ageYears, ghEnc, notesEnc, email, receiptPreference, marketingConsent],
     ) as Array<{
       id: string;
       branch_id: string;
@@ -208,6 +221,7 @@ export class CustomersService {
       sex: string | null;
       age_years: number | null;
       ghana_card_encrypted: string | null;
+      notes_encrypted: string | null;
       email: string | null;
       email_verified_at: Date | null;
       receipt_preference: string;
@@ -276,6 +290,11 @@ export class CustomersService {
         : null;
     }
 
+    let notesEnc: string | null | undefined = undefined;
+    if (input.notes !== undefined) {
+      notesEnc = input.notes.trim() ? encryptPii(this.encryptionKey, input.notes.trim()) : null;
+    }
+
     const [row] = await this.dataSource.query(
       `
       UPDATE customers SET
@@ -284,12 +303,13 @@ export class CustomersService {
         sex = $4,
         age_years = $5,
         ghana_card_encrypted = $6,
+        notes_encrypted = COALESCE($7, notes_encrypted),
         updated_at = NOW()
       WHERE id = $1
       RETURNING id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years,
-               ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
+               ghana_card_encrypted, notes_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
     `,
-      [input.customerId, nameEnc, phoneHash, sex, ageYears, ghEnc],
+      [input.customerId, nameEnc, phoneHash, sex, ageYears, ghEnc, notesEnc],
     ) as Array<{
       id: string;
       branch_id: string;
@@ -299,6 +319,7 @@ export class CustomersService {
       sex: string | null;
       age_years: number | null;
       ghana_card_encrypted: string | null;
+      notes_encrypted: string | null;
       email: string | null;
       email_verified_at: Date | null;
       receipt_preference: string;
@@ -333,6 +354,7 @@ export class CustomersService {
     sex: string | null;
     age_years: number | null;
     ghana_card_encrypted: string | null;
+    notes_encrypted: string | null;
     email: string | null;
     email_verified_at: Date | null;
     receipt_preference: string;
@@ -342,7 +364,7 @@ export class CustomersService {
     const [row] = await this.dataSource.query(
       `
       SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, 
-             ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
+             ghana_card_encrypted, notes_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
       FROM customers WHERE id = $1 AND is_active = true
     `,
       [id],
@@ -355,6 +377,7 @@ export class CustomersService {
       sex: string | null;
       age_years: number | null;
       ghana_card_encrypted: string | null;
+      notes_encrypted: string | null;
       email: string | null;
       email_verified_at: Date | null;
       receipt_preference: string;
@@ -381,7 +404,7 @@ export class CustomersService {
     const rows = await this.dataSource.query(
       `
       SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, 
-             ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
+             ghana_card_encrypted, notes_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
       FROM customers
       WHERE branch_id = $1 AND is_active = true
       ORDER BY created_at DESC
@@ -397,6 +420,7 @@ export class CustomersService {
       sex: string | null;
       age_years: number | null;
       ghana_card_encrypted: string | null;
+      notes_encrypted: string | null;
       email: string | null;
       email_verified_at: Date | null;
       receipt_preference: string;
@@ -415,10 +439,11 @@ export class CustomersService {
     const cap = Math.min(Math.max(limit, 1), 50);
     const like = `%${q}%`;
     const uuidLike = /^[0-9a-f-]{8,}$/i.test(q);
+    // First search by code/email
     const rows = await this.dataSource.query(
       `
       SELECT id, branch_id, customer_code, name_encrypted, phone_hash, sex, age_years, 
-             ghana_card_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
+             ghana_card_encrypted, notes_encrypted, email, email_verified_at, receipt_preference, marketing_consent, created_at
       FROM customers
       WHERE branch_id = $1 AND is_active = true
         AND (
@@ -439,13 +464,26 @@ export class CustomersService {
       sex: string | null;
       age_years: number | null;
       ghana_card_encrypted: string | null;
+      notes_encrypted: string | null;
       email: string | null;
       email_verified_at: Date | null;
       receipt_preference: string;
       marketing_consent: boolean;
       created_at: Date;
     }>;
-    return rows.map((r) => this.mapRow(r));
+    
+    // Filter in memory by notes content (decrypted)
+    const filteredRows = rows.filter(r => {
+      if (!r.notes_encrypted) return true; // Include if no notes
+      try {
+        const notes = decryptPii(this.encryptionKey, r.notes_encrypted);
+        return notes.toLowerCase().includes(q.toLowerCase());
+      } catch {
+        return true; // Include if decryption fails
+      }
+    });
+    
+    return filteredRows.map((r) => this.mapRow(r));
   }
 
   async getCustomerSales(customerId: string, limit = 20): Promise<any[]> {

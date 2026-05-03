@@ -415,3 +415,46 @@ export class GeneratedPasswordResult {
   })
   temporaryPassword!: string;
 }
+
+@InputType({
+  description:
+    'Sync unassigned sales to a staff member. ' +
+    'Useful when a new staff member joins and historical sales (with NULL cashier_id) need to be attributed to them. ' +
+    'Requires role: `owner` or `manager`.',
+})
+export class SyncStaffSalesInput {
+  @Field({ description: 'UUID of the staff member to assign sales to' })
+  @IsString()
+  userId!: string;
+
+  @Field({
+    nullable: true,
+    description:
+      'Assign only sales from this date onwards (ISO 8601). ' +
+      'Useful for assigning only recent sales since the staff member joined.',
+  })
+  @IsOptional()
+  @IsDateString()
+  fromDate?: string;
+
+  @Field({
+    nullable: true,
+    description:
+      'Limit the number of sales to assign (default: 1000). ' +
+      'Set to 0 for unlimited.',
+  })
+  @IsOptional()
+  limit?: number;
+}
+
+@ObjectType({ description: 'Result of syncing sales to a staff member' })
+export class SyncStaffSalesResult {
+  @Field({ description: 'Number of sales assigned to the staff member' })
+  assignedCount!: number;
+
+  @Field({ description: 'Total sales checked for assignment' })
+  totalChecked!: number;
+
+  @Field({ description: 'Human-readable confirmation message' })
+  message!: string;
+}

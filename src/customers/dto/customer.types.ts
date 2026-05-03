@@ -99,6 +99,17 @@ export class CreateCustomerInput {
   @IsString()
   @MaxLength(80)
   ghanaCardNumber?: string;
+
+  @Field({
+    nullable: true,
+    description:
+      'Clinical notes, diagnosis, or medical history. ' +
+      'Stored AES-256 encrypted — Ghana Data Protection Act 2012.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
 }
 
 @InputType({ description: 'Update optional profile fields for an existing customer.' })
@@ -153,6 +164,17 @@ export class UpdateCustomerInput {
   @IsString()
   @MaxLength(80)
   ghanaCardNumber?: string;
+
+  @Field({
+    nullable: true,
+    description:
+      'Clinical notes, diagnosis, or medical history. ' +
+      'Stored AES-256 encrypted. Set to empty string to clear.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
 }
 
 @ObjectType({
@@ -212,6 +234,12 @@ export class CustomerOutput {
     description: 'When the email was verified (null if not verified).',
   })
   emailVerifiedAt?: Date;
+
+  @Field({
+    nullable: true,
+    description: 'Clinical notes or diagnosis history (decrypted for authorized staff).',
+  })
+  notes?: string;
 
   @Field()
   createdAt!: Date;
