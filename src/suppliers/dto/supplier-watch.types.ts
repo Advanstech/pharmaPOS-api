@@ -41,6 +41,12 @@ export class SupplierRestockWatch {
   supplierName!: string;
 
   @Field({ nullable: true })
+  supplierContactName?: string;
+
+  @Field({ nullable: true })
+  supplierAddress?: string;
+
+  @Field({ nullable: true })
   supplierPhone?: string;
 
   @Field({ nullable: true })

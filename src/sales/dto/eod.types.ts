@@ -59,6 +59,17 @@ export class EodRecordOutput {
 
   @Field({ nullable: true }) closingNotes?: string;
   @Field() closedAt!: Date;
+
+  @Field({ description: 'PENDING | APPROVED | DECLINED' }) approvalStatus!: string;
+  @Field({ nullable: true }) approvedByName?: string;
+  @Field({ nullable: true }) approvedAt?: Date;
+  @Field({ nullable: true }) managerNotes?: string;
+}
+
+@InputType()
+export class ApproveEodInput {
+  @Field() eodId!: string;
+  @Field({ nullable: true }) managerNotes?: string;
 }
 
 @ObjectType()

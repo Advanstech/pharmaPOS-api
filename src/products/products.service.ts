@@ -270,6 +270,18 @@ export class ProductsService {
           [createdId, actor.branchId, reorderLevel],
         );
 
+        if (input.costPrice !== undefined && input.costPrice !== null) {
+          await em.query(
+            `
+            INSERT INTO product_cost_history (
+              id, branch_id, product_id, supplier_id, source_type, unit_cost_pesewas, created_by
+            )
+            VALUES (gen_random_uuid(), $1, $2, $3, 'MANUAL', $4, $5)
+            `,
+            [actor.branchId, createdId, input.supplierId ?? null, input.costPrice, actor.sub],
+          );
+        }
+
         await em.query(
           `
           INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)

@@ -42,6 +42,11 @@ input AdjustStockInput {
   reason: String!
 }
 
+input ApproveEodInput {
+  eodId: String!
+  managerNotes: String
+}
+
 """Approve or reject a pending expense"""
 input ApproveExpenseInput {
   """UUID of the expense to approve/reject"""
@@ -520,6 +525,9 @@ input CreateProductInput {
   """Product classification. Values: OTC | POM | CONTROLLED."""
   classification: String! = "OTC"
 
+  """Initial unit cost price in GHS pesewas (integer)."""
+  costPrice: Int
+
   """
   Generic/INN name. Example: "Paracetamol"
   """
@@ -791,6 +799,9 @@ type EnhancedSupplierInvoice {
   """Due date"""
   dueDate: DateTime
 
+  """Serialized extracted OCR payload for audit/review"""
+  extractedDataJson: String
+
   """GRN ID"""
   grnId: String
   id: ID!
@@ -813,6 +824,9 @@ type EnhancedSupplierInvoice {
   """Paid amount in pesewas"""
   paidAmountPesewas: Int!
 
+  """Payment progress in percent (0-100)"""
+  paymentProgressPct: Int!
+
   """Payment status"""
   paymentStatus: PaymentStatus!
 
@@ -821,6 +835,22 @@ type EnhancedSupplierInvoice {
 
   """Payment history"""
   payments: [SupplierPayment!]!
+
+  """Remaining balance after suggested payment formatted"""
+  remainingAfterSuggestedFormatted: String!
+
+  """Remaining balance after suggested next payment"""
+  remainingAfterSuggestedPesewas: Int!
+
+  """S3 key or URL for uploaded invoice PDF/image"""
+  s3PdfKey: String
+
+  """Suggested next payment formatted"""
+  suggestedNextPaymentFormatted: String!
+
+  """Suggested next payment amount in pesewas based on outstanding balance"""
+  suggestedNextPaymentPesewas: Int!
+  supplierId: ID!
 
   """Supplier name"""
   supplierName: String!
@@ -833,6 +863,10 @@ type EnhancedSupplierInvoice {
 }
 
 type EodRecordOutput {
+  """PENDING | APPROVED | DECLINED"""
+  approvalStatus: String!
+  approvedAt: DateTime
+  approvedByName: String
   branchId: String!
   branchName: String!
   businessDate: String!
@@ -850,6 +884,7 @@ type EodRecordOutput {
   grossRevenuePesewas: Int!
   id: ID!
   isBalanced: Boolean!
+  managerNotes: String
   momoCountedFormatted: String!
   momoCountedPesewas: Int!
   netRevenueFormatted: String!
@@ -1291,6 +1326,9 @@ type InventoryItem {
   """Ghana FDA classification. Values: `OTC` | `POM` | `CONTROLLED`"""
   classification: String!
 
+  """Last captured unit cost price in GHS pesewas"""
+  costPricePesewas: Int
+
   """
   Expiry date of the nearest-expiring batch (FEFO). Null if no expiry date is recorded for this product.
   """
@@ -1584,6 +1622,7 @@ input MomoDetailsInput {
 
 type Mutation {
   adjustStock(input: AdjustStockInput!): InventoryItem!
+  approveEodRecord(input: ApproveEodInput!): EodRecordOutput!
   approveExpense(input: ApproveExpenseInput!): ExpenseOutput!
 
   """Manager approves a refund request — executes the refund."""
@@ -1617,6 +1656,7 @@ type Mutation {
   """Deactivate a product (soft delete). Owner only."""
   deactivateProduct(id: String!): Boolean!
   deactivateStaff(userId: ID!): Boolean!
+  declineEodRecord(input: ApproveEodInput!): EodRecordOutput!
   deleteOcrColumnMappingPreset(presetId: ID!): Boolean!
   deleteProductImage(imageId: String!): Boolean!
   deleteSupplier(id: String!): Boolean!
@@ -2229,6 +2269,11 @@ type Query {
   accountingWorkbook(periodEnd: String!, periodStart: String!): AccountingWorkbookExport!
   balanceSheet(asOfDate: String): BalanceSheetOutput!
 
+  """
+  All staff EOD records for a branch on a given date. Manager/owner only.
+  """
+  branchEodForDate(businessDate: String!): [EodRecordOutput!]!
+
   """List all active branches in the organization"""
   branches: [BranchOutput!]!
 
@@ -2300,11 +2345,17 @@ type Query {
   listStockCounts(limit: Int): [StockCountSessionOutput!]!
   lowStockAlerts: [LowStockAlert!]!
   me: User!
+
+  """List the current user's own refund requests (all statuses)."""
+  myRefundRequests: [RefundRequestOutput!]!
   myStockAlerts(limit: Int): [StockAlertNotification!]!
   ocrColumnMappingPresets(supplierId: ID): [OcrColumnMappingPresetOutput!]!
 
   """Revenue breakdown by payment method (Cash, MoMo, Card) for a period."""
   paymentMethodBreakdown(periodEnd: String!, periodStart: String!): [PaymentMethodBreakdown!]!
+
+  """EOD records awaiting manager approval."""
+  pendingEodApprovals: [EodRecordOutput!]!
   pendingPrescriptions: [PrescriptionOutput!]!
   prescription(id: ID!): PrescriptionOutput!
   prescriptionsForProduct(productId: ID!): [PrescriptionOutput!]!
@@ -2349,6 +2400,9 @@ type Query {
   staffExpense(id: ID!): StaffExpenseOutput!
   staffExpenses(endDate: String, startDate: String, status: ExpenseStatus): [StaffExpenseOutput!]!
   staffMember(userId: ID!): StaffMemberOutput!
+
+  """Staff members who have not yet submitted an EOD for a given date."""
+  staffPendingEod(businessDate: String!): [StaffPendingEodItem!]!
   staffPerformance(periodEnd: String!, periodStart: String!): [StaffPerformance!]!
   staffSessionHistory(
     branchId: ID
@@ -2430,10 +2484,24 @@ input RecordSupplierPaymentInput {
   reference: String
 }
 
+"""
+A single line item within a refund request (mirrors the original sale item)
+"""
+type RefundItemOutput {
+  productId: ID!
+  productName: String!
+  quantity: Int!
+  unitPricePesewas: Int!
+  vatExempt: Boolean!
+}
+
 """A refund request from a cashier/pharmacist awaiting manager approval"""
 type RefundRequestOutput {
+  branchName: String
+  cashierName: String
   createdAt: DateTime!
   id: ID!
+  items: [RefundItemOutput!]
   reason: String!
   requestedByName: String!
   reviewNotes: String
@@ -2442,6 +2510,19 @@ type RefundRequestOutput {
   saleId: ID!
   saleItemCount: Int!
   saleTotalFormatted: String!
+  status: String!
+  subtotalPesewas: Int
+  vatPesewas: Int
+}
+
+"""Compact refund request info embedded in a SaleOutput"""
+type RefundSummary {
+  createdAt: DateTime!
+  id: ID!
+  reason: String!
+  reviewNotes: String
+  reviewedAt: DateTime
+  reviewedByName: String
   status: String!
 }
 
@@ -2680,6 +2761,9 @@ type SaleOutput {
   """Line items in this sale"""
   items: [SaleItemOutput!]!
 
+  """Inline refund request summary if one exists for this sale"""
+  refundRequest: RefundSummary
+
   """
   Checkout wall time when provided (e.g. offline queue). Null when only server record time applies.
   """
@@ -2875,6 +2959,12 @@ type StaffMemberOutput {
 
   """Employment start date"""
   start_date: DateTime
+}
+
+type StaffPendingEodItem {
+  id: String!
+  name: String!
+  role: String!
 }
 
 """Staff performance ranking"""
@@ -3338,7 +3428,9 @@ type SupplierRestockWatch {
   criticalStockCount: Int!
   lowStockCount: Int!
   outOfStockCount: Int!
+  supplierAddress: String
   supplierAiScore: Int
+  supplierContactName: String
   supplierEmail: String
   supplierId: ID!
   supplierName: String!

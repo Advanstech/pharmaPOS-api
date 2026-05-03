@@ -467,9 +467,9 @@ export class InvoiceOcrResolver {
         si.*,
         s.name as supplier_name,
         EXTRACT(DAY FROM (NOW() - si.invoice_date))::INT as days_outstanding,
-        (si.due_date IS NOT NULL AND si.due_date < CURRENT_DATE AND si.status != 'PAID') as is_overdue,
+        (si.due_date IS NOT NULL AND si.due_date < CURRENT_DATE AND si.payment_status != 'PAID') as is_overdue,
         CASE 
-          WHEN si.due_date IS NOT NULL AND si.due_date < CURRENT_DATE AND si.status != 'PAID'
+          WHEN si.due_date IS NOT NULL AND si.due_date < CURRENT_DATE AND si.payment_status != 'PAID'
           THEN EXTRACT(DAY FROM (CURRENT_DATE - si.due_date))::INT
           ELSE 0
         END as overdue_by_days
@@ -499,9 +499,26 @@ export class InvoiceOcrResolver {
     );
 
     const balancePesewas = invoice.total_amount - invoice.paid_amount;
+    const paymentProgressPct = invoice.total_amount > 0
+      ? Math.max(0, Math.min(100, Math.round((invoice.paid_amount / invoice.total_amount) * 100)))
+      : 0;
+    const suggestedNextPaymentPesewas = balancePesewas <= 0
+      ? 0
+      : invoice.is_overdue
+        ? balancePesewas
+        : balancePesewas <= 200_000
+          ? balancePesewas
+          : Math.ceil((balancePesewas * 0.5) / 100) * 100;
+    const remainingAfterSuggestedPesewas = Math.max(0, balancePesewas - suggestedNextPaymentPesewas);
+    const extractedDataJson = invoice.extracted_data
+      ? (typeof invoice.extracted_data === 'string'
+          ? invoice.extracted_data
+          : JSON.stringify(invoice.extracted_data))
+      : undefined;
 
     return {
       id: invoice.id,
+      supplierId: invoice.supplier_id,
       invoiceNumber: invoice.invoice_number,
       invoiceDate: invoice.invoice_date,
       dueDate: invoice.due_date,
@@ -511,11 +528,16 @@ export class InvoiceOcrResolver {
       paidAmountFormatted: `GH₵${(invoice.paid_amount / 100).toFixed(2)}`,
       balancePesewas,
       balanceFormatted: `GH₵${(balancePesewas / 100).toFixed(2)}`,
+      paymentProgressPct,
       paymentTerms: invoice.payment_terms as PaymentTerms,
       paymentStatus: invoice.payment_status as PaymentStatus,
       daysOutstanding: invoice.days_outstanding,
       isOverdue: invoice.is_overdue,
       overdueByDays: invoice.overdue_by_days,
+      suggestedNextPaymentPesewas,
+      suggestedNextPaymentFormatted: `GH₵${(suggestedNextPaymentPesewas / 100).toFixed(2)}`,
+      remainingAfterSuggestedPesewas,
+      remainingAfterSuggestedFormatted: `GH₵${(remainingAfterSuggestedPesewas / 100).toFixed(2)}`,
       payments: payments.map((p: any) => ({
         id: p.id,
         amountPesewas: p.amount_pesewas,
@@ -527,6 +549,8 @@ export class InvoiceOcrResolver {
         paidAt: p.paid_at,
       })),
       supplierName: invoice.supplier_name,
+      s3PdfKey: invoice.s3_pdf_key ?? undefined,
+      extractedDataJson,
       grnId: invoice.grn_id,
     };
   }

@@ -359,4 +359,60 @@ export class EmailTemplates {
       `,
     };
   }
+
+  static passwordChanged(staffName: string): EmailTemplate {
+    return {
+      subject: 'Azzay Pharmacy - Your Password Was Changed',
+      html: `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Changed - Azzay Pharmacy</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: ${this.brandColors.primary}; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+        .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+        .content { background: white; padding: 40px; border: 1px solid #e5e7eb; border-top: none; }
+        .notice { background: #ecfdf5; border: 1px solid #34d399; padding: 15px; border-radius: 8px; margin: 20px 0; }
+        .alert { background: #fef2f2; border: 1px solid #fca5a5; padding: 15px; border-radius: 8px; margin: 20px 0; }
+        .button { display: inline-block; background: ${this.brandColors.primary}; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+        .footer { background: ${this.brandColors.light}; padding: 20px; text-align: center; color: #6b7280; font-size: 14px; border-radius: 0 0 8px 8px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">🏥 Azzay Pharmacy</div>
+        <p>Security Notice</p>
+    </div>
+
+    <div class="content">
+        <h2>Hello ${staffName},</h2>
+
+        <div class="notice">
+            ✅ Your account password was changed successfully.
+        </div>
+
+        <p>This message confirms a password update on your Azzay Pharmacy account.</p>
+
+        <div class="alert">
+            If you did not perform this action, reset your password immediately and notify your administrator.
+        </div>
+
+        <a href="${this.baseUrl}/login" class="button">Open Azzay Pharmacy</a>
+
+        <p>For your security, all active sessions were signed out after the password change.</p>
+        <p>Best regards,<br>The Azzay Pharmacy Team</p>
+    </div>
+
+    <div class="footer">
+        <p>© 2026 Azzay Pharmacy. All rights reserved.</p>
+        <p>This is an automated security message. Please do not reply to this email.</p>
+    </div>
+</body>
+</html>
+      `,
+    };
+  }
 }

@@ -193,6 +193,17 @@ export class TenderOutput {
   momoReference?: string;
 }
 
+@ObjectType({ description: 'Compact refund request info embedded in a SaleOutput' })
+export class RefundSummary {
+  @Field(() => ID) id!: string;
+  @Field(() => String) status!: string;
+  @Field(() => String) reason!: string;
+  @Field(() => String, { nullable: true }) reviewedByName?: string | null;
+  @Field(() => String, { nullable: true }) reviewNotes?: string | null;
+  @Field(() => GraphQLISODateTime) createdAt!: Date;
+  @Field(() => GraphQLISODateTime, { nullable: true }) reviewedAt?: Date | null;
+}
+
 @ObjectType({ description: 'A completed sale record' })
 export class SaleOutput {
   @Field(() => ID, { description: 'UUID of the sale' })
@@ -248,6 +259,12 @@ export class SaleOutput {
       'When the sale row was persisted on the server. For reporting, the API uses `soldAt` when set, else this.',
   })
   createdAt!: Date;
+
+  @Field(() => RefundSummary, {
+    nullable: true,
+    description: 'Inline refund request summary if one exists for this sale',
+  })
+  refundRequest?: RefundSummary | null;
 }
 
 @ObjectType({ description: 'Aggregated sales summary for a single day' })
@@ -271,6 +288,15 @@ export class DailySummary {
 
 // ── Refund Request Types ──────────────────────────────────────────────────────
 
+@ObjectType({ description: 'A single line item within a refund request (mirrors the original sale item)' })
+export class RefundItemOutput {
+  @Field(() => ID) productId!: string;
+  @Field() productName!: string;
+  @Field(() => Int) quantity!: number;
+  @Field(() => Int) unitPricePesewas!: number;
+  @Field() vatExempt!: boolean;
+}
+
 @ObjectType({ description: 'A refund request from a cashier/pharmacist awaiting manager approval' })
 export class RefundRequestOutput {
   @Field(() => ID) id!: string;
@@ -284,4 +310,11 @@ export class RefundRequestOutput {
   @Field({ nullable: true }) reviewedAt?: Date;
   @Field() createdAt!: Date;
   @Field(() => Int) saleItemCount!: number;
+
+  // ── Detail-view fields (populated by getRefundRequest) ──
+  @Field({ nullable: true }) cashierName?: string;
+  @Field({ nullable: true }) branchName?: string;
+  @Field(() => Int, { nullable: true }) vatPesewas?: number;
+  @Field(() => Int, { nullable: true }) subtotalPesewas?: number;
+  @Field(() => [RefundItemOutput], { nullable: true }) items?: RefundItemOutput[];
 }

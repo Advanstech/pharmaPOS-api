@@ -1,7 +1,7 @@
 import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { SalesService } from './sales.service';
-import { CreateSaleInput, SaleOutput, DailySummary, RefundRequestOutput } from './dto/sale.types';
+import { CreateSaleInput, SaleOutput, DailySummary, RefundRequestOutput, RefundSummary } from './dto/sale.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { PomEnforcementGuard } from '../auth/guards/pom-enforcement.guard';
@@ -83,9 +83,18 @@ export class SalesResolver {
     name: 'refundRequests',
     description: 'List refund requests for the branch. Pending first.',
   })
-  @Roles('owner', 'se_admin', 'manager')
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist')
   refundRequests(@CurrentUser() actor: JwtUser): Promise<RefundRequestOutput[]> {
     return this.salesService.listRefundRequests(actor);
+  }
+
+  @Query(() => [RefundRequestOutput], {
+    name: 'myRefundRequests',
+    description: 'List the current user\'s own refund requests (all statuses).',
+  })
+  @Roles('owner', 'se_admin', 'manager', 'cashier', 'chemical_cashier', 'pharmacist', 'head_pharmacist', 'technician')
+  myRefundRequests(@CurrentUser() actor: JwtUser): Promise<RefundRequestOutput[]> {
+    return this.salesService.myRefundRequests(actor);
   }
 
   @Query(() => RefundRequestOutput, {
@@ -93,7 +102,7 @@ export class SalesResolver {
     nullable: true,
     description: 'Get a single refund request by ID.',
   })
-  @Roles('owner', 'se_admin', 'manager')
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist')
   refundRequest(
     @Args('id', { type: () => ID }) id: string,
     @CurrentUser() actor: JwtUser,
@@ -105,7 +114,7 @@ export class SalesResolver {
     name: 'approveRefundRequest',
     description: 'Manager approves a refund request — executes the refund.',
   })
-  @Roles('owner', 'se_admin', 'manager')
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist')
   approveRefundRequest(
     @Args('requestId', { type: () => ID }) requestId: string,
     @Args('notes', { nullable: true }) notes: string,
@@ -118,7 +127,7 @@ export class SalesResolver {
     name: 'rejectRefundRequest',
     description: 'Manager rejects a refund request.',
   })
-  @Roles('owner', 'se_admin', 'manager')
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist')
   rejectRefundRequest(
     @Args('requestId', { type: () => ID }) requestId: string,
     @Args('notes') notes: string,

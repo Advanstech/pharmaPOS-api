@@ -1,4 +1,5 @@
 import { InputType, Field, Int } from '@nestjs/graphql';
+import { IsString, IsOptional, IsEmail, MaxLength, IsUrl } from 'class-validator';
 import { SupplierPaymentMethod } from '../entities/supplier.entity';
 
 @InputType()
@@ -47,14 +48,45 @@ export class PaymentInstructionsInput {
 
 @InputType({ description: 'Create a new supplier' })
 export class CreateSupplierInput {
-  @Field() name!: string;
-  @Field({ nullable: true }) contactName?: string;
-  @Field({ nullable: true }) phone?: string;
-  @Field({ nullable: true }) email?: string;
-  @Field({ nullable: true }) address?: string;
-  @Field({ nullable: true }) tin?: string;
-  @Field({ nullable: true }) website?: string;
-  @Field(() => PaymentInstructionsInput, { nullable: true }) paymentInstructions?: PaymentInstructionsInput;
+  @Field()
+  @IsString()
+  @MaxLength(255)
+  name!: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  contactName?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  tin?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  website?: string;
+
+  @Field(() => PaymentInstructionsInput, { nullable: true })
+  @IsOptional()
+  paymentInstructions?: PaymentInstructionsInput;
 }
 
 @InputType({ description: 'Update an existing supplier' })

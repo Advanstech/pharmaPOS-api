@@ -359,6 +359,9 @@ export class EnhancedSupplierInvoice {
   @Field(() => ID)
   id!: string;
 
+  @Field(() => ID)
+  supplierId!: string;
+
   @Field({ description: 'Invoice number' })
   invoiceNumber!: string;
 
@@ -386,6 +389,9 @@ export class EnhancedSupplierInvoice {
   @Field({ description: 'Balance formatted' })
   balanceFormatted!: string;
 
+  @Field(() => Int, { description: 'Payment progress in percent (0-100)' })
+  paymentProgressPct!: number;
+
   @Field(() => PaymentTerms, { description: 'Payment terms' })
   paymentTerms!: PaymentTerms;
 
@@ -401,11 +407,29 @@ export class EnhancedSupplierInvoice {
   @Field(() => Int, { nullable: true, description: 'Overdue by days' })
   overdueByDays?: number;
 
+  @Field(() => Int, { description: 'Suggested next payment amount in pesewas based on outstanding balance' })
+  suggestedNextPaymentPesewas!: number;
+
+  @Field({ description: 'Suggested next payment formatted' })
+  suggestedNextPaymentFormatted!: string;
+
+  @Field(() => Int, { description: 'Remaining balance after suggested next payment' })
+  remainingAfterSuggestedPesewas!: number;
+
+  @Field({ description: 'Remaining balance after suggested payment formatted' })
+  remainingAfterSuggestedFormatted!: string;
+
   @Field(() => [SupplierPayment], { description: 'Payment history' })
   payments!: SupplierPayment[];
 
   @Field({ description: 'Supplier name' })
   supplierName!: string;
+
+  @Field({ nullable: true, description: 'S3 key or URL for uploaded invoice PDF/image' })
+  s3PdfKey?: string;
+
+  @Field({ nullable: true, description: 'Serialized extracted OCR payload for audit/review' })
+  extractedDataJson?: string;
 
   @Field({ nullable: true, description: 'GRN ID' })
   grnId?: string;

@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { ObjectType, Field, ID, Int, registerEnumType } from '@nestjs/graphql';
 
 // ── Payment Method Enum ───────────────────────────────────────────────────────

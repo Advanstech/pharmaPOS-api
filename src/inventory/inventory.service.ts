@@ -21,6 +21,7 @@ interface InventoryRow {
   nearest_expiry: Date | null;
   supplier_id: string | null;
   supplier_name: string | null;
+  cost_price_pesewas: number | null;
 }
 
 interface MovementRow {
@@ -57,7 +58,13 @@ export class InventoryService {
         COALESCE(inv.reorder_level, 10) AS reorder_level,
         MIN(sm.expiry_date) AS nearest_expiry,
         p.supplier_id,
-        s.name AS supplier_name
+        s.name AS supplier_name,
+        (
+          SELECT unit_cost_pesewas FROM product_cost_history pch
+          WHERE pch.product_id = p.id AND pch.branch_id = $1
+          ORDER BY pch.observed_at DESC, pch.created_at DESC
+          LIMIT 1
+        ) AS cost_price_pesewas
       FROM products p
       LEFT JOIN inventory inv ON inv.product_id = p.id AND inv.branch_id = $1
       LEFT JOIN stock_movements sm ON sm.product_id = p.id AND sm.branch_id = $1
@@ -80,6 +87,7 @@ export class InventoryService {
       supplierName: r.supplier_name ?? undefined,
       unitPricePesewas: r.unit_price ?? undefined,
       unitPriceFormatted: r.unit_price ? 'GH\u20B5' + (r.unit_price / 100).toFixed(2) : undefined,
+      costPricePesewas: r.cost_price_pesewas ?? undefined,
     }));
   }
 

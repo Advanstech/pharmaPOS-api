@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Inject } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -12,7 +12,7 @@ import { DataSource } from 'typeorm';
  * SMS: Hubtel SMS (Rx refill reminders, MoMo confirmation, low stock alerts)
  */
 @Injectable()
-export class NotificationsService {
+export class NotificationsService implements OnModuleInit {
   private readonly logger = new Logger(NotificationsService.name);
   private readonly hubtelClientId: string;
   private readonly hubtelClientSecret: string;
@@ -41,6 +41,23 @@ export class NotificationsService {
     this.whatsappFallbackToSms = (this.config.get('WHATSAPP_FALLBACK_TO_SMS') || 'true') !== 'false';
   }
 
+  onModuleInit(): void {
+    if (this.isEmailConfigured()) {
+      this.logger.log(`Email notifications active (provider=${this.emailProvider}, from=${this.emailFrom})`);
+      return;
+    }
+
+    this.logger.warn(
+      `Email notifications inactive (provider=${this.emailProvider}). Set EMAIL_API_KEY to enable forgot-password, password-change, and staff onboarding emails.`,
+    );
+  }
+
+  isEmailConfigured(): boolean {
+    const provider = this.emailProvider.trim().toLowerCase();
+    const supportedProvider = provider === 'resend' || provider === 'sendgrid' || provider === 'ses';
+    return supportedProvider && Boolean(this.emailApiKey);
+  }
+
   /**
    * Send transactional email
    * Supports: Resend, SendGrid, AWS SES
@@ -52,8 +69,8 @@ export class NotificationsService {
     from?: string;
   }): Promise<void> {
     const { to, subject, html, from = this.emailFrom } = params;
-    if (!this.emailApiKey) {
-      this.logger.warn(`EMAIL_API_KEY missing; skipped email to ${to}`);
+    if (!this.isEmailConfigured()) {
+      this.logger.warn(`Email not configured (provider=${this.emailProvider}); skipped email to ${to}`);
       return;
     }
 
@@ -147,10 +164,6 @@ export class NotificationsService {
 
   isWhatsAppConfigured(): boolean {
     return Boolean(this.whatsappWebhookUrl);
-  }
-
-  isEmailConfigured(): boolean {
-    return Boolean(this.emailApiKey);
   }
 
   isSmsConfigured(): boolean {

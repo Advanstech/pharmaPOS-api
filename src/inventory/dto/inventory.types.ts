@@ -143,6 +143,9 @@ export class InventoryItem {
 
   @Field({ nullable: true, description: 'Formatted selling price. Example: GH₵12.50' })
   unitPriceFormatted?: string;
+
+  @Field(() => Int, { nullable: true, description: 'Last captured unit cost price in GHS pesewas' })
+  costPricePesewas?: number;
 }
 
 @ObjectType({ description: 'A single stock movement event (sale, receive, adjustment, return)' })

@@ -43,6 +43,10 @@ export interface EodRecord {
   isBalanced: boolean;
   closingNotes: string | null;
   closedAt: Date;
+  approvalStatus: string;
+  approvedByName: string | null;
+  approvedAt: Date | null;
+  managerNotes: string | null;
 }
 
 @Injectable()
@@ -70,14 +74,14 @@ export class EodService {
       throw new BadRequestException('businessDate must be YYYY-MM-DD');
     }
 
-    // Check not already closed for this branch+date
+    // Check not already closed for this cashier+branch+date
     const [existing] = await this.dataSource.query(
-      `SELECT id FROM end_of_day_records WHERE branch_id = $1 AND business_date = $2`,
-      [actor.branchId, businessDate],
+      `SELECT id FROM end_of_day_records WHERE branch_id = $1 AND cashier_id = $2 AND business_date = $3`,
+      [actor.branchId, actor.sub, businessDate],
     ) as Array<{ id: string }>;
 
     if (existing) {
-      throw new BadRequestException(`Register for ${businessDate} is already closed.`);
+      throw new BadRequestException(`You have already submitted an end-of-day record for ${businessDate}.`);
     }
 
     const at = this.effectiveSaleAt.sql('s');
@@ -196,10 +200,11 @@ export class EodService {
 
   async getEodRecord(id: string, branchId: string): Promise<EodRecord> {
     const [r] = await this.dataSource.query(`
-      SELECT e.*, b.name AS branch_name, u.name AS cashier_name
+      SELECT e.*, b.name AS branch_name, u.name AS cashier_name, m.name AS approved_by_name
       FROM end_of_day_records e
       JOIN branches b ON b.id = e.branch_id
       JOIN users u ON u.id = e.cashier_id
+      LEFT JOIN users m ON m.id = e.approved_by
       WHERE e.id = $1 AND e.branch_id = $2
     `, [id, branchId]) as any[];
 
@@ -210,10 +215,11 @@ export class EodService {
 
   async listEodRecords(actor: JwtUser, limit = 30): Promise<EodRecord[]> {
     const rows = await this.dataSource.query(`
-      SELECT e.*, b.name AS branch_name, u.name AS cashier_name
+      SELECT e.*, b.name AS branch_name, u.name AS cashier_name, m.name AS approved_by_name
       FROM end_of_day_records e
       JOIN branches b ON b.id = e.branch_id
       JOIN users u ON u.id = e.cashier_id
+      LEFT JOIN users m ON m.id = e.approved_by
       WHERE e.branch_id = $1
       ORDER BY e.business_date DESC
       LIMIT $2
@@ -224,18 +230,50 @@ export class EodService {
 
   // ── Check if today is already closed ─────────────────────────────────────
 
-  async getTodayStatus(branchId: string): Promise<{ isClosed: boolean; record: EodRecord | null }> {
+  async getTodayStatus(branchId: string, cashierId: string): Promise<{ isClosed: boolean; record: EodRecord | null }> {
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Accra' });
     const [r] = await this.dataSource.query(`
-      SELECT e.*, b.name AS branch_name, u.name AS cashier_name
+      SELECT e.*, b.name AS branch_name, u.name AS cashier_name, m.name AS approved_by_name
       FROM end_of_day_records e
       JOIN branches b ON b.id = e.branch_id
       JOIN users u ON u.id = e.cashier_id
-      WHERE e.branch_id = $1 AND e.business_date = $2
-    `, [branchId, today]) as any[];
+      LEFT JOIN users m ON m.id = e.approved_by
+      WHERE e.branch_id = $1 AND e.cashier_id = $2 AND e.business_date = $3
+    `, [branchId, cashierId, today]) as any[];
 
     if (!r) return { isClosed: false, record: null };
     return { isClosed: true, record: this.mapRecord(r) };
+  }
+
+  // ── All staff EOD records for a branch+date (manager view) ─────────────────
+
+  async getBranchEodForDate(branchId: string, businessDate: string): Promise<EodRecord[]> {
+    const rows = await this.dataSource.query(`
+      SELECT e.*, b.name AS branch_name, u.name AS cashier_name, m.name AS approved_by_name
+      FROM end_of_day_records e
+      JOIN branches b ON b.id = e.branch_id
+      JOIN users u ON u.id = e.cashier_id
+      LEFT JOIN users m ON m.id = e.approved_by
+      WHERE e.branch_id = $1 AND e.business_date = $2
+      ORDER BY e.closed_at ASC
+    `, [branchId, businessDate]) as any[];
+    return rows.map((r: any) => this.mapRecord(r));
+  }
+
+  // ── Staff who have NOT yet submitted for a given date ───────────────────
+
+  async getStaffPendingEod(branchId: string, businessDate: string): Promise<Array<{ id: string; name: string; role: string }>> {
+    const rows = await this.dataSource.query(`
+      SELECT u.id, u.name, u.role
+      FROM users u
+      WHERE u.branch_id = $1 AND u.is_active = true AND u.role != 'se_admin'
+        AND u.id NOT IN (
+          SELECT e.cashier_id FROM end_of_day_records e
+          WHERE e.branch_id = $1 AND e.business_date = $2
+        )
+      ORDER BY u.name ASC
+    `, [branchId, businessDate]) as any[];
+    return rows;
   }
 
   // ── Map DB row → EodRecord ────────────────────────────────────────────────
@@ -275,6 +313,62 @@ export class EodService {
       isBalanced: Boolean(r.is_balanced),
       closingNotes: r.closing_notes || null,
       closedAt: new Date(r.closed_at),
+      approvalStatus: r.approval_status ?? 'PENDING',
+      approvedByName: r.approved_by_name || null,
+      approvedAt: r.approved_at ? new Date(r.approved_at) : null,
+      managerNotes: r.manager_notes || null,
     };
+  }
+
+  // ── Approve EOD ──────────────────────────────────────────────────────────
+
+  async approveEodRecord(eodId: string, actor: JwtUser, managerNotes?: string): Promise<EodRecord> {
+    await this.dataSource.query(`
+      UPDATE end_of_day_records
+      SET approval_status = 'APPROVED', approved_by = $1, approved_at = NOW(), manager_notes = $2
+      WHERE id = $3 AND branch_id = $4
+    `, [actor.sub, managerNotes?.trim() || null, eodId, actor.branchId]);
+
+    await this.dataSource.query(`
+      INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+      VALUES (gen_random_uuid(), $1, $2, 'EOD_APPROVED', 'eod_record', $3, $4)
+    `, [actor.branchId, actor.sub, eodId, JSON.stringify({ manager_notes: managerNotes })]);
+
+    return this.getEodRecord(eodId, actor.branchId);
+  }
+
+  // ── Decline EOD ──────────────────────────────────────────────────────────
+
+  async declineEodRecord(eodId: string, actor: JwtUser, managerNotes?: string): Promise<EodRecord> {
+    await this.dataSource.query(`
+      UPDATE end_of_day_records
+      SET approval_status = 'DECLINED', approved_by = $1, approved_at = NOW(), manager_notes = $2
+      WHERE id = $3 AND branch_id = $4
+    `, [actor.sub, managerNotes?.trim() || null, eodId, actor.branchId]);
+
+    await this.dataSource.query(`
+      INSERT INTO audit_logs (id, branch_id, user_id, type, entity_type, entity_id, metadata)
+      VALUES (gen_random_uuid(), $1, $2, 'EOD_DECLINED', 'eod_record', $3, $4)
+    `, [actor.branchId, actor.sub, eodId, JSON.stringify({ manager_notes: managerNotes })]);
+
+    return this.getEodRecord(eodId, actor.branchId);
+  }
+
+  // ── Pending approvals ────────────────────────────────────────────────────
+
+  async getPendingApprovals(branchId: string): Promise<EodRecord[]> {
+    const rows = await this.dataSource.query(`
+      SELECT e.*,
+             b.name AS branch_name,
+             u.name AS cashier_name,
+             m.name AS approved_by_name
+      FROM end_of_day_records e
+      JOIN branches b ON b.id = e.branch_id
+      JOIN users u ON u.id = e.cashier_id
+      LEFT JOIN users m ON m.id = e.approved_by
+      WHERE e.branch_id = $1 AND e.approval_status = 'PENDING'
+      ORDER BY e.business_date DESC
+    `, [branchId]) as any[];
+    return rows.map((r: any) => this.mapRecord(r));
   }
 }

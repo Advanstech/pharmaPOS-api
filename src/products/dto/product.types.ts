@@ -78,6 +78,15 @@ export class CreateProductInput {
   @IsInt()
   @Min(1)
   reorderLevel?: number;
+
+  @Field(() => Int, {
+    nullable: true,
+    description: 'Initial unit cost price in GHS pesewas (integer).',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  costPrice?: number;
 }
 
 @ObjectType({ description: 'Product image with CDN URLs and source metadata' })

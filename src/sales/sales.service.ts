@@ -493,7 +493,17 @@ export class SalesService {
       // sale_tenders table may not exist on older deployments — degrade gracefully
     }
 
-    return this.mapSaleOutput(sale, items, tenders);
+    // ── Inline refund request (most recent, any status) ──────────────────────
+    const [rr] = await this.dataSource.query(`
+      SELECT rr.id, rr.status, rr.reason, rr.review_notes, rr.reviewed_at, rr.created_at,
+             u.name AS reviewed_by_name
+      FROM refund_requests rr
+      LEFT JOIN users u ON u.id = rr.reviewed_by
+      WHERE rr.sale_id = $1
+      ORDER BY rr.created_at DESC LIMIT 1
+    `, [saleId]) as any[];
+
+    return this.mapSaleOutput(sale, items, tenders, rr ?? null);
   }
 
   // ── Daily summary ─────────────────────────────────────────────────────────
@@ -546,7 +556,7 @@ export class SalesService {
         FROM sales s
         JOIN branches b ON b.id = s.branch_id
         JOIN users u ON u.id = s.cashier_id
-        WHERE s.branch_id = $1 AND s.status = 'COMPLETED' AND s.cashier_id = $3
+        WHERE s.branch_id = $1 AND s.status IN ('COMPLETED','REFUNDED') AND s.cashier_id = $3
         ORDER BY ${orderAt} DESC
         LIMIT $2
       `,
@@ -623,11 +633,27 @@ export class SalesService {
       tendersBySale.set(tender.sale_id, list);
     }
 
+    // ── Inline refund requests for listed sales ───────────────────────────────
+    let rrBySale = new Map<string, any>();
+    try {
+      const rrRows = await this.dataSource.query(`
+        SELECT DISTINCT ON (rr.sale_id)
+          rr.sale_id, rr.id, rr.status, rr.reason, rr.review_notes, rr.reviewed_at, rr.created_at,
+          u.name AS reviewed_by_name
+        FROM refund_requests rr
+        LEFT JOIN users u ON u.id = rr.reviewed_by
+        WHERE rr.sale_id = ANY($1)
+        ORDER BY rr.sale_id, rr.created_at DESC
+      `, [saleIds]) as any[];
+      for (const r of rrRows) rrBySale.set(r.sale_id, r);
+    } catch { /* ignore — refund_requests may not exist in older deploys */ }
+
     return sales.map((sale) =>
       this.mapSaleOutput(
         sale,
         itemsBySale.get(sale.id) ?? [],
         tendersBySale.get(sale.id) ?? [],
+        rrBySale.get(sale.id) ?? null,
       ),
     );
   }
@@ -775,6 +801,24 @@ export class SalesService {
     }
 
     return this.getSale(saleId, actor);
+  }
+
+  // ── Own refund requests (all roles — own requests only) ─────────────────
+
+  async myRefundRequests(actor: JwtUser): Promise<any[]> {
+    const rows = await this.dataSource.query(`
+      SELECT rr.*, u.name AS requested_by_name, s.total_amount,
+        (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = rr.sale_id)::int AS item_count,
+        ru.name AS reviewed_by_name
+      FROM refund_requests rr
+      JOIN users u ON u.id = rr.requested_by
+      JOIN sales s ON s.id = rr.sale_id
+      LEFT JOIN users ru ON ru.id = rr.reviewed_by
+      WHERE rr.branch_id = $1 AND rr.requested_by = $2
+      ORDER BY CASE rr.status WHEN 'PENDING' THEN 0 ELSE 1 END, rr.created_at DESC
+      LIMIT 100
+    `, [actor.branchId, actor.sub]);
+    return rows.map((r: any) => this.mapRefundRequest(r));
   }
 
   // ── Request Refund (cashier/pharmacist) ─────────────────────────────────
@@ -959,6 +1003,7 @@ export class SalesService {
     sale: SaleRow,
     items: SaleItemRow[],
     tenders: Array<{ method: string; amount_pesewas: number; momo_reference: string | null }> = [],
+    refundReq: any = null,
   ): SaleOutput {
     return {
       id: sale.id,
@@ -973,6 +1018,15 @@ export class SalesService {
       idempotencyKey: sale.idempotency_key,
       soldAt: sale.sold_at ?? null,
       createdAt: sale.created_at,
+      refundRequest: refundReq ? {
+        id: refundReq.id,
+        status: refundReq.status,
+        reason: refundReq.reason,
+        reviewedByName: refundReq.reviewed_by_name ?? null,
+        reviewNotes: refundReq.review_notes ?? null,
+        createdAt: refundReq.created_at,
+        reviewedAt: refundReq.reviewed_at ?? null,
+      } : null,
       tenders: tenders.map(t => ({
         method: t.method,
         amountPesewas: t.amount_pesewas,

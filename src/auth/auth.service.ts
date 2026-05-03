@@ -200,6 +200,7 @@ export class AuthService {
     });
 
     this.logger.log(`Password changed: user=${user.id}`);
+    await this.sendPasswordChangedEmail(user.name, user.email);
     return true;
   }
 
@@ -295,6 +296,7 @@ export class AuthService {
     });
 
     this.logger.log(`Password reset completed: user=${user.id}`);
+    await this.sendPasswordChangedEmail(user.name, user.email);
     return true;
   }
 
@@ -429,6 +431,24 @@ export class AuthService {
 
   private passwordHashFingerprint(passwordHash: string): string {
     return createHash('sha256').update(passwordHash).digest('hex').slice(0, 24);
+  }
+
+  private async sendPasswordChangedEmail(name: string, email: string | null | undefined): Promise<void> {
+    if (!email || !this.notifications) {
+      return;
+    }
+
+    try {
+      const template = EmailTemplates.passwordChanged(name);
+      await this.notifications.sendEmail({
+        to: email,
+        subject: template.subject,
+        html: template.html,
+      });
+    } catch (error) {
+      this.logger.warn(`Password-changed email delivery failed for ${email}`);
+      this.logger.debug(String(error));
+    }
   }
 
   private buildAuthPayload(

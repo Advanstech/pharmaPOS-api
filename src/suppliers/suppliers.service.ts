@@ -71,6 +71,8 @@ export class SuppliersService {
       SELECT
         s.id AS supplier_id,
         s.name AS supplier_name,
+        s.contact_name AS supplier_contact_name,
+        s.address AS supplier_address,
         s.phone AS supplier_phone,
         s.email AS supplier_email,
         s.ai_score AS supplier_ai_score,
@@ -80,8 +82,8 @@ export class SuppliersService {
         COALESCE(inv.reorder_level, 10)::int AS reorder_level,
         CASE WHEN inv.product_id IS NOT NULL THEN true ELSE false END AS has_inventory,
         COALESCE(sale7.sold_7d, 0)::int AS sold_7d
-      FROM products p
-      INNER JOIN suppliers s ON s.id = p.supplier_id
+      FROM suppliers s
+      LEFT JOIN products p ON p.supplier_id = s.id AND p.is_active = true
       LEFT JOIN inventory inv ON inv.product_id = p.id AND inv.branch_id = $1
       LEFT JOIN LATERAL (
         SELECT COALESCE(SUM(si.quantity), 0)::int AS sold_7d
@@ -92,17 +94,18 @@ export class SuppliersService {
           AND si.product_id = p.id
           AND sa.created_at >= NOW() - INTERVAL '7 days'
       ) sale7 ON true
-      WHERE p.is_active = true
-        AND s.is_active = true
+      WHERE s.is_active = true
       ORDER BY s.name ASC, p.name ASC
     `, [branchId]) as Array<{
       supplier_id: string;
       supplier_name: string;
+      supplier_contact_name: string | null;
+      supplier_address: string | null;
       supplier_phone: string | null;
       supplier_email: string | null;
       supplier_ai_score: number | null;
-      product_id: string;
-      product_name: string;
+      product_id: string | null;
+      product_name: string | null;
       quantity_on_hand: number;
       reorder_level: number;
       has_inventory: boolean;
@@ -113,14 +116,16 @@ export class SuppliersService {
     for (const row of rows) {
       // Only count as "out" if the product has an inventory record (was stocked before)
       // Products never stocked at this branch are not "out of stock" — they're just not carried here
-      const status = row.has_inventory
+      const status = row.product_id ? (row.has_inventory
         ? this.calcStockStatus(row.quantity_on_hand, row.reorder_level)
-        : (row.sold_7d > 0 ? 'out' : 'ok'); // If it sold recently but has no inv row, it's out
+        : (row.sold_7d > 0 ? 'out' : 'ok')) : 'ok';
 
       const existing = map.get(row.supplier_id);
       const watch: SupplierRestockWatch = existing ?? {
         supplierId: row.supplier_id,
         supplierName: row.supplier_name,
+        supplierContactName: row.supplier_contact_name ?? undefined,
+        supplierAddress: row.supplier_address ?? undefined,
         supplierPhone: row.supplier_phone ?? undefined,
         supplierEmail: row.supplier_email ?? undefined,
         supplierAiScore: row.supplier_ai_score ?? undefined,
@@ -131,25 +136,27 @@ export class SuppliersService {
         affectedProducts: [],
       };
 
-      watch.totalTrackedProducts += 1;
-      if (status === 'low') watch.lowStockCount += 1;
-      if (status === 'critical') watch.criticalStockCount += 1;
-      if (status === 'out') watch.outOfStockCount += 1;
+      if (row.product_id) {
+        watch.totalTrackedProducts += 1;
+        if (status === 'low') watch.lowStockCount += 1;
+        if (status === 'critical') watch.criticalStockCount += 1;
+        if (status === 'out') watch.outOfStockCount += 1;
 
-      const suggestedReorderQuantity = status !== 'ok'
-        ? this.suggestReorderQuantity(row.quantity_on_hand, row.reorder_level, row.sold_7d, status)
-        : 0;
+        const suggestedReorderQuantity = status !== 'ok'
+          ? this.suggestReorderQuantity(row.quantity_on_hand, row.reorder_level, row.sold_7d, status)
+          : 0;
 
-      // Include ALL products so the expanded view shows the full catalog
-      watch.affectedProducts.push({
-        productId: row.product_id,
-        productName: row.product_name,
-        quantityOnHand: row.quantity_on_hand,
-        reorderLevel: row.reorder_level,
-        stockStatus: status,
-        recentSoldQuantity7d: row.sold_7d,
-        suggestedReorderQuantity,
-      });
+        // Include ALL products so the expanded view shows the full catalog
+        watch.affectedProducts.push({
+          productId: row.product_id,
+          productName: row.product_name!,
+          quantityOnHand: row.quantity_on_hand,
+          reorderLevel: row.reorder_level,
+          stockStatus: status,
+          recentSoldQuantity7d: row.sold_7d,
+          suggestedReorderQuantity,
+        });
+      }
 
       map.set(row.supplier_id, watch);
     }

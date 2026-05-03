@@ -1,5 +1,5 @@
 import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+import { UseGuards, ValidationPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -51,7 +51,10 @@ export class SuppliersResolver {
   @Mutation(() => Supplier)
   @Roles('owner', 'se_admin', 'manager', 'head_pharmacist')
   @ApiOperation({ summary: 'Create new supplier (owner/se_admin/manager/head pharmacist)' })
-  async createSupplier(@Args('input') input: CreateSupplierInput): Promise<Supplier> {
+  async createSupplier(
+    @Args('input', { nullable: false }, new ValidationPipe({ transform: true, whitelist: true }))
+    input: CreateSupplierInput,
+  ): Promise<Supplier> {
     return this.suppliersService.createSupplier(input);
   }
 
