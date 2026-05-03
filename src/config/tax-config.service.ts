@@ -47,10 +47,10 @@ export class TaxConfigService {
     );
 
     if (!row) {
-      // Auto-create with Ghana GRA defaults
+      // Auto-create with zero tax defaults
       await this.dataSource.query(
         `INSERT INTO tax_config (branch_id, vat_rate, nhil_rate, getfund_rate, covid_levy_rate)
-         VALUES ($1, 0.1250, 0.0250, 0.0000, 0.0000) ON CONFLICT (branch_id) DO NOTHING`,
+         VALUES ($1, 0.0000, 0.0000, 0.0000, 0.0000) ON CONFLICT (branch_id) DO NOTHING`,
         [branchId],
       );
       return this.getDefaultConfig(branchId);
@@ -126,11 +126,11 @@ export class TaxConfigService {
   private getDefaultConfig(branchId: string): TaxConfig {
     return {
       branchId,
-      vatRate: 0.125,
-      nhilRate: 0.025,
+      vatRate: 0,
+      nhilRate: 0,
       getfundRate: 0,
       covidLevyRate: 0,
-      totalRate: 0.15,
+      totalRate: 0,
       applyVatOnOtc: true,
       applyVatOnPom: false,
       applyVatOnControlled: false,

@@ -8,6 +8,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import { InvoiceOcrService } from './invoice-ocr.service';
 import { S3UploadService } from '../products/s3-upload.service';
+import { GLPostingService } from '../accounting/gl-posting.service';
 import { DataSource } from 'typeorm';
 import {
   UploadSupplierInvoiceInput,
@@ -17,6 +18,7 @@ import {
   InvoiceOcrJob,
   ConfirmInvoiceResponse,
   EnhancedSupplierInvoice,
+  InvoiceLineItem,
   OcrStatus,
   PaymentTerms,
   PaymentStatus,
@@ -68,6 +70,7 @@ export class InvoiceOcrResolver {
   constructor(
     private readonly ocrService: InvoiceOcrService,
     private readonly s3Upload: S3UploadService,
+    private readonly glPosting: GLPostingService,
     private readonly dataSource: DataSource,
     @Optional() @InjectQueue('invoice-ocr') private readonly ocrQueue?: Queue,
   ) {}
@@ -397,6 +400,112 @@ export class InvoiceOcrResolver {
     };
   }
 
+  // ── Get Invoice Line Items (from GRN stock movements) ────────────────
+
+  @Query(() => [InvoiceLineItem], { name: 'invoiceLineItems' })
+  @Roles('owner', 'se_admin', 'manager', 'head_pharmacist', 'technician')
+  async getInvoiceLineItems(
+    @Args('invoiceId', { type: () => ID }) invoiceId: string,
+    @CurrentUser() _actor: JwtUser,
+  ): Promise<InvoiceLineItem[]> {
+    // Get the GRN linked to this invoice
+    const [inv] = await this.dataSource.query(
+      `SELECT grn_id, ocr_job_id FROM supplier_invoices WHERE id = $1`,
+      [invoiceId],
+    ) as Array<{ grn_id: string | null; ocr_job_id: string | null }>;
+
+    if (!inv) throw new Error(`Invoice ${invoiceId} not found`);
+
+    // Strategy 1: GRN exists — pull from stock_movements + product_cost_history
+    if (inv.grn_id) {
+      const rows = await this.dataSource.query(
+        `
+        SELECT
+          sm.id,
+          sm.product_id,
+          p.name AS product_name,
+          p.generic_name,
+          sm.quantity,
+          COALESCE(pch.unit_cost_pesewas, 0) AS unit_cost_pesewas,
+          sm.batch_number,
+          sm.expiry_date,
+          pi.cdn_url AS image_url
+        FROM stock_movements sm
+        JOIN products p ON p.id = sm.product_id
+        LEFT JOIN product_cost_history pch
+          ON pch.product_id = sm.product_id
+          AND pch.source_reference_id = sm.reference_id
+          AND pch.source_type = 'GRN'
+        LEFT JOIN product_images pi ON pi.id = p.image_id AND pi.is_approved = true
+        WHERE sm.reference_id = $1
+          AND sm.movement_type = 'PURCHASE'
+        ORDER BY p.name ASC
+        `,
+        [inv.grn_id],
+      ) as Array<{
+        id: string; product_id: string; product_name: string; generic_name: string | null;
+        quantity: number; unit_cost_pesewas: number; batch_number: string | null;
+        expiry_date: Date | null; image_url: string | null;
+      }>;
+
+      return rows.map((r) => {
+        const qty = Number(r.quantity);
+        const cost = Number(r.unit_cost_pesewas);
+        const lineTotal = qty * cost;
+        return {
+          id: r.id,
+          productId: r.product_id,
+          productName: r.product_name,
+          genericName: r.generic_name ?? undefined,
+          quantity: qty,
+          unitCostPesewas: cost,
+          unitCostFormatted: `GH₵${(cost / 100).toFixed(2)}`,
+          lineTotalPesewas: lineTotal,
+          lineTotalFormatted: `GH₵${(lineTotal / 100).toFixed(2)}`,
+          batchNumber: r.batch_number ?? undefined,
+          expiryDate: r.expiry_date ? new Date(r.expiry_date).toISOString().split('T')[0] : undefined,
+          imageUrl: r.image_url ?? undefined,
+        };
+      });
+    }
+
+    // Strategy 2: No GRN — parse from OCR extracted_data JSON
+    if (inv.ocr_job_id) {
+      const [job] = await this.dataSource.query(
+        `SELECT extracted_data FROM invoice_ocr_jobs WHERE id = $1`,
+        [inv.ocr_job_id],
+      ) as Array<{ extracted_data: any }>;
+
+      if (job?.extracted_data) {
+        const ed = typeof job.extracted_data === 'string'
+          ? JSON.parse(job.extracted_data)
+          : job.extracted_data;
+        const items: any[] = ed?.items ?? [];
+        return items.map((item: any, idx: number) => {
+          const qty = Number(item.quantity) || 0;
+          const cost = Number(item.unitPrice) || 0;
+          const lineTotal = qty * cost;
+          return {
+            id: `ocr-${idx}`,
+            productId: item.selectedProductId || '',
+            productName: item.selectedProductName || item.description || `Item ${idx + 1}`,
+            genericName: undefined,
+            quantity: qty,
+            unitCostPesewas: cost,
+            unitCostFormatted: `GH₵${(cost / 100).toFixed(2)}`,
+            lineTotalPesewas: lineTotal,
+            lineTotalFormatted: `GH₵${(lineTotal / 100).toFixed(2)}`,
+            batchNumber: item.batchNumber ?? undefined,
+            expiryDate: item.expiryDate ?? undefined,
+            imageUrl: undefined,
+          };
+        });
+      }
+    }
+
+    return [];
+  }
+
   // ── Record Supplier Payment ───────────────────────────────────────────
 
   @Mutation(() => EnhancedSupplierInvoice, { name: 'recordSupplierPayment' })
@@ -407,7 +516,7 @@ export class InvoiceOcrResolver {
   ): Promise<EnhancedSupplierInvoice> {
     // Validate invoice exists
     const [invoice] = await this.dataSource.query(
-      `SELECT id, total_amount, paid_amount FROM supplier_invoices WHERE id = $1`,
+      `SELECT id, total_amount, paid_amount, invoice_number FROM supplier_invoices WHERE id = $1`,
       [input.invoiceId],
     );
 
@@ -443,6 +552,38 @@ export class InvoiceOcrResolver {
     );
 
     // Trigger will automatically update invoice payment_status
+
+    // Post double-entry GL: Debit Accounts Payable, Credit Cash
+    setImmediate(async () => {
+      try {
+        const desc = `Supplier payment — Invoice ${invoice.invoice_number ?? input.invoiceId.slice(0, 8)}`;
+        await this.glPosting.postDoubleEntry([
+          {
+            branchId: actor.branchId,
+            accountCode: '2100',
+            accountName: 'Accounts Payable',
+            debit: input.amountPesewas,
+            credit: 0,
+            description: desc,
+            referenceType: 'SUPPLIER_PAYMENT',
+            referenceId: input.invoiceId,
+          },
+          {
+            branchId: actor.branchId,
+            accountCode: '1000',
+            accountName: 'Cash & Bank',
+            debit: 0,
+            credit: input.amountPesewas,
+            description: desc,
+            referenceType: 'SUPPLIER_PAYMENT',
+            referenceId: input.invoiceId,
+          },
+        ]);
+        this.logger.log(`GL posted: SUPPLIER_PAYMENT invoice=${input.invoiceId} amount=${input.amountPesewas}`);
+      } catch (err) {
+        this.logger.warn(`GL posting failed for supplier payment: ${err}`);
+      }
+    });
 
     // Return updated invoice
     return this.getEnhancedInvoice(input.invoiceId);

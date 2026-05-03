@@ -309,6 +309,22 @@ export class UploadInvoiceResponse {
   message!: string;
 }
 
+@ObjectType({ description: 'A single line item on a supplier invoice (from GRN stock movements)' })
+export class InvoiceLineItem {
+  @Field(() => ID) id!: string;
+  @Field() productId!: string;
+  @Field() productName!: string;
+  @Field({ nullable: true }) genericName?: string;
+  @Field(() => Int) quantity!: number;
+  @Field(() => Int) unitCostPesewas!: number;
+  @Field() unitCostFormatted!: string;
+  @Field(() => Int) lineTotalPesewas!: number;
+  @Field() lineTotalFormatted!: string;
+  @Field({ nullable: true }) batchNumber?: string;
+  @Field({ nullable: true }) expiryDate?: string;
+  @Field({ nullable: true }) imageUrl?: string;
+}
+
 @ObjectType({ description: 'Confirmed invoice response' })
 export class ConfirmInvoiceResponse {
   @Field(() => ID, { description: 'Created GRN ID' })

@@ -1536,6 +1536,22 @@ type InviteStaffResult {
   userId: ID!
 }
 
+"""A single line item on a supplier invoice (from GRN stock movements)"""
+type InvoiceLineItem {
+  batchNumber: String
+  expiryDate: String
+  genericName: String
+  id: ID!
+  imageUrl: String
+  lineTotalFormatted: String!
+  lineTotalPesewas: Int!
+  productId: String!
+  productName: String!
+  quantity: Int!
+  unitCostFormatted: String!
+  unitCostPesewas: Int!
+}
+
 """Summary after ingesting OCR supplier invoice lines."""
 type InvoiceOcrIngestionResult {
   """Number of product_cost_history rows created from OCR invoice lines."""
@@ -2400,6 +2416,7 @@ type Query {
   """
   inventoryIntegrityAudit(input: AuditPeriodInput!): InventoryIntegrityAudit!
   investmentIntelligence: InvestmentIntelligenceReport!
+  invoiceLineItems(invoiceId: ID!): [InvoiceLineItem!]!
   invoiceOcrJob(id: ID!): InvoiceOcrJob!
 
   """

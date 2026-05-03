@@ -11,6 +11,7 @@ import { InvoiceUploadController } from './invoice-upload.controller';
 import { Supplier } from './entities/supplier.entity';
 import { ProductsModule } from '../products/products.module';
 import { AiModule } from '../ai/ai.module';
+import { GLPostingService } from '../accounting/gl-posting.service';
 
 const REDIS_ENABLED = process.env['REDIS_ENABLED'] !== 'false';
 
@@ -28,6 +29,7 @@ const REDIS_ENABLED = process.env['REDIS_ENABLED'] !== 'false';
     SuppliersResolver,
     InvoiceOcrService,
     InvoiceOcrResolver,
+    GLPostingService,
     ...(REDIS_ENABLED ? [InvoiceOcrProcessor] : []),
   ],
   exports: [SuppliersService, InvoiceOcrService],
